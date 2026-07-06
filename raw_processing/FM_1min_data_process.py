@@ -125,7 +125,6 @@ for fi in range(filelength - 1):
     df["Rn_51.5"]     = licor_df["RN_1_1_1"].values
     df["ALBEDO_51.5"] = licor_df["ALB_1_1_1"].values
 
-    df.apply(pd.to_numeric)
     datestr  = cr1000x_df.index[0].strftime("%Y%m%d")
     out_path = os.path.join(FM_processed_dir, f"FM_DOL_1min_{datestr}000000.txt")
     df.to_csv(out_path, header=True, index=False, sep=",")

@@ -53,7 +53,6 @@ def find_instruments(
 
                 # Attach bearing and manufacturer code for sonic u-component
                 if field == "u":
-                    sonic_idx = len(sensor_info.get("u", np.empty((0, 5))))
                     bearing_arr = info.get("sonicOrientation", [0])
                     manufact_arr = info.get("sonicManufact", [1])
                     sonic_count = len(sensor_info.get("u", np.empty((0, 5))))

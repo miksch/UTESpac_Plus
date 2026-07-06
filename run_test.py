@@ -11,7 +11,7 @@ import os, sys, copy, pickle, warnings
 import numpy as np
 import scipy.io as sio
 
-ROOT_PY    = "/Users/diane_wt/Library/CloudStorage/Box-Box/Diane/code/UTESpac_Python"
+ROOT_PY    = os.environ.get("UTESPAC_ROOT", os.path.dirname(os.path.abspath(__file__)))
 MATLAB_DIR = os.path.join(ROOT_PY, "UTESpac_MATLAB")
 
 # ── siteFire1 paths ──────────────────────────────────────────────────────────

@@ -459,9 +459,9 @@ def find_global_pf(info: Dict, template: Dict, sensor_info: Dict) -> Dict:
                                     roll_cum[m].append(r_c)
                                     xs = list(range(1, len(pitch_cum[m]) + 1))
                                     # re-draw cumulative lines from scratch each update
-                                    ax.get_lines()  # just reference; re-plot below
-                                    [ln.remove() for ln in ax.lines
-                                     if getattr(ln, "_cum_line", False)]
+                                    for ln in [l for l in ax.lines
+                                               if getattr(l, "_cum_line", False)]:
+                                        ln.remove()
                                     lp, = ax.plot(xs, pitch_cum[m], "b.-",
                                                   label="Pitch" if len(pitch_cum[m]) == 1 else "")
                                     lr, = ax.plot(xs, roll_cum[m],  "g.-",

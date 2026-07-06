@@ -19,7 +19,6 @@ def stp_dn(data: np.ndarray, rows: int) -> np.ndarray:
     data = np.asarray(data, dtype=float)
     n = data.shape[0]
     n_out = n // rows
-    out = np.full((n_out, data.shape[1] if data.ndim > 1 else 1), np.nan)
     data2d = data.reshape(n, -1) if data.ndim == 1 else data
     out = np.full((n_out, data2d.shape[1]), np.nan)
     for i in range(n_out):

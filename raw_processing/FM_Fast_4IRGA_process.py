@@ -180,7 +180,6 @@ for fi in range(startid, endid, 2):
     df["CO2sig_4.42"]      = cr1000x_df_full["CO2_sig_strgth_4"].values
     df["gas_diag_4.42"]    = cr1000x_df_full["diag_irga_4"].values
 
-    df.apply(pd.to_numeric)
     datestr1 = f"{ts[0].year}{ts[0].month:02d}{ts[0].day:02d}"
     endtime  = ts[0] + pd.Timedelta(hours=48)
     datestr2 = f"{endtime.year}{endtime.month:02d}{endtime.day:02d}"

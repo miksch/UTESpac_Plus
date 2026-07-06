@@ -157,7 +157,6 @@ for fi in range(startid, endid, 48):
     df["T_Sonic_4.13"]    = cr3000_df_full["Ts_1_0"].values
     df["diagnostic_4.13"] = cr3000_df_full["diag_sonic_1_0"].values
 
-    df.apply(pd.to_numeric)
     datestr1 = f"{ts[0].year}{ts[0].month:02d}{ts[0].day:02d}"
     endtime  = ts[0] + pd.Timedelta(hours=48)
     datestr2 = f"{endtime.year}{endtime.month:02d}{endtime.day:02d}"
