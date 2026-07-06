@@ -14,6 +14,7 @@ from .find_delta_flux import find_delta_flux
 from .find_delta_time import find_delta_time
 from .find_eta import find_eta
 from .calc_ssitc_flags import calc_ssitc_flags
+from .site_config import sonic_for
 
 Rd = 287.058   # J/(kg·K)
 Rv = 461.495   # J/(kg·K)
@@ -391,14 +392,20 @@ def fluxes(
                     P_slow = np.interp(ts1,
                                        np.linspace(t.min(), t.max(), len(P_kPa_avg_lev)),
                                        P_kPa_avg_lev)
-                    # If shiftsSonHeight is set, use the paired physical HMP height
-                    # for the altitude correction instead of the sonic height.
+                    # If a paired physical HMP height is configured, use it for
+                    # the altitude correction instead of the sonic height.
                     level_height = height
-                    for _sh, _hh in zip(info.get("shiftsSonHeight", []),
-                                        info.get("shiftsHMPHeight", [])):
-                        if abs(height - _sh) < 0.01:
-                            level_height = _hh
-                            break
+                    _level = sonic_for(info.get("sonics"), height)
+                    if _level is not None:
+                        if _level.hmp_height is not None:
+                            level_height = _level.hmp_height
+                    else:
+                        # legacy parallel shiftsSonHeight/shiftsHMPHeight lists
+                        for _sh, _hh in zip(info.get("shiftsSonHeight", []),
+                                            info.get("shiftsHMPHeight", [])):
+                            if abs(height - _sh) < 0.01:
+                                level_height = _hh
+                                break
 
                     vt_slow, r_slow, rho_moist_slow, rho_dry_slow, rho_H2O_slow = \
                         get_virtual_pot_temp(altitude, level_height - z_ref,

@@ -3,6 +3,7 @@
 from typing import Dict, List
 import numpy as np
 from .strfndw import strfndw
+from .site_config import sonic_for
 
 
 def find_instruments(
@@ -53,11 +54,17 @@ def find_instruments(
 
                 # Attach bearing and manufacturer code for sonic u-component
                 if field == "u":
-                    bearing_arr = info.get("sonicOrientation", [0])
-                    manufact_arr = info.get("sonicManufact", [1])
-                    sonic_count = len(sensor_info.get("u", np.empty((0, 5))))
-                    bearing = bearing_arr[sonic_count] if sonic_count < len(bearing_arr) else 0
-                    manufact = manufact_arr[sonic_count] if sonic_count < len(manufact_arr) else 1
+                    level = sonic_for(info.get("sonics"), height)
+                    if level is not None:
+                        # tower profile: look up by height (order-independent)
+                        bearing, manufact = level.orientation, level.manufacturer
+                    else:
+                        # legacy parallel lists: indexed by discovery order
+                        bearing_arr = info.get("sonicOrientation", [0])
+                        manufact_arr = info.get("sonicManufact", [1])
+                        sonic_count = len(sensor_info.get("u", np.empty((0, 5))))
+                        bearing = bearing_arr[sonic_count] if sonic_count < len(bearing_arr) else 0
+                        manufact = manufact_arr[sonic_count] if sonic_count < len(manufact_arr) else 1
                     row = [tbl_idx, col_idx, height, float(bearing), float(manufact)]
 
                 row_arr = np.array(row, dtype=float)

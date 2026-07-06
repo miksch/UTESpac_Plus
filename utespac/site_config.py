@@ -4,10 +4,12 @@ Replaces the exec()-based loading of per-site ``siteInfo.py`` files. The
 dataclass fields define the full set of recognized site keys; unrecognized
 names in a site file raise a warning so typos are not silently dropped.
 
-TODO: simplify these inputs by modeling the site as a tower profile —
-per-level instrument entries (height, orientation, manufacturer, paired
-HMP height) instead of the parallel lists sonicOrientation /
-sonicManufact / shiftsSonHeight / shiftsHMPHeight.
+Sonic instruments may be given either as a tower profile (``sonics`` — a
+list of per-level entries with height, orientation, manufacturer, and an
+optional paired HMP height) or, for backward compatibility, as the parallel
+lists sonicOrientation / sonicManufact / shiftsSonHeight / shiftsHMPHeight.
+The profile is preferred; consumers look sonics up by height rather than by
+discovery order.
 """
 
 import runpy
@@ -20,12 +22,31 @@ _UNSET = None
 
 
 @dataclass
+class SonicLevel:
+    """One sonic anemometer on the tower profile."""
+
+    height: float                          # sonic height [m], matches header height
+    orientation: float                     # boom azimuth [deg]
+    manufacturer: int                      # 0 RMYoung, 1 CSAT/IRGASON, 2 Gill
+    hmp_height: Optional[float] = None      # paired physical HMP height [m], if any
+
+
+def sonic_for(sonics, height, tol=0.01):
+    """Return the SonicLevel whose height matches *height*, or None."""
+    for s in sonics or []:
+        if abs(float(s.height) - float(height)) < tol:
+            return s
+    return None
+
+
+@dataclass
 class SiteInfo:
     """Per-site configuration. Fields left as None fall back to the
     pipeline defaults already present in the info dict."""
 
-    sonicOrientation: Optional[list] = _UNSET     # sonic azimuths [deg]
-    sonicManufact: Optional[list] = _UNSET        # 0 RMYoung, 1 CSAT/IRGASON, 2 Gill
+    sonics: Optional[list] = _UNSET               # tower profile: list of SonicLevel
+    sonicOrientation: Optional[list] = _UNSET     # legacy: sonic azimuths [deg]
+    sonicManufact: Optional[list] = _UNSET        # legacy: 0 RMYoung, 1 CSAT/IRGASON, 2 Gill
     tower: Union[float, str, None] = _UNSET       # tower bearing [deg]
     siteElevation: Optional[float] = _UNSET       # [m]
     angle: Optional[float] = _UNSET               # slope angle [deg]
@@ -61,6 +82,9 @@ class SiteInfo:
             warnings.warn(
                 f"{source}: unrecognized key(s) ignored: {', '.join(sorted(unknown))}"
             )
+        if isinstance(values.get("sonics"), list):
+            values["sonics"] = [s if isinstance(s, SonicLevel) else SonicLevel(**s)
+                                 for s in values["sonics"]]
         return cls(**values)
 
     def apply_to(self, info):
