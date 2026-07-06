@@ -2,10 +2,12 @@
 
 import os
 import glob
+import warnings
 from typing import Dict, List, Optional, Tuple
 import numpy as np
 from .import_header import import_header
 from .campbell_date import datetime_to_matlab_datenum
+from .site_config import load_site_info
 from datetime import datetime
 
 
@@ -56,22 +58,12 @@ def find_files(
     info["siteFolder"] = site_dir
     site_path = os.path.join(root, site_dir)
 
-    # ── load siteInfo.py ────────────────────────────────────────────────────
-    site_info_file = os.path.join(site_path, "siteInfo.py")
-    if os.path.isfile(site_info_file):
-        _ns: Dict = {}
-        with open(site_info_file) as fh:
-            exec(fh.read(), _ns)
-        for key in ["sonicOrientation", "sonicManufact", "tower", "siteElevation",
-                    "tableNames", "tableScanFrequency", "tableNumberOfColumns", "angle",
-                    "useTrefHMP", "avgSlowFreq", "shiftzRef", "zRefLowestSon", "ascending",
-                    "shiftsSonHeight", "shiftsHMPHeight",
-                    "SSITC_subAvgMin", "displacementHeight", "canopyHeight", "useCanopyITC"]:
-            if key in _ns:
-                info[key] = _ns[key]
-    else:
-        import warnings
-        warnings.warn(f"siteInfo.py not found in {site_path}; using defaults from info dict.")
+    # ── load site configuration ─────────────────────────────────────────────
+    try:
+        load_site_info(site_path).apply_to(info)
+    except FileNotFoundError:
+        warnings.warn(f"No siteInfo.toml or siteInfo.py in {site_path}; "
+                      "using defaults from info dict.")
 
     # ── find header files ───────────────────────────────────────────────────
     header_files = sorted(glob.glob(os.path.join(site_path, "*header*")))
