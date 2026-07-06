@@ -16,20 +16,23 @@ IMPORTANT: Lab Library paths are READ-ONLY. Output is written to
 
 import os
 import glob
-import platform
-import numpy as np
 import pandas as pd
-from zipfile import ZipFile
 from datetime import datetime, timedelta
+
+try:
+    from common import (get_box_path, validate_fast, build_48h_index,
+                        timestamp_columns, load_daqm_files)
+except ImportError:  # allow running from repo root or elsewhere
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from common import (get_box_path, validate_fast, build_48h_index,
+                        timestamp_columns, load_daqm_files)
 
 # ── paths ─────────────────────────────────────────────────────────────────────
 
 ROOT_PY = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # UTESpac_Python/
 
-if platform.system() == "Darwin":
-    box_path = os.path.expanduser("~/Library/CloudStorage/Box-Box")
-else:  # Windows
-    box_path = os.path.expanduser("~/Box")
+box_path = get_box_path()
 
 # READ-ONLY: smart3-00536 GHG archives (.ghg = ZIP format, half-hourly raw 10-Hz data)
 # Oct-Nov 2025 archives are in Lab Library under the 20250828_DOL50m_Data download folder.
@@ -62,6 +65,7 @@ print(f"Output → {FM_processed_dir}")
 # ── unzip smart3-00536 GHG archives (10-Hz raw data) ─────────────────────────
 # Required for Oct-Nov: each half-hour is stored as a .ghg file (ZIP format).
 # Extracts to unzipfile_dir as YYYY-MM-DDTHHMMSS_smart3-00536.data files.
+# from zipfile import ZipFile
 # moni       = [10, 11]      # October, November
 # start_days = [7,   1]      # Oct data starts 7th; Nov from 1st
 # end_days   = [31,  10]      # through Oct 31 and Nov 5 (data ends ~Nov 5 14:00)
@@ -80,61 +84,7 @@ print(f"Output → {FM_processed_dir}")
 #                 else:
 #                     print(f"Missing: {os.path.basename(ghg_file)}")
 
-# ── timestamp validator ───────────────────────────────────────────────────────
-
-def _validate_fast(df, expected_date, expected_hz, label):
-    """Check date alignment, sampling frequency, and coverage of fast data.
-
-    Returns True if all checks pass; prints a SKIP message and returns False
-    if any check fails so the caller can skip the period.
-    """
-    if df is None or len(df) < 2:
-        print(f"  SKIP {label}: fast data is empty.")
-        return False
-
-    first_date = df.index[0].date()
-    if first_date != expected_date.date():
-        print(f"  SKIP {label}: first timestamp {first_date} ≠ expected {expected_date.date()}. "
-              f"Check file selection / unzip folder.")
-        return False
-
-    # Cast to ns before asi8 — pandas 3.x stores ms-resolution index as µs in asi8
-    idx_ns      = df.index[:min(200, len(df))].astype('datetime64[ns]')
-    intervals_s = np.diff(idx_ns.view('int64')) / 1e9
-    dt_s        = float(np.median(intervals_s))
-    if dt_s <= 0:
-        print(f"  SKIP {label}: cannot determine sampling frequency (dt={dt_s:.4f} s).")
-        return False
-    hz_actual = round(1.0 / dt_s)
-    if hz_actual != expected_hz:
-        print(f"  SKIP {label}: measured {hz_actual} Hz ≠ expected {expected_hz} Hz "
-              f"(median dt = {dt_s:.4f} s).")
-        return False
-
-    expected_rows = expected_hz * 48 * 3600
-    coverage      = len(df) / expected_rows
-    if coverage < 0.10:
-        print(f"  SKIP {label}: only {coverage:.0%} coverage "
-              f"({len(df):,} / {expected_rows:,} expected rows).")
-        return False
-
-    print(f"  Timestamps OK: starts {df.index[0]}, {hz_actual} Hz, "
-          f"{len(df):,} rows ({coverage:.0%} of 48 h)")
-    return True
-
-
 # ── data loaders ──────────────────────────────────────────────────────────────
-
-def load_1min_daqm(day_files):
-    """Load LICOR daqm 1-min statistics files (T/RH at 15/30/51.5 m)."""
-    dfs = []
-    for f in day_files:
-        df = pd.read_csv(f, sep=r"\s+", engine="python", header=0, skiprows=[1])
-        df["TIMESTAMP"] = pd.to_datetime(df["DATE"] + " " + df["TIME"])
-        df.set_index("TIMESTAMP", inplace=True)
-        dfs.append(df)
-    return pd.concat(dfs, axis=0)
-
 
 def load_10hz(hour_files):
     """Load 10-Hz raw Gill/LI-7500 .data files."""
@@ -212,14 +162,6 @@ def load_fm1min_range(fm1min_dir, start_dt, end_dt):
     return combined[~combined.index.duplicated(keep="first")]
 
 
-def build_48h_index(start_time, hz=10):
-    start_time = start_time + pd.Timedelta(seconds=1 / hz)
-    freq = f"{1000 / hz:.0f}ms"
-    return pd.date_range(start=start_time,
-                         end=start_time + pd.Timedelta(hours=48),
-                         freq=freq, inclusive="left")
-
-
 def load_and_align(day_files, hour_files, fm1min_dir, expected_date, hz=10):
     """Load all sources and return grids for fast and slow output files.
 
@@ -234,7 +176,7 @@ def load_and_align(day_files, hour_files, fm1min_dir, expected_date, hz=10):
     df_10hz = load_10hz(hour_files)
     df_10hz = df_10hz[~df_10hz.index.duplicated(keep="first")]
 
-    if not _validate_fast(df_10hz, expected_date, hz, expected_date.date()):
+    if not validate_fast(df_10hz, expected_date, hz, expected_date.date()):
         return None, None, None
 
     day_start = df_10hz.index[0].floor("D")
@@ -248,7 +190,7 @@ def load_and_align(day_files, hour_files, fm1min_dir, expected_date, hz=10):
 
     # LICOR daqm T/RH at 15/30/51.5 m — optional
     if day_files:
-        df_1min = load_1min_daqm(day_files)
+        df_1min = load_daqm_files(day_files)
         df_1min = df_1min[~df_1min.index.duplicated(keep="first")]
         df_1min_native = (df_1min.reindex(full_index_1min)
                           .apply(pd.to_numeric, errors="coerce")
@@ -316,18 +258,12 @@ while curr_date <= end_date - timedelta(days=2):
 
     # shared date strings
     ts0      = df_10hz_full.index[0]
+    ts_end   = ts0 + pd.Timedelta(hours=48)
     datestr1 = f"{ts0.year}{ts0.month:02d}{ts0.day:02d}"
-    datestr2 = f"{(ts0 + pd.Timedelta(hours=48)).year}" \
-               f"{(ts0 + pd.Timedelta(hours=48)).month:02d}" \
-               f"{(ts0 + pd.Timedelta(hours=48)).day:02d}"
+    datestr2 = f"{ts_end.year}{ts_end.month:02d}{ts_end.day:02d}"
 
     # ── assemble 10-Hz output (fast channels only) ────────────────────────────
-    ts = df_10hz_full.index
-    df = pd.DataFrame()
-    df["year"]   = [t.year        for t in ts]
-    df["day"]    = [t.day_of_year for t in ts]
-    df["HM"]     = [int(f"{t.hour:02d}{t.minute:02d}") for t in ts]
-    df["second"] = [f"{t.second + t.microsecond/1e6:.1f}" for t in ts]
+    df = timestamp_columns(df_10hz_full.index, decimals=1)
 
     df["Ux_50"]          = df_10hz_full["U (m/s)"].values
     df["Uy_50"]          = df_10hz_full["V (m/s)"].values
@@ -353,12 +289,7 @@ while curr_date <= end_date - timedelta(days=2):
     else:
         # Use whichever index is available for the time axis
         ref_index = df_1min_native.index if has_licor else df_6m_native.index
-        ts1 = ref_index
-        df1 = pd.DataFrame()
-        df1["year"]   = [t.year        for t in ts1]
-        df1["day"]    = [t.day_of_year for t in ts1]
-        df1["HM"]     = [int(f"{t.hour:02d}{t.minute:02d}") for t in ts1]
-        df1["second"] = [f"{t.second + t.microsecond/1e6:.0f}" for t in ts1]
+        df1 = timestamp_columns(ref_index, decimals=0)
 
         if has_licor:
             df1["Temp_51.5"] = df_1min_native["TA_1_3_1"].values

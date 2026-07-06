@@ -12,19 +12,23 @@ IMPORTANT: Lab Library paths are READ-ONLY. Output is written to
 """
 
 import os
-import platform
-import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
+
+try:
+    from common import (get_box_path, read_toa5, validate_fast,
+                        build_48h_index, timestamp_columns)
+except ImportError:  # allow running from repo root or elsewhere
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from common import (get_box_path, read_toa5, validate_fast,
+                        build_48h_index, timestamp_columns)
 
 # ── paths ─────────────────────────────────────────────────────────────────────
 
 ROOT_PY = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # UTESpac_Python/
 
-if platform.system() == "Darwin":
-    box_path = os.path.expanduser("~/Library/CloudStorage/Box-Box")
-else:  # Windows
-    box_path = os.path.expanduser("~/Box")
+box_path = get_box_path()
 
 # READ-ONLY: CR3000 ascii data
 FM_dir = os.path.join(
@@ -36,7 +40,7 @@ FM_dir = os.path.join(
 # file at startid (48 hourly files = 1 day, so step=48 per 48-h period).
 startid        = 1380  # CR3000 file index for start date
 endid          = 4787  # CR3000 file index for end date (exclusive)
-HZ             = [10]
+HZ             = 10
 decimal_places = 1     # 10 Hz → 0.1 s resolution
 
 start_date = datetime(2025, 1, 1)   # update to match the date of file at startid
@@ -47,43 +51,6 @@ site_folder_name = f"siteFMDS{start_date.strftime('%Y%m%d')}_{end_date.strftime(
 FM_processed_dir = os.path.join(ROOT_PY, site_folder_name)
 os.makedirs(FM_processed_dir, exist_ok=True)
 print(f"Output → {FM_processed_dir}")
-
-# ── timestamp validator ───────────────────────────────────────────────────────
-
-def _validate_fast(df, expected_date, expected_hz, label):
-    """Check date alignment, sampling frequency, and coverage of fast data."""
-    if df is None or len(df) < 2:
-        print(f"  SKIP {label}: fast data is empty.")
-        return False
-
-    first_date = df.index[0].date()
-    if first_date != expected_date.date():
-        print(f"  SKIP {label}: first timestamp {first_date} ≠ expected {expected_date.date()}.")
-        return False
-
-    # Cast to ns before asi8 — pandas 3.x stores ms-resolution index as µs in asi8
-    idx_ns      = df.index[:min(200, len(df))].astype('datetime64[ns]')
-    intervals_s = np.diff(idx_ns.view('int64')) / 1e9
-    dt_s        = float(np.median(intervals_s))
-    if dt_s <= 0:
-        print(f"  SKIP {label}: cannot determine sampling frequency (dt={dt_s:.4f} s).")
-        return False
-    hz_actual = round(1.0 / dt_s)
-    if hz_actual != expected_hz:
-        print(f"  SKIP {label}: measured {hz_actual} Hz ≠ expected {expected_hz} Hz.")
-        return False
-
-    expected_rows = expected_hz * 48 * 3600
-    coverage      = len(df) / expected_rows
-    if coverage < 0.10:
-        print(f"  SKIP {label}: only {coverage:.0%} coverage "
-              f"({len(df):,} / {expected_rows:,} expected rows).")
-        return False
-
-    print(f"  Timestamps OK: starts {df.index[0]}, {hz_actual} Hz, "
-          f"{len(df):,} rows ({coverage:.0%} of 48 h)")
-    return True
-
 
 # ── main processing loop ──────────────────────────────────────────────────────
 
@@ -102,9 +69,7 @@ for fi in range(startid, endid, 48):
 
     try:
         cr3000_df = pd.concat(
-            [pd.read_csv(f, skiprows=[0, 2, 3], index_col=[0],
-                         na_values=["NaN", "NAN"], parse_dates=True)
-             for f in existing_files],
+            [read_toa5(f) for f in existing_files],
             axis=0)
     except Exception as e:
         print(f"Failed to load fi={fi} ({curr_date.date()}): {e}")
@@ -114,17 +79,15 @@ for fi in range(startid, endid, 48):
     cr3000_df   = cr3000_df[~cr3000_df.index.duplicated(keep="first")]
     timestrings = pd.to_datetime(cr3000_df.index, format="mixed")
 
-    if not _validate_fast(cr3000_df, curr_date, HZ[0], f"fi={fi}"):
+    if not validate_fast(cr3000_df, curr_date, HZ, f"fi={fi}"):
         curr_date += timedelta(days=2)
         continue
 
     print(f"Processing fi={fi}  ({curr_date.date()}) …")
 
-    # Build 48-h uniform time index
-    start_time      = pd.to_datetime(timestrings[0].floor("D"))
-    full_time_index = pd.date_range(start=start_time,
-                                    end=start_time + pd.Timedelta(hours=48),
-                                    freq="100ms", inclusive="left")
+    # Build 48-h uniform time index (CR3000 stamps the first record at midnight)
+    day_start       = timestrings[0].floor("D")
+    full_time_index = build_48h_index(day_start, hz=HZ, offset=False)
     cr3000_df_full  = cr3000_df.reindex(full_time_index)
 
     # Fill first row from previous period if missing
@@ -137,11 +100,7 @@ for fi in range(startid, endid, 48):
 
     # Assemble output table
     ts = timestrings
-    df = pd.DataFrame()
-    df["year"]   = [int(t.year)        for t in ts]
-    df["day"]    = [int(t.day_of_year) for t in ts]
-    df["HM"]     = [int(f"{t.hour:02d}{t.minute:02d}") for t in ts]
-    df["second"] = [f"{t.second + t.microsecond / 1e6:.{decimal_places}f}" for t in ts]
+    df = timestamp_columns(ts, decimals=decimal_places)
 
     # CSAT3 at 6.83 m
     df["Ux_6.83"]         = cr3000_df_full["Ux_2_0"].values
@@ -161,7 +120,7 @@ for fi in range(startid, endid, 48):
     endtime  = ts[0] + pd.Timedelta(hours=48)
     datestr2 = f"{endtime.year}{endtime.month:02d}{endtime.day:02d}"
     out_path = os.path.join(FM_processed_dir,
-                            f"FMDS_{HZ[0]}Hz_{datestr1}000000_{datestr2}000000.txt")
+                            f"FMDS_{HZ}Hz_{datestr1}000000_{datestr2}000000.txt")
     df.to_csv(out_path, header=False, index=False, sep=",")
     print(f"  → {os.path.basename(out_path)}")
 

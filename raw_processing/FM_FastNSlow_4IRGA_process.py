@@ -20,19 +20,23 @@ CR1000X file-index reference:
 
 import os
 import glob
-import platform
-import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
+
+try:
+    from common import (get_box_path, read_toa5, validate_fast, build_48h_index,
+                        timestamp_columns, load_daqm_files, load_cr_files)
+except ImportError:  # allow running from repo root or elsewhere
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from common import (get_box_path, read_toa5, validate_fast, build_48h_index,
+                        timestamp_columns, load_daqm_files, load_cr_files)
 
 # ── paths ─────────────────────────────────────────────────────────────────────
 
 ROOT_PY = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # UTESpac_Python/
 
-if platform.system() == "Darwin":
-    box_path = os.path.expanduser("~/Library/CloudStorage/Box-Box")
-else:  # Windows
-    box_path = os.path.expanduser("~/Box")
+box_path = get_box_path()
 
 # READ-ONLY: CR1000X ascii data (converted from binary with PC400)
 cr1000xFM_dir = os.path.join(
@@ -48,7 +52,7 @@ unzipfile_dir = os.path.join(
 # Modify these for each processing run.
 startid        = 717   # CR1000X file index for start date (2025-10-07)
 endid          = 753   # CR1000X file index for end date   (2025-11-10, exclusive)
-HZ             = [20]
+HZ             = 20
 decimal_places = 2     # 20 Hz → 0.05 s resolution
 
 start_date = datetime(2025, 10, 7)
@@ -64,95 +68,13 @@ print(f"Output → {FM_processed_dir}")
 _start_file = os.path.join(cr1000xFM_dir, f"TOA5_6653slow_avg_data{startid}.dat")
 if not os.path.exists(_start_file):
     raise FileNotFoundError(f"Start slow file not found: {_start_file}")
-_df_check = pd.read_csv(_start_file, skiprows=[0, 2, 3], index_col=[0],
-                         na_values=["NaN", "NAN"], nrows=1)
+_df_check = read_toa5(_start_file, nrows=1, parse_dates=False)
 _first_ts = pd.to_datetime(_df_check.index[0], format="mixed").date()
 if _first_ts != start_date.date():
     raise ValueError(
         f"startid={startid} mismatch: slow file starts on {_first_ts}, "
         f"expected {start_date.date()}. Update startid.")
 print(f"startid={startid} validated: starts on {_first_ts}")
-
-# ── timestamp validator ───────────────────────────────────────────────────────
-
-def _validate_fast(df, expected_date, expected_hz, label):
-    """Check date alignment, sampling frequency, and coverage of fast data.
-
-    Returns True if all checks pass; prints a SKIP message and returns False
-    if any check fails so the caller can skip the period.
-    """
-    if df is None or len(df) < 2:
-        print(f"  SKIP {label}: fast data is empty.")
-        return False
-
-    # 1. Date alignment — first row must be on expected_date
-    first_date = df.index[0].date()
-    if first_date != expected_date.date():
-        print(f"  SKIP {label}: first timestamp {first_date} ≠ expected {expected_date.date()}. "
-              f"Check startid / file selection.")
-        return False
-
-    # 2. Sampling frequency — median interval of first 200 rows
-    # Cast to ns before asi8 — pandas 3.x stores ms-resolution index as µs in asi8
-    idx_ns      = df.index[:min(200, len(df))].astype('datetime64[ns]')
-    intervals_s = np.diff(idx_ns.view('int64')) / 1e9
-    dt_s        = float(np.median(intervals_s))
-    if dt_s <= 0:
-        print(f"  SKIP {label}: cannot determine sampling frequency (dt={dt_s:.4f} s).")
-        return False
-    hz_actual = round(1.0 / dt_s)
-    if hz_actual != expected_hz:
-        print(f"  SKIP {label}: measured {hz_actual} Hz ≠ expected {expected_hz} Hz "
-              f"(median dt = {dt_s:.4f} s).")
-        return False
-
-    # 3. Coverage — at least 10 % of a full 48-h file
-    expected_rows = expected_hz * 48 * 3600
-    coverage      = len(df) / expected_rows
-    if coverage < 0.10:
-        print(f"  SKIP {label}: only {coverage:.0%} coverage "
-              f"({len(df):,} / {expected_rows:,} expected rows).")
-        return False
-
-    print(f"  Timestamps OK: starts {df.index[0]}, {hz_actual} Hz, "
-          f"{len(df):,} rows ({coverage:.0%} of 48 h)")
-    return True
-
-
-# ── LICOR daqm loader ─────────────────────────────────────────────────────────
-
-def load_1min_files(day_files):
-    """Load LICOR daqm 1-min statistics files."""
-    dfs = []
-    for f in day_files:
-        df = pd.read_csv(f, sep=r"\s+", engine="python", header=0, skiprows=[1])
-        df["TIMESTAMP"] = pd.to_datetime(df["DATE"] + " " + df["TIME"])
-        df.set_index("TIMESTAMP", inplace=True)
-        dfs.append(df)
-    return pd.concat(dfs, axis=0)
-
-
-# ── CR1000X file loaders ──────────────────────────────────────────────────────
-
-def _load_cr_fast(paths):
-    dfs = [pd.read_csv(f, skiprows=[0, 2, 3], index_col=[0],
-                       na_values=["NaN", "NAN"], parse_dates=True)
-           for f in paths if os.path.exists(f)]
-    df = pd.concat(dfs, axis=0)
-    df = df[~df.index.duplicated(keep="first")]
-    df.index = pd.to_datetime(df.index, format="mixed")
-    return df
-
-
-def _load_cr_slow(paths):
-    dfs = [pd.read_csv(f, skiprows=[0, 2, 3], index_col=[0],
-                       na_values=["NaN", "NAN"], parse_dates=True)
-           for f in paths if os.path.exists(f)]
-    df = pd.concat(dfs, axis=0)
-    df = df[~df.index.duplicated(keep="first")]
-    df.index = pd.to_datetime(df.index, format="mixed")
-    return df
-
 
 # ── main processing loop ──────────────────────────────────────────────────────
 
@@ -176,13 +98,13 @@ while fi < endid:
     print(f"Processing fi={fi}  ({curr_date.date()}) …")
 
     # ── load CR1000X fast ────────────────────────────────────────────────────
-    cr1000x_df_fast = _load_cr_fast(fast_files)
+    cr1000x_df_fast = load_cr_files(fast_files)
 
     # ── PRIMARY split-day detection: fast coverage drives file extension ──────
     # Power outages can split a 48-h period across 3+ files.  Extend greedily
     # (up to 4 extra) until fast coverage ≥ 80 % or the next file is outside
     # the 48-h window.  Matching slow files are appended in parallel.
-    expected_fast_rows = HZ[0] * 48 * 3600
+    expected_fast_rows = HZ * 48 * 3600
     expected_slow_rows = 48 * 60        # 2 880 rows at 1/min
     day_start          = cr1000x_df_fast.index[0].floor("D")
     n_consumed         = 2
@@ -194,16 +116,14 @@ while fi < endid:
         if not os.path.exists(next_fast):
             break
         try:
-            peek    = pd.read_csv(next_fast, skiprows=[0, 2, 3], index_col=[0],
-                                  na_values=["NaN", "NAN"], nrows=1)
+            peek    = read_toa5(next_fast, nrows=1, parse_dates=False)
             next_ts = pd.to_datetime(peek.index[0], format="mixed")
             if (next_ts - day_start).total_seconds() > 48 * 3600:
                 break
         except Exception:
             break
         print(f"  Appending fast fi={next_k} (split-day recovery).")
-        extra = pd.read_csv(next_fast, skiprows=[0, 2, 3], index_col=[0],
-                            na_values=["NaN", "NAN"], parse_dates=True)
+        extra = read_toa5(next_fast)
         extra.index = pd.to_datetime(extra.index, format="mixed")
         cr1000x_df_fast = pd.concat([cr1000x_df_fast, extra])
         cr1000x_df_fast = cr1000x_df_fast[~cr1000x_df_fast.index.duplicated(keep="first")]
@@ -214,35 +134,20 @@ while fi < endid:
     # ── load CR1000X slow (list already extended by fast detection above) ────
     # Fast and slow files are created simultaneously by the same logger, so
     # slow_files already contains all needed files after the fast split-day loop.
-    cr1000x_df_slow = _load_cr_slow(slow_files)
+    cr1000x_df_slow = load_cr_files(slow_files)
 
     print(f"  Fast: {len(cr1000x_df_fast):,} rows ({len(cr1000x_df_fast)/expected_fast_rows:.0%})  "
           f"Slow: {len(cr1000x_df_slow):,} rows ({len(cr1000x_df_slow)/expected_slow_rows:.0%})")
 
-    if not _validate_fast(cr1000x_df_fast, curr_date, HZ[0], f"fi={fi}"):
+    if not validate_fast(cr1000x_df_fast, curr_date, HZ, f"fi={fi}"):
         fi += n_consumed
         curr_date += timedelta(days=2)
         continue
 
-    # ── build 48-h master index ───────────────────────────────────────────────
-    start_time      = day_start + pd.Timedelta(seconds=1 / HZ[0])
-    full_time_index = pd.date_range(
-        start=start_time,
-        end=start_time + pd.Timedelta(hours=48),
-        freq=f"{1000 / HZ[0]:.0f}ms",
-        inclusive="left")
-    full_time_index = pd.to_datetime(full_time_index, format="%Y-%m-%d %H:%M:%S.%f")
-
-    # ── reindex fast to 20-Hz grid ────────────────────────────────────────────
+    # ── build 48-h master index (20-Hz grid + native 1-min grid) ─────────────
+    full_time_index      = build_48h_index(day_start, hz=HZ)
     cr1000x_df_full_fast = cr1000x_df_fast.reindex(full_time_index)
-
-    # ── build 1-min (1/60 Hz) master index ───────────────────────────────────
-    start_time_1min      = day_start + pd.Timedelta(seconds=60)
-    full_time_index_1min = pd.date_range(
-        start=start_time_1min,
-        end=start_time_1min + pd.Timedelta(hours=48),
-        freq="60s",
-        inclusive="left")
+    full_time_index_1min = build_48h_index(day_start, hz=1 / 60)
 
     # ── LICOR daqm 1-min (T/RH at 15/30 m) ──────────────────────────────────
     # Load day 0 and day 1 daqm files to cover the full 48-h window (day 0 → day 2).

@@ -15,17 +15,20 @@ IMPORTANT: Lab Library paths are READ-ONLY (raw data).
 
 import os
 import glob
-import platform
 import pandas as pd
 from zipfile import ZipFile
 from datetime import datetime, timedelta
 
+try:
+    from common import get_box_path, read_toa5, timestamp_columns
+except ImportError:  # allow running from repo root or elsewhere
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from common import get_box_path, read_toa5, timestamp_columns
+
 # ── paths ─────────────────────────────────────────────────────────────────────
 
-if platform.system() == "Darwin":
-    box_path = os.path.expanduser("~/Library/CloudStorage/Box-Box")
-else:  # Windows
-    box_path = os.path.expanduser("~/Box")
+box_path = get_box_path()
 
 # READ-ONLY: CR1000X ascii data (converted from binary with PC400)
 cr1000xFM_dir = os.path.join(
@@ -91,18 +94,13 @@ for fi in range(filelength - 1):
     file_idx     = startid + fi
     actual_idx   = file_idx if file_idx <= 718 else file_idx + 1
     cr1000x_path = os.path.join(cr1000xFM_dir, f"TOA5_6653slow_avg_data{actual_idx}.dat")
-    cr1000x_df   = pd.read_csv(cr1000x_path, skiprows=[0, 2, 3], index_col=[0],
-                               na_values=["NaN", "NAN"], parse_dates=True)
+    cr1000x_df   = read_toa5(cr1000x_path)
     cr1000x_df   = cr1000x_df[~cr1000x_df.index.duplicated(keep="first")]
     cr1000x_df   = cr1000x_df.reindex(licor_df.index)
 
-    # Assemble output table
-    ts = licor_df.index
-    df = pd.DataFrame()
-    df["year"]      = [int(t.year)        for t in ts]
-    df["day"]       = [int(t.day_of_year) for t in ts]
-    df["HM"]        = [int(f"{t.hour:02d}{t.minute:02d}") for t in ts]
-    df["second"]    = 0
+    # Assemble output table (second is always 0 for these 1-min stats)
+    df = timestamp_columns(licor_df.index)
+    df["second"]      = 0
 
     df["Temp_6.35"]   = cr1000x_df["AirTC_ee181_1_Avg"].values
     df["RH_6.35"]     = cr1000x_df["RH_ee181_1_Avg"].values
