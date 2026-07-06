@@ -4,16 +4,17 @@ import numpy as np
 
 
 def consec_flag_removal(flag: np.ndarray, consec_rows: int) -> np.ndarray:
-    """Keep only flag runs longer than *consec_rows*; shorter runs are cleared.
+    """Clear flag runs longer than *consec_rows*.
 
-    A direct port of the MATLAB ``consecFlagRemoval`` function.
+    Runs of consecutive flags longer than *consec_rows* are treated as
+    physical signal rather than spikes and are unflagged. Port of the
+    MATLAB ``consecFlagRemoval`` function.
 
     Parameters
     ----------
     flag : bool ndarray, shape (N, M)
     consec_rows : int
-        Maximum number of consecutive spikes still considered physical.
-        Runs with length <= consec_rows are removed from the flag array.
+        Maximum run length still treated as a spike.
 
     Returns
     -------

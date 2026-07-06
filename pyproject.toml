@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "utespac"
+version = "0.1.0"
+description = "UTESpac_Plus — Utah Turbulence in Environmental Studies processing and analysis code (Python port)"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+]
+
+[project.optional-dependencies]
+netcdf = ["netCDF4>=1.6"]     # only needed for saveNetCDF=True
+raw = ["pandas>=2.0"]         # raw_processing/ and generate_ameriflux scripts
+test = ["pytest>=7"]
+
+[tool.setuptools]
+packages = ["utespac"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
