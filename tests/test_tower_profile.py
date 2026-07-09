@@ -49,6 +49,18 @@ def test_sonics_dicts_become_soniclevel(tmp_path):
     assert site.sonics[1].hmp_height is None
 
 
+def test_repo_gill_loads_as_profile():
+    site = load_site_info(os.path.join(REPO_ROOT, "siteGill20250723_20250828"))
+    assert site.sonics is not None and len(site.sonics) == 1
+    # migrated off the legacy parallel lists
+    assert site.sonicOrientation is None
+    assert site.sonicManufact is None
+    level = sonic_for(site.sonics, 51.5)
+    assert level.orientation == 36
+    assert level.manufacturer == 2
+    assert level.hmp_height is None
+
+
 def test_repo_irga_loads_as_profile():
     site = load_site_info(IRGA_DIR)
     assert site.sonics is not None and len(site.sonics) == 4

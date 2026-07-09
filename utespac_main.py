@@ -40,10 +40,10 @@ info["avgPer"] = 30
 info["saveRawConditionedData"] = True
 
 # Save NetCDF output
-info["saveNetCDF"] = False
+info["saveNetCDF"] = True
 
 # Save CSV output
-info["saveCSV"] = False
+info["saveCSV"] = True
 
 # Calculate TKE dissipation rate using structure function (slow)
 info["calcDissipation"] = False
@@ -63,7 +63,7 @@ info["PF"] = {
     "globalCalculation":              "global",
     "recalculateGlobalCoefficients":  True,
     "avgPer":                         30,
-    "globalCalcMaxWind":              12,
+    "globalCalcMaxWind":              20,
     "globalCalcMinWind":              0.5,
 }
 

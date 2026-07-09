@@ -1,7 +1,11 @@
 """Site configuration for siteGill (converted from siteInfo.m)."""
 
-sonicOrientation     = [36]  # UU1
-sonicManufact        = [2]
+# Tower profile: one entry per sonic (height-keyed; order-independent).
+# Single Gill WindmasterPro at 51.5 m (UU1); HMP is co-located (Temp_51.5/RH_51.5
+# in FMDOL_1min_header.dat), so no hmp_height override is needed.
+sonics = [
+    {"height": 51.5, "orientation": 36, "manufacturer": 2},
+]
 tower                = 210  # FM
 siteElevation        = 1980  # (m)
 angle                = 8.2  # mean of 20 m radius buffer

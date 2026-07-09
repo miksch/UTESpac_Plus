@@ -21,29 +21,10 @@ def import_header(filename: str) -> List[List]:
 
     heights = []
     for name in names:
-        # Find all digit/decimal runs; the last consecutive chunk is the height
-        digit_positions = [i for i, c in enumerate(name) if c.isdigit()]
-        decimal_positions = [i for i, c in enumerate(name) if c == "."]
-        all_pos = sorted(set(digit_positions + decimal_positions))
-
-        if not all_pos:
-            heights.append(None)
-            continue
-
-        # Find the last chunk of consecutive positions
-        chunks = []
-        chunk = [all_pos[0]]
-        for pos in all_pos[1:]:
-            if pos == chunk[-1] + 1:
-                chunk.append(pos)
-            else:
-                chunks.append(chunk)
-                chunk = [pos]
-        chunks.append(chunk)
-        last_chunk = chunks[-1]
-        height_str = "".join(name[p] for p in last_chunk)
+        # The last digit/decimal run in the name is the height (e.g. "Ux_51.5")
+        runs = re.findall(r"[\d.]+", name)
         try:
-            heights.append(float(height_str))
+            heights.append(float(runs[-1]) if runs else None)
         except ValueError:
             heights.append(None)
 

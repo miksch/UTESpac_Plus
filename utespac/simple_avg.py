@@ -1,5 +1,7 @@
 """simpleAvg – block-average a matrix based on a serial-date timestamp column."""
 
+import warnings
+
 import numpy as np
 from .campbell_date import datetime_to_matlab_datenum, MATLAB_EPOCH
 from datetime import datetime
@@ -47,7 +49,6 @@ def simple_avg(
             break
     if t_col is None:
         # Cannot find a valid timestamp column; return as-is
-        import warnings
         warnings.warn("simple_avg: could not identify timestamp column; returning input unchanged.")
         return mat
 
@@ -59,14 +60,12 @@ def simple_avg(
     N = int(round(N))
 
     if N == 0 or N > n_rows:
-        import warnings
         warnings.warn("simple_avg: N out of range; returning input unchanged.")
         return mat
 
     # Check timestamp spacing consistency (within 0.5 s)
     half_second = 0.5 / 86400.0
     if (np.nanmax(np.diff(t)) - np.nanmin(np.diff(t))) > half_second:
-        import warnings
         warnings.warn("simple_avg: timestamp spacing inconsistent; returning input unchanged.")
         return mat
 

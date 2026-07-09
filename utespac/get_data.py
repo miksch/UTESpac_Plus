@@ -98,8 +98,8 @@ def get_data(
     _NO_CONCAT = {"tableNames", "z", "warnings", "dataInfo", "infoString"}
 
     def _is_header(key: str) -> bool:
-        """True for any key that ends in 'header' or 'Header' (case-insensitive match)."""
-        return "eader" in key  # matches MATLAB strfind(field,'eader')
+        """True for any key that ends in 'Header' or 'header'."""
+        return key.endswith(("Header", "header"))
 
     output_struct: Dict = {}
     files_loaded = 0

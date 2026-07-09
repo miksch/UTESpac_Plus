@@ -33,7 +33,7 @@ def save_data(
 
     pf_type    = "GPF_" if info.get("PF", {}).get("globalCalculation") == "global" else "LPF_"
     det_type   = "LinDet_" if info.get("detrendingFormat", "linear") == "linear" else "ConstDet_"
-    site_name  = info.get("siteFolder", "site")[4:]  # strip leading 'site'
+    site_name  = info.get("siteFolder", "site").removeprefix("site")
     date_str   = info.get("date", "unknown")
     avg_per    = info.get("avgPer", 30)
 

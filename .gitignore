@@ -32,3 +32,9 @@ comparison_logs/
 .DS_Store
 .idea/
 CLAUDE.md
+
+
+# Data
+
+# ── Local dev notes (not tracked) ─────────────────────────────────────────────
+.notes/

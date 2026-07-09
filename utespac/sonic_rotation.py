@@ -1,5 +1,7 @@
 """sonicRotation – apply planar-fit and yaw rotation to sonic wind vectors."""
 
+import re
+import warnings
 from typing import Dict, List, Optional
 import numpy as np
 from .simple_avg import simple_avg
@@ -83,7 +85,6 @@ def sonic_rotation(
                         data_info.append(list(info_col))
                 for date_bin_key, dir_bins_dict in pf_info[cm_key].items():
                     # Parse date range from key, e.g. 'day_730485to730515'
-                    import re
                     nums = re.findall(r"[\d.]+", date_bin_key)
                     if len(nums) >= 2:
                         d0, d1 = float(nums[0]), float(nums[1])
@@ -230,7 +231,7 @@ def sonic_rotation(
 
         except Exception as exc:
             msg = f"Sonic rotation failed at {height}m: {exc}"
-            import warnings; warnings.warn(msg)
+            warnings.warn(msg)
             output["warnings"].append(msg)
 
     # Store averaged rotated data
@@ -241,7 +242,7 @@ def sonic_rotation(
         pf_avg = simple_avg(np.column_stack([pf_sonic_data, t]), info["avgPer"])
         output["PFSonic"] = pf_avg[:, :-1]
     except Exception as exc:
-        import warnings; warnings.warn(f"Could not average rotated sonic data: {exc}")
+        warnings.warn(f"Could not average rotated sonic data: {exc}")
         rotated_sonic_data = np.array([])
         pf_sonic_data      = np.array([])
 
