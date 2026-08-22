@@ -8,7 +8,7 @@ from utespac.site_config import load_site_info, sonic_for, SonicLevel
 from utespac.find_instruments import find_instruments
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-IRGA_DIR = os.path.join(REPO_ROOT, "siteIRGA20250723_20250828")
+IRGA_DIR = os.path.join(REPO_ROOT, "data", "IRGA")
 
 
 # ── sonic_for lookup ─────────────────────────────────────────────────────────
@@ -50,7 +50,7 @@ def test_sonics_dicts_become_soniclevel(tmp_path):
 
 
 def test_repo_gill_loads_as_profile():
-    site = load_site_info(os.path.join(REPO_ROOT, "siteGill20250723_20250828"))
+    site = load_site_info(os.path.join(REPO_ROOT, "data", "Gill"))
     assert site.sonics is not None and len(site.sonics) == 1
     # migrated off the legacy parallel lists
     assert site.sonicOrientation is None

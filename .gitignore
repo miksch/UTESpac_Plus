@@ -43,6 +43,7 @@ data/**
 !data/*/
 !data/*/siteInfo.toml
 !data/*/siteInfo.py
+!data/*/siteInfo.m
 !data/*/utespac/
 !data/*/utespac/*_header.dat
 

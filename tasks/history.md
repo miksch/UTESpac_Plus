@@ -3,6 +3,12 @@
 Rolling log of roughly the last 15 closures; older records live only in
 archive/. Format: `- [DONE|DROPPED YYYY-MM-DD] <one line> -- <link>`.
 
+- [DONE 2026-08-22] Legacy `siteGill20250723_20250828` / `siteIRGA…` folders
+  moved to `data/Gill` and `data/IRGA` (siteInfo at the site root, headers
+  in `utespac/`; the IRGA 1-min header gained its `.dat`); no `site*` folder
+  with tracked files remains at the repo root; `test_tower_profile` and
+  `test_site_config` follow the new paths. GPF regeneration for these
+  sites stays on the rotation board line (inputs not on this machine).
 - [DONE 2026-08-22] ITC σw/u* stable side beyond z/L = 0.4 (and without a
   latitude) on Pahlow et al. 2001 eq. 14, 1.1 + 0.9 (z/L)^0.6; the last
   `[ASSUMED]` in `calc_ssitc_flags._above_canopy_sigmaw` removed; PDFs of

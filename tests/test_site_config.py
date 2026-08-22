@@ -58,7 +58,9 @@ def test_apply_to_only_sets_present_fields():
 
 @pytest.mark.parametrize(
     "site_dir",
-    sorted(glob.glob(os.path.join(REPO_ROOT, "site*"))),
+    sorted(glob.glob(os.path.join(REPO_ROOT, "site*")))
+    + sorted(d for d in glob.glob(os.path.join(REPO_ROOT, "data", "*"))
+             if glob.glob(os.path.join(d, "siteInfo.*"))),
     ids=os.path.basename,
 )
 def test_repo_site_files_load_cleanly(site_dir):

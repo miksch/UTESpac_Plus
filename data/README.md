@@ -25,8 +25,8 @@ data/
 Site folder names are the bare site id (`VAC001`, not `siteVAC001_...`);
 date ranges belong to the processed file names, not the folder. The
 pipeline discovers a site by the presence of `siteInfo.toml` (or legacy
-`siteInfo.py`). Legacy `site*` folders at the repo root keep working
-until migrated here.
+`siteInfo.py`). Legacy `site*` folders at the repo root still resolve,
+but none with tracked files remain (`Gill`, `IRGA`, `VAC001` live here).
 
 `raw/` is read-only: `raw_processing` scripts read it and write to
 `utespac/`; nothing in the pipeline writes into `raw/`.

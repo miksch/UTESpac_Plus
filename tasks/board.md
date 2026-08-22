@@ -8,9 +8,11 @@ Rationale, measurements and rulings live in the linked docs, not here.
 - [PENDING 2026-08-22] GPF coefficient indexing + b0 removal: fix landed in
   `utespac/sonic_rotation.py` (legacy behaviour behind `info["matlabCompat"]`),
   pinned by `tests/test_planar_fit.py`, verified on VAC001 against EddyPro's
-  planar fit. Remaining: regenerate GPF outputs/raw pickles for siteGill/
-  siteIRGA after their migration into `data/` (user ruling 2026-08-22: not
-  in this pass), and add `matlabCompat` to the testkit parity runs. --
+  planar fit. Remaining: regenerate GPF outputs/raw pickles for the
+  French Meadows sites (`data/Gill`, `data/IRGA`) -- their 48-h input
+  files are not on this machine (only headers + siteInfo are in the repo),
+  so this runs wherever `data/<SITE>/utespac/` holds them, reusing each
+  site's PFinfo.pkl; and add `matlabCompat` to the testkit parity runs. --
   EFFORT M (reprocessing), RISK low. Source: findings 1-2 in
   [active/2026-08-22_code-audit-and-python-gameplan.md](active/2026-08-22_code-audit-and-python-gameplan.md).
 ## migration
@@ -46,16 +48,12 @@ Rationale, measurements and rulings live in the linked docs, not here.
   closure if Rn/G are revised. -- GAIN decisive check that
   corrections improve the data, EFFORT S, RISK low. Detail: audit doc
   "VAC001 test dataset".
-- [PENDING 2026-08-22] Migrate legacy `siteGill*`/`siteIRGA*` folders into
-  `data/<SITE>/` (headers + siteInfo to `utespac/`; tests in
-  `test_tower_profile.py` reference the old paths). -- EFFORT S, RISK low.
-
 ## meta
 
 - [ACTIVE 2026-08-22] Next-chat handoff: items 1 (Schotanus/WPL), 2
-  (`get_data`) and 4 (audit fixes) landed 2026-08-22; item 3 (other sites)
-  deferred by user ruling; item 5 (migration steps 2-5, ec_coherent) is the
-  next pick-up. Detail:
+  (`get_data`) and 4 (audit fixes) landed 2026-08-22; item 3 folders moved
+  to `data/Gill`, `data/IRGA` (GPF regen pending the inputs); item 5
+  (migration steps 2-5, ec_coherent) is the next pick-up. Detail:
   [active/2026-08-22_next-chat-handoff.md](active/2026-08-22_next-chat-handoff.md).
 
 ## ec-coherent

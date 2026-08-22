@@ -12,9 +12,9 @@ difference from MATLAB, with the expected magnitude). Landed so far: the
 `data/` per-site tree and `tasks/`/`testbed/` silos, the planar-fit
 rotation fix, VAC001 processed end to end with five validation scripts in
 `testbed/scripts/`, label-aligned `get_data`, the new dissipation
-estimator, slope geometry in `SiteInfo`, the finding-7 fixes, and the
-Schotanus/WPL temperature flux, and the sourced ITC σw/u* reference.
-Suite: 104 passed, 1 skipped.
+estimator, slope geometry in `SiteInfo`, the finding-7 fixes, the
+Schotanus/WPL temperature flux, the sourced ITC σw/u* reference, and the
+Gill/IRGA folders under `data/`. Suite: 105 passed, 1 skipped.
 
 How to run anything here: repo root, `conda run -n UTESpac_Plus python
 testbed/scripts/<script>.py` (conda at
@@ -80,20 +80,21 @@ that header fix; the 16-day LPF ConstDet load is 768 rows with 53 all-NaN
 rows (genuine gaps) where the old path gave 341. `tests/test_get_data.py`
 pins the behaviour.
 
-## 3. Bring the other sites into `data/` and regenerate their GPF products — deferred
+## 3. Bring the other sites into `data/` and regenerate their GPF products — moved; regen pending inputs
 
-User ruling 2026-08-22: siteGill/siteIRGA are not reprocessed in this
-pass. The board keeps the item (`## utespac-core` first line, `##
-validation` last line, the 3D-figure item). When it is picked up: move
-`siteGill20250723_20250828` and `siteIRGA20250723_20250828` to
-`data/Gill…/` and `data/IRGA…/` (`utespac/` for headers and 48-h files;
-`tests/test_tower_profile.py` hardcodes the old paths), re-run GPF with
-the fixed rotation (every earlier GPF product is off at the order the
-VAC001 before/after showed, u* +18 %, LE +20 % there), extend
-`pf_vac001_eddypro.py`'s 3D figure per height/sector/date-bin, and add
-`matlabCompat=True` runs to the testkit parity comparison. The two legacy
-`siteInfo.py` files already carry `downslopeAspect = 30` and
-`slopeAxis = "v"`, so the migration copies them over as-is.
+The folders are moved (2026-08-22, after the user asked for it): headers
+to `data/Gill/utespac/` and `data/IRGA/utespac/`, `siteInfo.py` (and
+Gill's `siteInfo.m`) at the site root, the IRGA 1-min header renamed to
+`FMDOL_1min_header.dat`; `tests/test_tower_profile.py` and the
+`test_site_config` site sweep use the new paths. The folders held only
+headers and siteInfo — no 48-h input files, no outputs, no PFinfo — so
+the GPF regeneration with the fixed rotation (every earlier GPF product
+off at the order the VAC001 before/after showed, u* +18 %, LE +20 %) and
+the per-height/sector 3D planar-fit figure run wherever the
+`data/<SITE>/utespac/` inputs live; both stay on the board (rotation
+line, 3D-figure line). Earlier in the session the user's "don't reprocess
+siteGill and such" was recorded here as deferring the whole item; the
+user clarified that only the reprocessing was meant.
 
 ## 4. The remaining audit fixes — DONE 2026-08-22
 
