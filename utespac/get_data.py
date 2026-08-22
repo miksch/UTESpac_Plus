@@ -15,8 +15,15 @@ def get_data(
     avg_per: int = None,
     qualifier: str = None,
     rows=None,
+    matlab_compat: bool = False,
 ) -> Dict:
     """Load and vertically concatenate processed UTESpac output files.
+
+    Fields that carry a column header (``<field>Header``/``<field>header``)
+    are concatenated by header label: the output columns are the union of
+    the labels seen across files, and a file missing a label contributes NaN
+    in that column only. This keeps a sensor that is dead for one file
+    (``fluxes`` trims its all-NaN columns) from blanking the whole block.
 
     Reproduces MATLAB getData.m defensive behaviours:
 
@@ -26,7 +33,8 @@ def get_data(
     * **Column-count mismatch → NaN fill** (MATLAB lines 161-171): if a
       numeric field in a file has a different shape from what has already been
       accumulated, a NaN block of the expected size is inserted so that all
-      fields remain row-aligned after concatenation.
+      fields remain row-aligned after concatenation. Applied to unlabeled
+      fields always, and to every field when ``matlab_compat`` is True.
     * **Late-initialised field warning** (MATLAB lines 147-149): if a field
       appears for the first time in a file that is not the first one loaded, a
       warning is emitted.
@@ -46,6 +54,9 @@ def get_data(
         Substring that must appear in output file names (e.g. ``'LPF'``).
     rows : int, list, or 0
         0 → all rows; integer → first N rows; list → specific row indices.
+    matlab_compat : bool
+        Use the MATLAB shape check for labeled fields too (whole-file NaN
+        block on any column-count change) instead of aligning by label.
 
     Returns
     -------
@@ -96,6 +107,30 @@ def get_data(
     def _is_header(key: str) -> bool:
         """True for any key that ends in 'Header' or 'header'."""
         return key.endswith(("Header", "header"))
+
+    def _header_key(d: Dict, key: str) -> Optional[str]:
+        """Header key paired with numeric field *key* in *d*, if any."""
+        for cand in (f"{key}Header", f"{key}header"):
+            if cand in d:
+                return cand
+        return None
+
+    def _labels(hdr) -> Optional[list]:
+        """Flat list of column labels, or None if *hdr* is not one."""
+        if isinstance(hdr, list) and hdr and isinstance(hdr[0], list):
+            hdr = hdr[0]
+        if isinstance(hdr, list) and all(isinstance(h, str) for h in hdr):
+            return list(hdr)
+        return None
+
+    def _align(mat: np.ndarray, labels: list, target: list) -> np.ndarray:
+        """Columns of *mat* (labeled *labels*) re-indexed to *target*; NaN where absent."""
+        out = np.full((mat.shape[0], len(target)), np.nan)
+        pos = {lab: i for i, lab in enumerate(labels)}
+        for j, lab in enumerate(target):
+            if lab in pos:
+                out[:, j] = mat[:, pos[lab]]
+        return out
 
     output_struct: Dict = {}
     files_loaded = 0
@@ -165,13 +200,34 @@ def get_data(
 
             elif existing.ndim == 2 and val.ndim == 2:
                 exp_rows = n_expected if n_expected is not None else val.shape[0]
-                exp_cols = existing.shape[1]
-                if val.shape[0] != exp_rows or val.shape[1] != exp_cols:
+                hk = None if matlab_compat else _header_key(d, key)
+                acc_labels = _labels(output_struct.get(hk)) if hk else None
+                new_labels = _labels(d.get(hk)) if hk else None
+                labeled = (
+                    acc_labels is not None and new_labels is not None
+                    and len(acc_labels) == existing.shape[1]
+                    and len(new_labels) == val.shape[1]
+                )
+                if val.shape[0] != exp_rows:
                     warnings.warn(
-                        f"{fpath!r} field {key!r}: expected [{exp_rows}, {exp_cols}], "
+                        f"{fpath!r} field {key!r}: expected {exp_rows} rows, "
+                        f"got {val.shape[0]} — inserting NaN block."
+                    )
+                    val = np.full((exp_rows, existing.shape[1]), np.nan)
+                    new_labels = acc_labels
+                if labeled and new_labels != acc_labels:
+                    # Align by header label (union, accumulated order first).
+                    union = acc_labels + [h for h in new_labels if h not in acc_labels]
+                    if len(union) != existing.shape[1]:
+                        existing = _align(existing, acc_labels, union)
+                    val = _align(val, new_labels, union)
+                    output_struct[hk] = union
+                elif val.shape[1] != existing.shape[1]:
+                    warnings.warn(
+                        f"{fpath!r} field {key!r}: expected [{exp_rows}, {existing.shape[1]}], "
                         f"got {list(val.shape)} — inserting NaN block."
                     )
-                    val = np.full((exp_rows, exp_cols), np.nan)
+                    val = np.full((exp_rows, existing.shape[1]), np.nan)
                 output_struct[key] = np.vstack([existing, val])
 
             # ndim mismatches (e.g. 1-D in first file, 2-D later): skip silently
