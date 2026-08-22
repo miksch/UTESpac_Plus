@@ -6,6 +6,7 @@ import pickle
 import warnings
 from typing import Dict, Optional
 import numpy as np
+from .site_config import list_sites, resolve_site_dir
 
 
 def get_data(
@@ -51,10 +52,7 @@ def get_data(
     output_struct : dict
         Concatenated structure with the same keys as individual output files.
     """
-    sites = sorted(
-        d for d in os.listdir(root_folder)
-        if os.path.isdir(os.path.join(root_folder, d)) and d.startswith("site")
-    )
+    sites = list_sites(root_folder)
 
     if site is None:
         for i, s in enumerate(sites):
@@ -63,10 +61,8 @@ def get_data(
         site_dir = sites[choice]
     elif isinstance(site, int):
         site_dir = sites[site - 1]
-    elif isinstance(site, str) and site.startswith("site"):
-        site_dir = site
     else:
-        site_dir = f"site{site}"
+        site_dir = resolve_site_dir(root_folder, site)
 
     site_path = os.path.join(root_folder, site_dir, "output")
     if not os.path.isdir(site_path):

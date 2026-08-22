@@ -1,0 +1,42 @@
+# Site configuration for VAC001 (single IRGASON + fine-wire, 2023 IOP).
+# Migrated from siteVAC001_20230706_20230720/siteInfo.py; values carried
+# over unchanged except where noted. Scalar keys must precede the
+# [[sonics]] tables (TOML scoping).
+
+# tower: orientation of the tower relative to the sonic head [deg]; the
+# wind-direction QC flags the sector centred on (tower + sonic orientation).
+# [ASSUMED] 180 = tower directly behind the boom-mounted head, i.e. shadow
+# sector centred on 215 + 180 = 35 deg. The legacy siteInfo.py had the tower
+# *name* "001" here, which the code read as 1 deg and flagged the prevailing
+# SW wind. Confirm against the deployment photos/notes.
+tower = 180
+siteElevation = 18.2   # [m]
+angle = 0.0            # slope angle [deg], mean of 20 m radius buffer
+
+tableNames = ["VAC001_20Hz", "VAC001_30min"]
+tableScanFrequency = [20, 0.000555555555556]   # [Hz]; 1/(30*60) for the 30-min logger table
+tableNumberOfColumns = [16, 6]                 # 4 time cols + variables written by raw_processing
+
+useTrefHMP = true
+avgSlowFreq = 30
+shiftzRef = false
+zRefLowestSon = 10.85
+ascending = false
+
+# SSITC quality flag settings
+SSITC_subAvgMin = 5        # sub-period length [min] for steady-state test
+displacementHeight = 0     # [m]
+canopyHeight = 6.0         # [m]
+useCanopyITC = true
+
+# Tower profile: one entry per sonic (height-keyed). hmp_height is the
+# physical T/RH probe height paired with this sonic.
+# orientation 215 confirmed (user ruling 2026-08-22; EddyPro north offset
+# 215). The logger's sonic_azimuth column read 315 during the 2023 IOP and
+# is wrong. EddyPro metadata rounds the height to 11.00 m; 10.85 / 10.72
+# are the surveyed values kept from the original siteInfo.
+[[sonics]]
+height = 10.85
+orientation = 215
+manufacturer = 1       # CSAT/IRGASON
+hmp_height = 10.72

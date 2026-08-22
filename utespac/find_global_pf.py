@@ -10,6 +10,7 @@ import numpy as np
 
 from .get_data import get_data
 from .pf_coefficients import pf_coefficients
+from .site_config import list_sites
 from .stp_dn import stp_dn
 
 _MATLAB_EPOCH = 719529  # MATLAB datenum for 1970-01-01
@@ -138,9 +139,9 @@ def find_global_pf(info: Dict, template: Dict, sensor_info: Dict) -> Dict:
     print("Finding Global Planar Fit Coefficients (b0, b1, b2)")
 
     # ── load LPF-averaged data ────────────────────────────────────────────────
-    all_sites = sorted(d for d in os.listdir(info["rootFolder"]) if d.startswith("site"))
+    all_sites = list_sites(info["rootFolder"])
     site_num  = all_sites.index(info["siteFolder"]) + 1
-    site_name = info["siteFolder"][4:]
+    site_name = info["siteFolder"].removeprefix("site")
 
     data = get_data(
         info["rootFolder"],

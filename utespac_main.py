@@ -27,9 +27,9 @@ import warnings
 
 info: dict = {}
 
-# Root folder containing the site* sub-directories.
-# Defaults to the directory containing this script; override if needed.
-info["rootFolder"] = os.path.dirname(os.path.abspath(__file__))
+# Root folder containing one sub-directory per site (see data/README.md).
+# Defaults to <repo>/data; set to the repo root to process legacy site* folders.
+info["rootFolder"] = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 
 info["UTESpacVersion"] = "5.0-Python"
 

@@ -7,7 +7,8 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 from .import_header import import_header
 from .campbell_date import datetime_to_matlab_datenum
-from .site_config import load_site_info
+from .site_config import (load_site_info, list_sites, resolve_site_dir,
+                          site_input_dir)
 from datetime import datetime
 
 
@@ -40,15 +41,12 @@ def find_files(
     root = info["rootFolder"]
 
     # ── site selection ──────────────────────────────────────────────────────
-    available = sorted(
-        d for d in os.listdir(root)
-        if os.path.isdir(os.path.join(root, d)) and d.startswith("site")
-    )
+    available = list_sites(root)
     if not available:
-        raise FileNotFoundError(f"No 'site*' directories found in {root}")
+        raise FileNotFoundError(f"No site directories found in {root}")
 
     if site is not None:
-        site_dir = site if site.startswith("site") else f"site{site}"
+        site_dir = resolve_site_dir(root, site)
     else:
         for i, s in enumerate(available):
             print(f"  {i + 1}. {s}")
@@ -66,9 +64,10 @@ def find_files(
                       "using defaults from info dict.")
 
     # ── find header files ───────────────────────────────────────────────────
-    header_files = sorted(glob.glob(os.path.join(site_path, "*header*")))
+    input_path = str(site_input_dir(site_path))
+    header_files = sorted(glob.glob(os.path.join(input_path, "*header*")))
     if not header_files:
-        raise FileNotFoundError(f"No header files found in {site_path}")
+        raise FileNotFoundError(f"No header files found in {input_path}")
 
     headers_cell: List = []
     table_names:  List[str] = []
@@ -84,7 +83,7 @@ def find_files(
         table_names.append(table_name)
 
         # CSV or TXT files for this table (exclude header files)
-        csv_glob = os.path.join(site_path, f"*{table_name}*")
+        csv_glob = os.path.join(input_path, f"*{table_name}*")
         csv_files_raw = [
             f for f in sorted(glob.glob(csv_glob))
             if "header" not in os.path.basename(f).lower()
@@ -109,7 +108,7 @@ def find_files(
         all_csv_by_table.append(dated)
 
     if not all_csv_by_table or not all_csv_by_table[0]:
-        raise FileNotFoundError(f"No CSV/TXT data files found in {site_path}")
+        raise FileNotFoundError(f"No CSV/TXT data files found in {input_path}")
 
     # ── build date-aligned file matrix ─────────────────────────────────────
     all_dates = sorted({d for tbl in all_csv_by_table for d, _ in tbl})

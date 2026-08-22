@@ -34,7 +34,22 @@ comparison_logs/
 CLAUDE.md
 
 
-# Data
+# ── Data tree (data/<SITE>/...): raw, processed, and reference data stay local.
+#    Tracked: the layout README, each site's siteInfo.*, and UTESpac header files.
+data/**
+!data/README.md
+!data/*/
+!data/*/siteInfo.toml
+!data/*/siteInfo.py
+!data/*/utespac/
+!data/*/utespac/*_header.dat
+
+# ── testbed scratch: assistant working space, never tracked ──────────────────
+testbed/scratch/
 
 # ── Local dev notes (not tracked) ─────────────────────────────────────────────
 .notes/
+
+# ── Literature library: PDFs and personal Zotero export stay local ────────────
+library/*.pdf
+library/My Library.bib

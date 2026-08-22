@@ -96,6 +96,54 @@ class SiteInfo:
         return info
 
 
+def has_site_info(site_path) -> bool:
+    """True when *site_path* holds a ``siteInfo.toml`` or ``siteInfo.py``."""
+    site_path = Path(site_path)
+    return (site_path / "siteInfo.toml").is_file() or (site_path / "siteInfo.py").is_file()
+
+
+def list_sites(root) -> list:
+    """Site folder names under *root*, sorted.
+
+    A site is any directory carrying a ``siteInfo.*`` file (the ``data/``
+    layout) or, for legacy trees, any directory whose name starts with
+    ``site``.
+    """
+    root = Path(root)
+    if not root.is_dir():
+        return []
+    return sorted(
+        d.name for d in root.iterdir()
+        if d.is_dir() and (has_site_info(d) or d.name.startswith("site"))
+    )
+
+
+def resolve_site_dir(root, site) -> str:
+    """Map a user-given site name to a folder name under *root*.
+
+    Accepts the folder name itself (``"VAC001"``, ``"siteGill..."``) or the
+    legacy bare id for a ``site``-prefixed folder (``"Gill..."``).
+    """
+    available = list_sites(root)
+    if site in available:
+        return site
+    if f"site{site}" in available:
+        return f"site{site}"
+    raise FileNotFoundError(f"No site folder {site!r} under {root}; "
+                            f"available: {', '.join(available) or 'none'}")
+
+
+def site_input_dir(site_path) -> Path:
+    """Folder holding the UTESpac header and 48-h data files for a site.
+
+    ``<site>/utespac/`` in the ``data/`` layout; the site folder itself for
+    legacy trees.
+    """
+    site_path = Path(site_path)
+    sub = site_path / "utespac"
+    return sub if sub.is_dir() else site_path
+
+
 def load_site_info(site_path) -> SiteInfo:
     """Load site configuration from ``siteInfo.toml`` or ``siteInfo.py``.
 
