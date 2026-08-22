@@ -49,7 +49,10 @@ class SiteInfo:
     sonicManufact: Optional[list] = _UNSET        # legacy: 0 RMYoung, 1 CSAT/IRGASON, 2 Gill
     tower: Union[float, str, None] = _UNSET       # tower bearing [deg]
     siteElevation: Optional[float] = _UNSET       # [m]
+    latitude: Optional[float] = _UNSET            # [deg N], Coriolis parameter for the ITC stable side
     angle: Optional[float] = _UNSET               # slope angle [deg]
+    downslopeAspect: Optional[float] = _UNSET     # fall-line direction from north [deg]
+    slopeAxis: Optional[str] = _UNSET             # planar-fit horizontal axis along the fall line: "u" or "v"
     tableNames: Optional[list] = _UNSET
     tableScanFrequency: Optional[list] = _UNSET   # [Hz]
     tableNumberOfColumns: Optional[list] = _UNSET
@@ -82,6 +85,8 @@ class SiteInfo:
             warnings.warn(
                 f"{source}: unrecognized key(s) ignored: {', '.join(sorted(unknown))}"
             )
+        if values.get("slopeAxis") is not None and values["slopeAxis"] not in ("u", "v"):
+            raise ValueError(f"{source}: slopeAxis must be 'u' or 'v', got {values['slopeAxis']!r}")
         if isinstance(values.get("sonics"), list):
             values["sonics"] = [s if isinstance(s, SonicLevel) else SonicLevel(**s)
                                  for s in values["sonics"]]

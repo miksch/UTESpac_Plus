@@ -2,6 +2,8 @@
 
 import numpy as np
 
+from .rh_to_spec_hum import sat_vapor_pressure
+
 
 def get_virtual_pot_temp(altitude, level, Tair, RH, P_air=None, use_p_elevation=True):
     """Compute virtual potential temperature and air densities.
@@ -48,8 +50,8 @@ def get_virtual_pot_temp(altitude, level, Tair, RH, P_air=None, use_p_elevation=
         if np.nanmedian(P_air) < 1000:   # kPa → Pa
             P_air = P_air * 1000.0
 
-    # Saturated vapour pressure [Pa]
-    e_sat = 1000.0 * np.exp(52.57633 - 6790.4985 / Tair - 5.02808 * np.log(Tair))
+    # Saturated vapour pressure [Pa] (Stull 1988 eq. 7.5.2d, shared formula)
+    e_sat = 1000.0 * sat_vapor_pressure(Tair)
     e_air = e_sat * (RH / 100.0)      # actual vapour pressure [Pa]
 
     r = 621.97 * e_air / (P_air - e_air)  # mixing ratio [g/kg]

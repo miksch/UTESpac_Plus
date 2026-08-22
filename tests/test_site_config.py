@@ -68,3 +68,20 @@ def test_repo_site_files_load_cleanly(site_dir):
         site = load_site_info(site_dir)
     assert site.tableNames, "tableNames must be set for every site"
     assert len(site.tableScanFrequency) == len(site.tableNames)
+
+def test_slope_geometry_fields(tmp_path):
+    (tmp_path / "siteInfo.toml").write_text(
+        'angle = 8.2\ndownslopeAspect = 30\nslopeAxis = "v"\n'
+    )
+    site = load_site_info(tmp_path)
+    assert site.angle == 8.2
+    assert site.downslopeAspect == 30
+    assert site.slopeAxis == "v"
+    info = site.apply_to({})
+    assert info["downslopeAspect"] == 30 and info["slopeAxis"] == "v"
+
+
+def test_slope_axis_validated(tmp_path):
+    (tmp_path / "siteInfo.toml").write_text('slopeAxis = "w"\n')
+    with pytest.raises(ValueError, match="slopeAxis"):
+        load_site_info(tmp_path)

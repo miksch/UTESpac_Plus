@@ -14,13 +14,15 @@ def find_delta_time(ww: np.ndarray, uu: np.ndarray) -> float:
     Returns
     -------
     delta_time : float
+        Fractions are of the valid (non-NaN) samples, so gaps do not
+        deflate them.
     """
     flux_all  = ww * uu
     flux_total = np.nansum(flux_all)
-    if flux_total == 0:
+    n = int(np.sum(np.isfinite(flux_all)))
+    if flux_total == 0 or n == 0:
         return np.nan
     downgradient = (flux_all * flux_total) > 0
     ejection  = downgradient & (ww > 0)
     sweep     = downgradient & (ww < 0)
-    n = len(ww)
     return float(np.sum(ejection)) / n - float(np.sum(sweep)) / n

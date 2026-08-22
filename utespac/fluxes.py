@@ -10,6 +10,7 @@ from .rh_to_spec_hum import rh_to_spec_hum
 from .get_virtual_pot_temp import get_virtual_pot_temp
 from .calc_dissipation_rate import calc_dissipation_rate
 from .calc_snsp_angle import calc_snsp_angle
+from .sonic_temperature import SONIC_HUMIDITY_COEFF, air_temperature_perturbation
 from .find_delta_flux import find_delta_flux
 from .find_delta_time import find_delta_time
 from .find_eta import find_eta
@@ -180,8 +181,10 @@ def fluxes(
         h2o_avg_mat = simple_avg(np.column_stack([h2o_raw, h2o_t]), info["avgPer"])
         h2o_avg_t   = h2o_avg_mat[:, -1]
         h2o_avg     = h2o_avg_mat[:, 0]              # g/m³ averaged
-        rho_air_ref = P_kPa_avg * 1000.0 / (Rd * T_ref_K_avg)   # kg/m³ dry-air density
-        q_ref_avg   = (h2o_avg / 1000.0) / rho_air_ref           # kg/kg
+        rho_v_ref   = h2o_avg / 1000.0                                   # kg/m³ vapour density
+        e_ref_Pa    = rho_v_ref * Rv * T_ref_K_avg                        # vapour pressure
+        rho_d_ref   = (P_kPa_avg * 1000.0 - e_ref_Pa) / (Rd * T_ref_K_avg)  # dry-air density
+        q_ref_avg   = rho_v_ref / (rho_d_ref + rho_v_ref)                # kg/kg specific humidity
         valid = ~np.isnan(q_ref_avg)
         if valid.any():
             x = np.concatenate([[np.floor(h2o_avg_t[valid][0])], h2o_avg_t[valid]])
@@ -257,7 +260,28 @@ def fluxes(
     num_qc_vars = 8  # TAU, H, LE, FC × (SSITC + SS_ONLY) per sonic
     fluxQC_mat = np.full((N, 1 + num_sonics * num_qc_vars),   np.nan)
 
+    # MATLAB parity switch: legacy 0.61 sonic-humidity coefficient and the
+    # buoyancy flux in the WPL terms (findings 3-4 of the 2026-08-22 audit).
+    matlab_compat = bool(info.get("matlabCompat", False))
+
+    # Slope geometry (SiteInfo): slope angle, fall-line direction, and which
+    # planar-fit horizontal axis lies along the fall line. Only the angle
+    # matters on flat sites; a sloped site without the other two keys gets
+    # the French Meadows values with a warning.
     angle = float(info.get("angle", 0))
+    downslope_aspect = info.get("downslopeAspect")
+    slope_axis = info.get("slopeAxis")
+    if angle != 0 and (downslope_aspect is None or slope_axis is None):
+        import warnings
+        warnings.warn(
+            f"angle = {angle} deg but downslopeAspect/slopeAxis are not set in "
+            "siteInfo; assuming French Meadows geometry (downslopeAspect = 30, "
+            "slopeAxis = 'v') for the slope-normal heat flux and L."
+        )
+    downslope_aspect = 30.0 if downslope_aspect is None else float(downslope_aspect)
+    slope_axis = "v" if slope_axis is None else str(slope_axis)
+    if slope_axis not in ("u", "v"):
+        raise ValueError(f"info['slopeAxis'] must be 'u' or 'v', got {slope_axis!r}")
 
     # -----------------------------------------------------------------------
     # Per-sonic loop
@@ -332,10 +356,14 @@ def fluxes(
                 u_pf = v_pf = w_pf = np.full(len(t), np.nan)
 
             try:
-                # PFSonic (before yaw rotation): u_tilt_P = nandetrend(v_pf_only) per MATLAB
-                u_tilt = pf_sonic_data[:, rv_col] if rv_col is not None else np.full(len(t), np.nan)
-                v_tilt = pf_sonic_data[:, ru_col] if ru_col is not None else np.full(len(t), np.nan)
-                w_tilt = pf_sonic_data[:, rw_col] if rw_col is not None else np.full(len(t), np.nan)
+                # PFSonic (before yaw rotation). u_tilt is the component along
+                # the fall line, v_tilt across it: slopeAxis names the PF axis
+                # that points downslope (French Meadows: v, hence the swap
+                # MATLAB fluxes.m:736-737 hardcodes).
+                along_col, across_col = (rv_col, ru_col) if slope_axis == "v" else (ru_col, rv_col)
+                u_tilt = pf_sonic_data[:, along_col]  if along_col  is not None else np.full(len(t), np.nan)
+                v_tilt = pf_sonic_data[:, across_col] if across_col is not None else np.full(len(t), np.nan)
+                w_tilt = pf_sonic_data[:, rw_col]     if rw_col     is not None else np.full(len(t), np.nan)
             except Exception:
                 u_tilt = v_tilt = w_tilt = np.full(len(t), np.nan)
 
@@ -472,7 +500,11 @@ def fluxes(
                         output["specificHumHeader"].append(hdr)
 
             # Use level-specific q for sonic air temperature (matches MATLAB qRefFastLocal)
-            theta_son_air = (T_son + 273.15) / (1.0 + 0.61 * q_ref_fast_local) - 273.15
+            # Mean humidity rescale of the sonic temperature, T = T_s/(1 + 0.51 q)
+            # (Schotanus et al. 1983 eq. 5; library/writeups/sonic_temperature_flux.md).
+            # MATLAB fluxes.m:575 used the virtual-temperature 0.61 ("modified by Diane").
+            sonic_coeff   = 0.61 if matlab_compat else SONIC_HUMIDITY_COEFF
+            theta_son_air = (T_son + 273.15) / (1.0 + sonic_coeff * q_ref_fast_local) - 273.15
 
             # ---- fw sensor at this height ----
             fw_data  = None
@@ -493,7 +525,7 @@ def fluxes(
                               (sf_fw[:, fw_col2] if fw_col2 < sf_fw.shape[1] else
                                np.zeros(N, dtype=bool))
                     theta_fw  = fw_data + Gamma * (height - z_ref)
-                    Vtheta_fw = theta_fw * (1.0 + 0.61 * q_ref_fast)
+                    Vtheta_fw = theta_fw * (1.0 + 0.61 * q_ref_fast_local)   # MATLAB fluxes.m:566
 
             # ---- H2O sensor at this height ----
             h2o_data: Optional[np.ndarray] = None
@@ -728,6 +760,9 @@ def fluxes(
 
                 # ---- sigma ----
                 c_sg = 1 + ii * num_sig_vars
+                # Population std (ddof=0); MATLAB std uses N-1. At n ~ 36 000
+                # per period the difference is < 2e-5 relative; kept as the
+                # recorded divergence rather than changed (_ss_dev uses ddof=1).
                 sigma_mat[jj, c_sg]     = np.nanstd(u_raw[s0:s1])
                 sigma_mat[jj, c_sg + 1] = np.nanstd(v_raw[s0:s1])
                 sigma_mat[jj, c_sg + 2] = np.nanstd(w_raw[s0:s1])
@@ -829,7 +864,7 @@ def fluxes(
                 H_snsp[jj, c_sn + 1] = np.nanmean(vTP * ThvP)
                 H_snsp[jj, c_sn + 2] = np.nanmean(wTP * ThvP)
                 if jj < len(direction_avg):
-                    a1, a2 = calc_snsp_angle(float(direction_avg[jj]), angle)
+                    a1, a2 = calc_snsp_angle(float(direction_avg[jj]), angle, downslope_aspect)
                     H_snsp[jj, c_sn + 3] = (
                         np.nanmean(wTP * ThvP) * np.cos(np.radians(angle))
                         - np.nanmean(uTP * ThvP) * np.sin(np.radians(a1))
@@ -841,7 +876,7 @@ def fluxes(
                 # ---- H: Ts'w', Thetav'wPF' ----
                 c_H = 3 + ii * 12
                 H_mat[jj, c_H]     = np.nanmean(wP    * TsP)
-                H_mat[jj, c_H + 1] = np.nanmean(wPF_P * ThvP)   # kinSenFlux used by WPL
+                H_mat[jj, c_H + 1] = np.nanmean(wPF_P * ThvP)   # buoyancy flux (MATLAB kinSenFlux)
                 if unrot_flag[jj] or Ts_flag[jj]:
                     H_mat[jj, c_H] = np.nan
                 if rot_flag[jj] or Ts_flag[jj]:
@@ -941,6 +976,23 @@ def fluxes(
                     rho_d_j = rho_d_avg[jj] if jj < len(rho_d_avg) else np.nan
                     T_ref_j = T_ref_K_avg[jj] if jj < len(T_ref_K_avg) else np.nan
 
+                    # Schotanus correction with high-frequency humidity:
+                    # T' = Ts' - 0.51 T q' (Schotanus 1983 eq. 6; Liu et al. 2001
+                    # eq. 10), so w'T' = w'Ts' - 0.51 T w'q' (eq. 8 / eq. 12). This
+                    # replaces the mean-humidity rescale for the T_air columns and
+                    # is the temperature flux every WPL term below uses. Under
+                    # matlabCompat the rescaled TairP and the buoyancy flux stay.
+                    if not matlab_compat:
+                        qP = (H2Op / 1000.0) / (rho_d_j + rho_v_j)          # kg/kg
+                        T_air_mean_K = np.nanmean(theta_son_air[s0:s1]) + 273.15
+                        TairP = air_temperature_perturbation(TsP, qP, T_air_mean_K)
+                        H_mat[jj, c_H + 2] = np.nanmean(wP    * TairP)
+                        H_mat[jj, c_H + 3] = np.nanmean(wPF_P * TairP)
+                        if unrot_flag[jj] or Ts_flag[jj] or h2o_flag[jj]:
+                            H_mat[jj, c_H + 2] = np.nan
+                        if rot_flag[jj] or Ts_flag[jj] or h2o_flag[jj]:
+                            H_mat[jj, c_H + 3] = np.nan
+
                     # WPL external H2O fluctuation
                     rhov_ext = (Md / Mv * (rho_v_j / rho_d_j) * (H2Op / 1000.0)
                                 + rho_v_j * (1.0 + Md / Mv * rho_v_j / rho_d_j)
@@ -978,7 +1030,10 @@ def fluxes(
                         E   = np.nanmean(wP    * H2Op)
                         EPF = np.nanmean(wPF_P * H2Op)
                     Lv  = (2.501 - 0.00237 * (T_ref_j - 273.15)) * 1e3
-                    kin_sen_flux = H_mat[jj, c_H + 1]
+                    # Temperature flux for the WPL terms (Webb et al. 1980 eqs. 24-25,
+                    # 44): w'T', i.e. the Schotanus-corrected T_air'wPF' column.
+                    # MATLAB (fluxes.m:1073) used the buoyancy flux Theta_v'wPF'.
+                    kin_sen_flux = H_mat[jj, c_H + 1] if matlab_compat else H_mat[jj, c_H + 3]
                     wpl = 1.0 + Md / Mv * rho_v_j / rho_d_j
 
                     c_lh = 1 + ii * num_LH_vars
@@ -1175,6 +1230,7 @@ def fluxes(
                     n_sub, height, d_ht,
                     canopy_height=float(info.get("canopyHeight", np.nan)),
                     use_canopy_itc=bool(info.get("useCanopyITC", True)),
+                    latitude=info.get("latitude"),
                 )
                 c_qc = 1 + ii * num_qc_vars
                 fluxQC_mat[jj, c_qc]     = tau_ssitc
@@ -1195,10 +1251,6 @@ def fluxes(
     # Store outputs — trim all-NaN columns, generate MATLAB-matching headers.
     # -----------------------------------------------------------------------
     store_extra = bool(info.get("storeExtraStats", True))
-
-    def _trim(mat):
-        keep = np.any(~np.isnan(mat), axis=0)
-        return mat[:, keep]
 
     def _trim_both(mat, hdr):
         keep = np.any(~np.isnan(mat), axis=0)
@@ -1376,7 +1428,7 @@ def fluxes(
             f"{hn}m wPF':CO2(kg/m^2s)",
             f"{hn}m WPL,wPF':CO2(mol/m^2s)",
             f"{hn}m: wPF'CO2_WPL'(m/s kg/m^3)",
-            f"{hn}m: CO2 (ppm)",
+            f"{hn}m: CO2 (ppm, moist-air molar ratio)",
         ]
 
     # --- store with trimmed headers ---
@@ -1419,7 +1471,6 @@ def fluxes(
         timestamps = simple_avg(np.column_stack([t, t]), info["avgPer"])[:, 1]
         dt_arrays  = np.column_stack([timestamps] + [c for c, _ in derivedT_cols])
         dt_headers = ["time"] + [h for _, h in derivedT_cols]
-        output["derivedT"]       = _trim(dt_arrays)
-        output["derivedTheader"] = dt_headers
+        output["derivedT"], output["derivedTheader"] = _trim_both(dt_arrays, dt_headers)
 
     return output, raw

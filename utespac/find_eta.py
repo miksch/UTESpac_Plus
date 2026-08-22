@@ -14,6 +14,10 @@ def find_eta(ww: np.ndarray, uu: np.ndarray) -> float:
     Returns
     -------
     eta : float
+        Net flux over the flux carried by downgradient samples
+        (ejections + sweeps), so 0 < η ≤ 1. This is not the quadrant
+        "exuberance" |counter-gradient| / downgradient of the literature;
+        cross-checks must use this definition.
     """
     flux_all   = ww * uu
     flux_total = np.nansum(flux_all)

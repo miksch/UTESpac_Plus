@@ -26,6 +26,7 @@ def calc_ssitc_flags(
     rot_flag, Ts_flag, h2o_flag, co2_flag,
     n_sub, height, d=0.0,
     canopy_height=np.nan, use_canopy_itc=True,
+    latitude=None,
 ):
     """Return 8 flag values per period.
 
@@ -65,6 +66,9 @@ def calc_ssitc_flags(
         Canopy height [m]; NaN disables canopy ITC branch.
     use_canopy_itc : bool
         If True and z ≤ canopy_height, use Rannik et al. canopy model.
+    latitude : float or None
+        Site latitude [deg N] for the Thomas & Foken (2002) stable-side
+        σ_w/u* form (needs the Coriolis parameter); None → fallback.
     """
     # ── ITC_w deviation ──────────────────────────────────────────────────────
     n_w    = np.sum(~np.isnan(wPF_P))
@@ -82,7 +86,7 @@ def calc_ssitc_flags(
                 model = _canopy_sigmaw(height, canopy_height)
             else:
                 zeta = z_eff / L_val if (np.isfinite(L_val) and L_val != 0) else np.nan
-                model = _above_canopy_sigmaw(zeta)
+                model = _above_canopy_sigmaw(zeta, ustar, latitude)
             if np.isnan(model) or model <= 0:
                 itc_dev = np.nan
             else:
@@ -170,17 +174,40 @@ def _ss_dev(x, w, n_sub):
 
 # ── ITC reference models ──────────────────────────────────────────────────────
 
-def _above_canopy_sigmaw(zeta):
-    """Foken-style above-canopy σ_w/u* reference.
+OMEGA_EARTH = 7.2921e-5   # rad/s
 
-    Both stable and unstable sides use 2.0|ζ|^(1/8) when |ζ| > 0.0319,
-    and 1.3 in the near-neutral regime.
+
+def coriolis_parameter(latitude_deg):
+    """f = 2 Ω sin(φ) [s⁻¹]."""
+    return 2.0 * OMEGA_EARTH * np.sin(np.radians(float(latitude_deg)))
+
+
+def _above_canopy_sigmaw(zeta, ustar=np.nan, latitude=None):
+    """Above-canopy σ_w/u* reference (library/writeups/itc_sigmaw.md).
+
+    [CITED] Foken (2008) Table 2.11 = Foken et al. (2004) Table 9.1 = Foken
+    et al. (2012) Table 4.2: σ_w/u* = 1.3 for −0.032 < z/L < 0 and
+    2.0 (−z/L)^(1/8) for z/L < −0.032 (the two meet at |z/L| = 0.0319).
+    [CITED] Thomas & Foken (2002) via Foken (2008) Table 2.12: for
+    −0.2 < z/L < 0.4, σ_w/u* = 0.21 ln(z+ f/u*) + 3.1 with z+ = 1 m and f
+    the Coriolis parameter; used here on the stable side 0 ≤ z/L ≤ 0.4
+    when ``latitude`` is given (the unstable side keeps Table 2.11, which
+    the same tables list for it).
+    [CITED] Pahlow et al. (2001) eq. 14, a = 1.1, b = 0.9, c = 0.6:
+    σ_w/u* = 1.1 + 0.9 (z/L)^0.6, fitted from near neutral to z/L = 32.9;
+    used for z/L > 0.4, and for 0 < z/L ≤ 0.4 when no latitude is set.
+    The two stable forms do not meet at z/L = 0.4 (≈1.4 vs 1.62); that
+    step is a deviation recorded in the note and the ledger.
     """
     if np.isnan(zeta):
         return np.nan
-    if abs(zeta) > 0.0319:
-        return 2.0 * abs(zeta) ** (1.0 / 8.0)
-    return 1.3   # near-neutral
+    if zeta < 0:
+        return 2.0 * (-zeta) ** (1.0 / 8.0) if zeta < -0.032 else 1.3
+    if zeta <= 0.4 and latitude is not None and np.isfinite(ustar) and ustar > 0:
+        f = abs(coriolis_parameter(latitude))
+        if f > 0:
+            return 0.21 * np.log(1.0 * f / ustar) + 3.1
+    return 1.1 + 0.9 * zeta ** 0.6
 
 
 def _canopy_sigmaw(z, hc):

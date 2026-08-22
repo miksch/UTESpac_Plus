@@ -27,7 +27,7 @@ def nandetrend(x: np.ndarray, order=1) -> np.ndarray:
 
     x_clean = x[~nan_mask]
     n = len(x_clean)
-    idx = np.arange(n, dtype=float)
+    idx = np.flatnonzero(~nan_mask).astype(float)   # true sample index, gaps kept
 
     if order in (0, "c", "constant"):
         detrended = x_clean - np.nanmean(x_clean)

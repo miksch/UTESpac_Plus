@@ -125,7 +125,8 @@ def load_eddypro():
         raise FileNotFoundError(EDDYPRO_GLOB)
     ep = pd.read_csv(files[-1], na_values=["-9999", "-9999.0"])
     ep.index = pd.DatetimeIndex(pd.to_datetime(ep["datetime"])).round("min")
-    keep = {"H": "H", "un_H": "un_H", "LE": "LE", "co2_flux": "Fc", "u*": "ustar",
+    keep = {"H": "H", "un_H": "un_H", "LE": "LE", "un_LE": "un_LE", "LE_scf": "LE_scf",
+            "co2_flux": "Fc", "un_co2_flux": "un_Fc", "co2_scf": "Fc_scf", "u*": "ustar",
             "L": "L", "(z-d)/L": "zeta", "wind_speed": "WS", "wind_dir": "WD", "pitch": "pitch",
             "roll": "roll", "w_var": "w_var", "ts_var": "ts_var",
             "w/ts_cov": "wts_cov", "TKE": "TKE", "qc_H": "qc_H", "qc_LE": "qc_LE",
@@ -161,7 +162,9 @@ PAIRS = [
     ("L",          "L",     "L (Obukhov)"),
     ("zeta",       "zeta",  "z/L clipped to [-2,2]"),
     ("LE_wPF",     "LE",    "LE WPL wPF'       vs EddyPro LE  [q' caveat]"),
+    ("LE_wPF",     "un_LE", "LE WPL wPF'       vs EddyPro un_LE (pre-spectral, pre-WPL)"),
     ("Fc_wPF",     "Fc",    "Fc WPL wPF'       vs EddyPro co2_flux"),
+    ("Fc_wPF",     "un_Fc", "Fc WPL wPF'       vs EddyPro un_co2_flux (pre-spectral, pre-WPL)"),
     ("sigma_w",    "sigma_w", "sigma_w"),
     ("TKE",        "TKE",   "TKE"),
     ("WS",         "WS",    "wind speed"),

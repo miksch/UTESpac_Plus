@@ -22,8 +22,9 @@ ROOT_PY = os.environ.get(
 )
 MATLAB_DIR = os.path.join(ROOT_PY, "UTESpac_MATLAB")
 
-# Per-(field, pf_mode) max_rel tolerances for known Python/MATLAB divergences
-# (e.g. ddof conventions in the GPF spike cascade). Default applies otherwise.
+# Per-(field, pf_mode) max_rel tolerances for known Python/MATLAB divergences;
+# every override must have a row in tests/KNOWN_DIVERGENCES.md. Default
+# applies otherwise.
 DEFAULT_TOL_REL = 0.01
 TOL_OVERRIDES = {
     # ("H", "GPF"): 0.05,

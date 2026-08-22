@@ -11,6 +11,7 @@
 # SW wind. Confirm against the deployment photos/notes.
 tower = 180
 siteElevation = 18.2   # [m]
+latitude = 38.300056   # [deg N] from eddypro/metadata/vac_001_2023_iop.metadata; ITC stable-side Coriolis term
 angle = 0.0            # slope angle [deg], mean of 20 m radius buffer
 
 tableNames = ["VAC001_20Hz", "VAC001_30min"]

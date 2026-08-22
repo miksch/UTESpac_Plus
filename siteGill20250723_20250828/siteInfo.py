@@ -9,6 +9,8 @@ sonics = [
 tower                = 210  # FM
 siteElevation        = 1980  # (m)
 angle                = 8.2  # mean of 20 m radius buffer
+downslopeAspect      = 30   # fall-line direction from north [deg] (French Meadows)
+slopeAxis            = "v"  # planar-fit axis along the fall line (fluxes.m swap)
 tableNames           = ["FMDOL_10Hz", "FMDOL_1min"]  # modified by Diane
 tableScanFrequency   = [10, 1/60]  # [Hz]
 tableNumberOfColumns = [13, 12]  # modified by Diane (21 = +Temp_6.35, RH_6.35)
