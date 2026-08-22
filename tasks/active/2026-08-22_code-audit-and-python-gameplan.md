@@ -400,6 +400,31 @@ configuration against EddyPro:
 | H from Θv′wPF′ | 1.028 | 11.1 | +11.1 W/m² | 15.7 | 0.985 |
 | w′Ts′ vs `w/ts_cov` | 1.031 | 0.010 K m/s | +0.010 | 0.014 | 0.984 |
 
+Schotanus/WPL fix in code (2026-08-22, same GPF configuration re-run with
+`T_air'wPF'` = w′Ts′ − 0.51·T̄·w′q′ from the IRGASON humidity and the WPL
+terms driven by that w′T′; `library/writeups/sonic_temperature_flux.md`):
+
+| quantity | slope | intercept | bias | RMSE | r² |
+|---|---|---|---|---|---|
+| H from T_air′wPF′ (Schotanus) | 1.001 | −0.04 | −0.03 W/m² | 0.75 | 1.000 |
+| H from Θv′wPF′ (buoyancy, unchanged) | 1.028 | 11.1 | +11.1 W/m² | 15.7 | 0.985 |
+| LE (WPL, wPF′) | 0.984 | 0.47 | −2.4 W/m² | 4.2 | 1.000 |
+| Fc (WPL, wPF′) | 0.975 | −0.04 | +0.10 µmol m⁻² s⁻¹ | 0.32 | 1.000 |
+
+H split by sign and time of day (VAC001 is advective: EddyPro H < 0 in
+63 % of all periods and 30 % of 08–18 h periods): bias −0.16 W/m² (RMSE
+0.52) where H < 0, +0.18 (1.03) where H > 0; +0.24 (0.95) by day, −0.24
+(0.55) by night. EddyPro consumed the logger's `T_SONIC_corr`, so this is
+the same correction applied on both sides; the residual is at the level of
+the detrending/averaging conventions. LE sits 1.4 % below EddyPro's LE; the
+EddyPro spectral-correction factor `LE_scf` has median 1.0105, which
+UTESpac does not apply, leaving ~0.5 % inside the q′ caveat. The earlier
+0.989 slope had the buoyancy-driven WPL term inflating LE by ~0.5 %. Fc
+moved from 0.940 to 0.975 with the bias down from +0.63 to +0.10 µmol
+m⁻² s⁻¹. (EddyPro's `un_LE` / `un_co2_flux` are pre-WPL as well as
+pre-spectral — Fc vs `un_co2_flux` has slope 0.71 — so they are not a
+reference for the WPL columns.)
+
 Against the 48-h LPF runs this halves the u* and LE residuals (RMSE 0.011
 → 0.005 m/s, 4.4 → 3.0 W/m²); what remains on LE/Fc is the size of
 EddyPro's spectral correction plus the WPL temperature term (finding 4),

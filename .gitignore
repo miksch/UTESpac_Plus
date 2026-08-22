@@ -2,10 +2,12 @@
 UTESpac_MATLAB/siteFire1/
 UTESpac_MATLAB/siteFire2/
 
-# ── Raw data files (in site folders) ─────────────────────────────────────────
-site*/*.txt
-site*/*.dat
-!site*/*header*
+# ── Raw data files (in legacy site folders, any depth: card dumps, 48-h files) ─
+site*/**/*.txt
+site*/**/*.dat
+site*/**/*.TOA5
+site*/**/*.toa5
+!site*/**/*header*
 !site*/output/.gitkeep
 UTESpac_MATLAB/site*/*.txt
 UTESpac_MATLAB/site*/*.dat
