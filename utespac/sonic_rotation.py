@@ -31,6 +31,9 @@ def sonic_rotation(
 
     output.setdefault("warnings", [])
     num_sonics = sensor_info["u"].shape[0]
+    # Reproduce the MATLAB rotation exactly (wrong GPF coefficient indexing, no
+    # b0 removal) only when parity with MATLAB outputs is being tested.
+    matlab_compat = bool(info.get("matlabCompat", False))
 
     t = data[int(sensor_info["u"][0, 0])][:, 0]
     n_pts = len(t)
@@ -126,11 +129,16 @@ def sonic_rotation(
                         if not row_mask.any():
                             continue
 
-                        # MATLAB sonicRotation uses localCoef(1) and localCoef(2)
-                        # (1-indexed), i.e. Python indices [0] and [1] = [b0, b1_stored]
-                        b1, b2 = float(coef[0]), float(coef[1])
+                        # PF_coefficients stores [b0, b1, b2]. MATLAB sonicRotation.m
+                        # lines 68-69 read localCoef(1:2), i.e. b0 as the pitch slope
+                        # and b1 as the roll slope; that indexing is reproduced only
+                        # under matlabCompat for parity testing.
+                        if matlab_compat:
+                            b0, b1, b2 = 0.0, float(coef[0]), float(coef[1])
+                        else:
+                            b0, b1, b2 = float(coef[0]), float(coef[1]), float(coef[2])
                         P = _build_pf_matrix(b1, b2)
-                        wind_pf[row_mask, :] = (P @ np.column_stack([u[row_mask], v[row_mask], w[row_mask]]).T).T
+                        wind_pf[row_mask, :] = _apply_pf(P, b0, u[row_mask], v[row_mask], w[row_mask])
 
             else:
                 # LOCAL planar fit
@@ -176,13 +184,14 @@ def sonic_rotation(
                 except np.linalg.LinAlgError:
                     coef = np.array([0.0, 0.0, 0.0])
 
+                b0 = 0.0 if matlab_compat else float(coef[0])
                 b1, b2 = float(coef[1]), float(coef[2])
                 pitch = np.degrees(np.arcsin(-b1 / np.sqrt(1 + b1**2)))
                 roll  = np.degrees(np.arcsin(b2  / np.sqrt(1 + b2**2)))
-                print(f"  Sonic @ {height}m  pitch={pitch:.3g}°  roll={roll:.3g}°")
+                print(f"  Sonic @ {height}m  pitch={pitch:.3g}°  roll={roll:.3g}°  b0={coef[0]:.3g} m/s")
 
                 P = _build_pf_matrix(b1, b2)
-                wind_pf = (P @ np.column_stack([u, v, w]).T).T
+                wind_pf = _apply_pf(P, b0, u, v, w)
 
                 data_info_col = ii + 1
                 while len(data_info) <= data_info_col:
@@ -249,8 +258,19 @@ def sonic_rotation(
     return rotated_sonic_data, pf_sonic_data, output, data_info
 
 
+def _apply_pf(P: np.ndarray, b0: float, u, v, w) -> np.ndarray:
+    """Rotate measured winds into the fitted plane: u_p = P (u_m - c), c = (0, 0, b0).
+
+    Wilczak et al. (2001) eqs. 35-39 (pp. 139-140): the regression intercept b0
+    is the w offset c3 and is removed before rotation; the horizontal offsets
+    are not recoverable by the planar fit and are taken as zero.
+    """
+    return (P @ np.column_stack([u, v, w - b0]).T).T
+
+
 def _build_pf_matrix(b1: float, b2: float) -> np.ndarray:
-    """Build the Wilczak et al. (2000) large-angle planar-fit matrix P = D'C'."""
+    """Build the Wilczak et al. (2001) large-angle planar-fit matrix P = D'C'
+    (eqs. 42-44, p. 141)."""
     denom = np.sqrt(b1**2 + b2**2 + 1.0)
     p31 = -b1 / denom
     p32 = -b2 / denom
