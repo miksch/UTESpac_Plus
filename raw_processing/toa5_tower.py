@@ -184,6 +184,12 @@ def process_table(cfg):
             (default 0 = off).
         validate : bool, optional
             Run fast-data validation (default: hz >= 1).
+        loader : callable, optional
+            ``loader(paths) -> DataFrame`` with a DatetimeIndex, replacing
+            the TOA5 reader for non-TOA5 sources (e.g. a logger CSV with a
+            names row and a units row). When given, every matched file is
+            loaded for every window (no first-timestamp indexing), so use
+            it for small slow tables only.
 
     Returns
     -------
@@ -197,17 +203,22 @@ def process_table(cfg):
     offset   = cfg.get("offset", True)
     interp   = cfg.get("interpolate_limit", 0)
     validate = cfg.get("validate", hz >= 1)
+    loader   = cfg.get("loader")
 
     os.makedirs(cfg["out_dir"], exist_ok=True)
-    entries = index_toa5_files(cfg["raw_pattern"])
+    if loader is None:
+        entries = index_toa5_files(cfg["raw_pattern"])
+    else:
+        entries = [(None, p) for p in sorted(glob.glob(cfg["raw_pattern"]))]
     if not entries:
-        raise FileNotFoundError(f"No TOA5 files match {cfg['raw_pattern']}")
-    print(f"{table}: {len(entries)} raw files ({entries[0][0]} … {entries[-1][0]})")
+        raise FileNotFoundError(f"No raw files match {cfg['raw_pattern']}")
+    span = (f" ({entries[0][0]} … {entries[-1][0]})" if loader is None else "")
+    print(f"{table}: {len(entries)} raw files{span}")
 
     hdr = write_header(cfg["out_dir"], table, columns)
     print(f"  → {os.path.basename(hdr)}")
     print(f"  siteInfo: tableNames += ['{table}'], "
-          f"tableScanFrequency += [{hz if hz >= 1 else '1/60'}], "
+          f"tableScanFrequency += [{hz:g}], "
           f"tableNumberOfColumns += [{4 + len(columns)}]")
 
     written, missing_warned = [], set()
@@ -217,13 +228,16 @@ def process_table(cfg):
         w1    = w0 + pd.Timedelta(hours=48)
         label = f"{table} {w0.date()}"
 
-        paths = files_for_window(entries, w0, w1)
+        if loader is None:
+            paths = files_for_window(entries, w0, w1)
+        else:
+            paths = [p for _, p in entries]
         if not paths:
             print(f"  SKIP {label}: no raw files overlap the window.")
             curr += timedelta(days=2)
             continue
 
-        raw = load_cr_files(paths)
+        raw = load_cr_files(paths) if loader is None else loader(paths)
         raw = raw[(raw.index >= w0) & (raw.index <= w1)]
         if validate:
             if not validate_fast(raw, curr, round(hz), label):

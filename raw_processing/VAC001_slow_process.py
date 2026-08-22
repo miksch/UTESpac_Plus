@@ -1,56 +1,63 @@
 """VAC001_slow_process.py
-Process VAC001 slow (1-min TOA5) data into 48-h UTESpac 1-min files.
+Process the VAC001 30-min logger statistics CSV into 48-h UTESpac slow
+files (T/RH for the reference-humidity path in fluxes).
 
-Thin config over toa5_tower.process_table — see that module's docstring
-for the pipeline. Edit the TODO lines for each site/run; column source
-names are on line 2 of any raw TOA5 file.
+Thin config over toa5_tower.process_table. The source is not TOA5: it is
+a logger export with a names row and a units row, so a small loader is
+supplied. Of the three exports in data/VAC001/raw/slow/, the one with no
+suffix (``VAC_001_slow_logger_vars_2023.csv``) is the least modified and is
+the one used here.
 
-IMPORTANT: raw_pattern points at READ-ONLY raw data. Output goes to
-           UTESpac_Plus/siteVAC001<start>_<end>/ only.
+Keep start/end identical to VAC001_fast_process.py so both tables land in
+the same 48-h windows.
 """
 
 import os
 from datetime import datetime
 
+import pandas as pd
+
 try:
-    from common import get_box_path
     from toa5_tower import process_table, level_columns
 except ImportError:  # allow running from repo root or elsewhere
     import sys
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from common import get_box_path
     from toa5_tower import process_table, level_columns
 
 ROOT_PY  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # UTESpac_Plus/
-box_path = get_box_path()
+SITE_DIR = os.path.join(ROOT_PY, "data", "VAC001")
 
-# TODO: date range to process (advances in 48-h windows; keep identical
-# to VAC001_fast_process.py so both tables land in the same site folder)
-start_date = datetime(2026, 1, 1)
-end_date   = datetime(2026, 1, 31)
+start_date = datetime(2023, 7, 6)
+end_date   = datetime(2023, 7, 22)
 
-site_folder = (f"siteVAC001{start_date.strftime('%Y%m%d')}"
-               f"_{end_date.strftime('%Y%m%d')}")
+# T/RH columns are labelled with the paired sonic height (10.85) so
+# find_instruments pairs them with the sonic; siteInfo.toml's hmp_height
+# (10.72) carries the true probe height for the altitude correction.
+SONIC_HEIGHT = 10.85
+HMP_MAP = {"Temp": "TA_1_1_1", "RH": "RH_1_1_1"}
 
-# TODO: UTESpac base name → TOA5 base name for one T/RH level
-HMP_MAP = {"Temp": "AirTC_Avg", "RH": "RH_Avg"}
+
+def load_logger_csv(paths):
+    """Load logger-stats CSVs (names row + units row) indexed by TIMESTAMP."""
+    dfs = []
+    for p in paths:
+        df = pd.read_csv(p, header=0, skiprows=[1], index_col=0,
+                         na_values=["NaN", "NAN"], low_memory=False)
+        df.index = pd.to_datetime(df.index, format="mixed")
+        dfs.append(df)
+    df = pd.concat(dfs, axis=0).sort_index()
+    return df[~df.index.duplicated(keep="first")]
+
 
 process_table({
-    # TODO: READ-ONLY raw TOA5 slow files (ascii from PC400/CardConvert)
-    "raw_pattern": os.path.join(box_path, "Lab Library", "TODO",
-                                "TOA5_*slow*.dat"),
-    "out_dir":     os.path.join(ROOT_PY, site_folder),
+    "raw_pattern": os.path.join(SITE_DIR, "raw", "slow",
+                                "VAC_001_slow_logger_vars_2023.csv"),
+    "out_dir":     os.path.join(SITE_DIR, "utespac"),
     "prefix":      "VAC001",
-    "table":       "1min",
-    "hz":          1 / 60,
-    "interpolate_limit": 2,   # bridge ≤2 missing minutes (timestamp jitter)
-    # TODO: one level_columns() entry per T/RH level; add radiation or
-    # other slow channels as plain "name_height": "source" entries.
-    "columns": {
-        **level_columns(HMP_MAP, 32.18, "_2"),
-        **level_columns(HMP_MAP, 13.94, "_3"),
-        **level_columns(HMP_MAP,  3,    "_1"),
-    },
-    "start_date": start_date,
-    "end_date":   end_date,
+    "table":       "30min",
+    "hz":          1 / 1800,
+    "loader":      load_logger_csv,
+    "columns":     level_columns(HMP_MAP, SONIC_HEIGHT),
+    "start_date":  start_date,
+    "end_date":    end_date,
 })
