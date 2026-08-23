@@ -16,8 +16,13 @@ def get_data(
     qualifier: str = None,
     rows=None,
     matlab_compat: bool = False,
+    fmt: str = "pkl",
 ) -> Dict:
     """Load and vertically concatenate processed UTESpac output files.
+
+    ``fmt="pkl"`` reads the pickles, ``fmt="nc"`` the labeled netCDF written
+    beside them (:func:`utespac.labeled.read_netcdf`); both give the same
+    dict. :func:`get_frames` returns it as DataFrames.
 
     Fields that carry a column header (``<field>Header``/``<field>header``)
     are concatenated by header label: the output columns are the union of
@@ -77,14 +82,17 @@ def get_data(
     if not os.path.isdir(site_path):
         raise FileNotFoundError(f"Output folder not found: {site_path}")
 
-    # Build glob pattern matching MATLAB: *_{avgPer}*{qualifier}*.mat → *.pkl
+    if fmt not in ("pkl", "nc"):
+        raise ValueError(f"fmt must be 'pkl' or 'nc', got {fmt!r}")
+
+    # Build glob pattern matching MATLAB: *_{avgPer}*{qualifier}*.mat → *.pkl / *.nc
     parts = ["*"]
     if avg_per is not None:
         parts.append(f"_{avg_per}")
     parts.append("*")
     if qualifier is not None:
         parts.append(f"{qualifier}*")
-    parts.append(".pkl")
+    parts.append(f".{fmt}")
     pattern = os.path.join(site_path, "".join(parts))
 
     all_files = sorted(glob.glob(pattern))
@@ -100,7 +108,7 @@ def get_data(
         selected_files = [all_files[r - 1] for r in rows if 0 < r <= len(all_files)]
 
     # Fields that are never vertically concatenated (MATLAB lines 150-153)
-    _NO_CONCAT = {"tableNames", "z", "warnings", "dataInfo", "infoString"}
+    _NO_CONCAT = {"tableNames", "z", "z_h2o", "z_co2", "warnings", "dataInfo", "infoString"}
 
     def _is_header(key: str) -> bool:
         """True for any key that ends in 'Header' or 'header'."""
@@ -135,8 +143,12 @@ def get_data(
 
     for fpath in selected_files:
         try:
-            with open(fpath, "rb") as fh:
-                d = pickle.load(fh)
+            if fmt == "nc":
+                from .labeled import read_netcdf
+                d = read_netcdf(fpath)
+            else:
+                with open(fpath, "rb") as fh:
+                    d = pickle.load(fh)
         except Exception as exc:
             warnings.warn(f"Problem loading {fpath!r}: {exc}")
             continue
@@ -233,3 +245,12 @@ def get_data(
         files_loaded += 1
 
     return output_struct
+
+
+def get_frames(root_folder: str, site=None, avg_per: int = None, qualifier: str = None,
+               rows=None, fmt: str = "pkl") -> Dict:
+    """:func:`get_data` as pandas DataFrames (``DatetimeIndex`` named ``time``,
+    header labels as columns); see :func:`utespac.labeled.to_frames`."""
+    from .labeled import to_frames
+    return to_frames(get_data(root_folder, site=site, avg_per=avg_per,
+                              qualifier=qualifier, rows=rows, fmt=fmt))

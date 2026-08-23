@@ -50,6 +50,7 @@ class SiteInfo:
     tower: Union[float, str, None] = _UNSET       # tower bearing [deg]
     siteElevation: Optional[float] = _UNSET       # [m]
     latitude: Optional[float] = _UNSET            # [deg N], Coriolis parameter for the ITC stable side
+    longitude: Optional[float] = _UNSET           # [deg E], provenance in the netCDF products
     angle: Optional[float] = _UNSET               # slope angle [deg]
     downslopeAspect: Optional[float] = _UNSET     # fall-line direction from north [deg]
     slopeAxis: Optional[str] = _UNSET             # planar-fit horizontal axis along the fall line: "u" or "v"

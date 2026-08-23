@@ -65,16 +65,14 @@ def find_global_pf(info: Dict, template: Dict, sensor_info: Dict,
         prompter = ScriptedPFSelection()
     from .prompts import PFHeightContext
 
-    pf_path = os.path.join(info["rootFolder"], info["siteFolder"], "PFinfo.pkl")
+    site_path = os.path.join(info["rootFolder"], info["siteFolder"])
 
-    if not info["PF"]["recalculateGlobalCoefficients"] and os.path.isfile(pf_path):
-        with open(pf_path, "rb") as fh:
-            pf_info = pickle.load(fh)
-        if "infoString" not in pf_info:
-            pf_info["infoString"] = _build_info_string(pf_info)
-        log.info("Reusing planar-fit coefficients from %s\n%s", pf_path, format_pf_info(pf_info))
-        prompter.confirm(pf_info)
-        return pf_info
+    if not info["PF"]["recalculateGlobalCoefficients"]:
+        pf_info = load_pf_info(site_path)
+        if pf_info is not None:
+            log.info("Reusing planar-fit coefficients from %s\n%s", site_path, format_pf_info(pf_info))
+            prompter.confirm(pf_info)
+            return pf_info
 
     log.info("Finding Global Planar Fit Coefficients (b0, b1, b2)")
 
@@ -107,14 +105,12 @@ def find_global_pf(info: Dict, template: Dict, sensor_info: Dict,
     for ii, z in enumerate(z_vals):
         # ── skip (MATLAB: skipFlag = input(...)) ─────────────────────────────
         if prompter.skip_height(z):
-            if os.path.isfile(pf_path):
-                with open(pf_path, "rb") as fh:
-                    old = pickle.load(fh)
-                cm_key = f"cm_{round(z * 100)}"
-                if cm_key in old:
-                    pf_info[cm_key] = old[cm_key]
-                    continue
-            log.warning("No existing PFinfo.pkl found — cannot skip %s m.", z)
+            old = load_pf_info(site_path)
+            cm_key = f"cm_{round(z * 100)}"
+            if old is not None and cm_key in old:
+                pf_info[cm_key] = old[cm_key]
+                continue
+            log.warning("No existing PFinfo found — cannot skip %s m.", z)
 
         varname_u    = template["u"].replace("*", str(z))
         varname_v    = template["v"].replace("*", str(z))
@@ -325,12 +321,40 @@ def find_global_pf(info: Dict, template: Dict, sensor_info: Dict,
 
     # ── build infoString and save ─────────────────────────────────────────────
     pf_info["infoString"] = _build_info_string(pf_info)
-    with open(pf_path, "wb") as fh:
-        pickle.dump(pf_info, fh)
-    log.info("PFinfo saved to %s\n%s", pf_path, format_pf_info(pf_info))
+    save_pf_info(pf_info, site_path, site=info["siteFolder"])
+    log.info("PFinfo saved to %s\n%s", site_path, format_pf_info(pf_info))
 
     prompter.confirm(pf_info)
     return pf_info
+
+
+def save_pf_info(pf_info: Dict, site_path, site: Optional[str] = None) -> Dict[str, str]:
+    """Write ``PFinfo.json`` (labeled :class:`~utespac.pf_info.PFTable`) and the
+    legacy ``PFinfo.pkl`` into *site_path*; returns both paths."""
+    from .pf_info import PFTable
+    pkl_path = os.path.join(site_path, "PFinfo.pkl")
+    json_path = os.path.join(site_path, "PFinfo.json")
+    with open(pkl_path, "wb") as fh:
+        pickle.dump(pf_info, fh)
+    PFTable.from_legacy(pf_info, site=site).save(json_path)
+    return {"pkl": pkl_path, "json": json_path}
+
+
+def load_pf_info(site_path) -> Optional[Dict]:
+    """Legacy-shaped coefficient dict from ``PFinfo.json`` (preferred) or
+    ``PFinfo.pkl``; None when the site has neither."""
+    from .pf_info import PFTable
+    json_path = os.path.join(site_path, "PFinfo.json")
+    pkl_path = os.path.join(site_path, "PFinfo.pkl")
+    if os.path.isfile(json_path):
+        return PFTable.load(json_path).to_legacy()
+    if os.path.isfile(pkl_path):
+        with open(pkl_path, "rb") as fh:
+            pf_info = pickle.load(fh)
+        if "infoString" not in pf_info:
+            pf_info["infoString"] = _build_info_string(pf_info)
+        return pf_info
+    return None
 
 
 def _build_info_string(pf_info: Dict) -> List[List[str]]:

@@ -21,7 +21,10 @@ matlabCompat = false   # reproduce the MATLAB port's legacy behaviours for
 
 [output]
 saveRawConditionedData = true   # QC'd raw tables as pickle (*_raw_*.pkl)
-saveNetCDF = true               # needs the netCDF4 extra
+saveNetCDF = true               # labeled CF netCDF of the averaged output beside the
+#                                 pickle (utespac.labeled; needs netCDF4, skipped with a
+#                                 warning otherwise). High-frequency netCDF is the
+#                                 separate converter, python -m utespac.export_hf.
 saveCSV = true
 
 # Sensor-name templates: '*' stands for the height in the header name.

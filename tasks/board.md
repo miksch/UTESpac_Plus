@@ -18,19 +18,21 @@ Rationale, measurements and rulings live in the linked docs, not here.
 ## migration
 
 - [ACTIVE 2026-08-22] De-MATLAB migration steps 2-5. Step 2 landed
-  2026-08-22: `utespac/config/` packaged TOMLs (`run`, `qc`, `pf`, `flux`)
-  mirrored by frozen dataclasses in `utespac/run_config.py`
-  (`RunConfig.from_config`, `to_info` renders the legacy info dict),
-  `utespac/pipeline.run_utespac` with a `RunResult`, prompts behind
-  `utespac/prompts.py` (`ScriptedPFSelection` / `ConsolePFPrompter`),
-  `logging` in the core, `utespac_main.py` a thin CLI; VAC001 GPF/LPF date-1
-  products identical to the pre-step pickles. Remaining: step 3 labeled I/O
-  boundary + netCDF converter (`lon` on SiteInfo), step 4 stage-by-stage
-  core migration with the `fluxes.py` split (needs the pinned fixtures from
-  the parity-set line), step 5 retire parity artifacts. -- EFFORT L, RISK
-  med. Detail:
+  2026-08-22 (packaged TOMLs + `RunConfig`, `run_utespac`/`RunResult`,
+  prompts behind `utespac/prompts.py`, `logging`, thin CLI). Step 3 landed
+  2026-08-22: `utespac/labeled.py` (labeled tables/DataFrames of the
+  averaged output, CF netCDF writer/reader that is the pickle's twin;
+  `save_data` writes it, `get_data(fmt="nc")`/`get_frames` read it),
+  datetime64 shims in `campbell_date`, `PFinfo.json` via
+  `utespac/pf_info.PFTable` beside the legacy pickle, the A.2 HF converter
+  `utespac/export_hf.py` (`python -m utespac.export_hf`), `SiteInfo.longitude`;
+  VAC001 date-1 GPF averaged pickle bit-identical, suite 132 passed.
+  Remaining: step 4 stage-by-stage core migration (`avg` → `wind_stats` →
+  `sonic_rotation` on `PFTable` → `fluxes` split) against the pinned
+  fixtures from the parity-set line, step 5 retire parity artifacts
+  (`PFinfo.pkl`, compat flag, gap columns). -- EFFORT L, RISK med. Detail:
   [active/2026-08-22_code-audit-and-python-gameplan.md](active/2026-08-22_code-audit-and-python-gameplan.md)
-  "Migration gameplan".
+  "Migration gameplan" step 3.
 
 ## validation
 
@@ -55,14 +57,6 @@ Rationale, measurements and rulings live in the linked docs, not here.
   closure if Rn/G are revised. -- GAIN decisive check that
   corrections improve the data, EFFORT S, RISK low. Detail: audit doc
   "VAC001 test dataset".
-## meta
-
-- [ACTIVE 2026-08-22] Next-chat handoff: items 1 (Schotanus/WPL), 2
-  (`get_data`) and 4 (audit fixes) landed 2026-08-22; item 3 closed by the
-  user removing the Gill/IRGA folders (GPF regen for them runs off-repo);
-  item 5 step 2 landed 2026-08-22; step 3 is next. Detail:
-  [active/2026-08-22_next-chat-handoff.md](active/2026-08-22_next-chat-handoff.md).
-
 ## ec-coherent
 
 - [BLOCKED 2026-08-22] ec_coherent build-out per

@@ -3,6 +3,22 @@
 Rolling log of roughly the last 15 closures; older records live only in
 archive/. Format: `- [DONE|DROPPED YYYY-MM-DD] <one line> -- <link>`.
 
+- [DONE 2026-08-22] Next-chat handoff closed: items 1-4 landed or closed,
+  item 5 steps 2-3 landed; the remaining migration steps 4-5 live on the
+  migration board line, the user-side notes (card_convert copy deletable,
+  `tower = 180` [ASSUMED], provisional Rn/G) in the archived doc --
+  [archive/meta/2026-08-22_next-chat-handoff.md](archive/meta/2026-08-22_next-chat-handoff.md).
+- [DONE 2026-08-22] Migration step 3 (labeled I/O boundary): `utespac/labeled.py`
+  (labeled tables/DataFrames of the averaged output; CF netCDF writer/reader
+  whose read-back is the legacy dict, written by `save_data`, read by
+  `get_data(fmt="nc")`/`get_frames`), `campbell_date` datetime64 shims,
+  `utespac/pf_info.PFTable` with `PFinfo.json` beside the pickle, the A.2
+  HF converter `utespac/export_hf.py`, `SiteInfo.longitude`; VAC001 date-1
+  GPF averaged pickle bit-identical, nc round trip zero diffs, HF file 135 MB
+  in 9 s; suite 132 passed -- `tests/test_labeled.py`, `test_pf_info.py`,
+  `test_campbell_date.py`, `test_export_hf.py`; record in
+  [active/2026-08-22_code-audit-and-python-gameplan.md](active/2026-08-22_code-audit-and-python-gameplan.md)
+  "Migration gameplan" step 3.
 - [DONE 2026-08-22] Migration step 2 (config and UI): packaged stage TOMLs
   in `utespac/config/` with frozen dataclasses (`RunConfig`, `QCConfig`,
   `PFConfig`, `FluxConfig`; dopli resolution order; `to_info` bridge),

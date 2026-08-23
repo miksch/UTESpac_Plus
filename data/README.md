@@ -16,8 +16,12 @@ data/
                          be concatenated (e.g. one IRGASON per logger table)
     utespac/             formatted 48-h inputs written by raw_processing:
                          <PREFIX>_<table>_header.dat + <PREFIX>_<table>_<d1>000000_<d2>000000.txt
-    output/              pipeline products: .pkl / csv/ / .nc
-    PFinfo.pkl           global planar-fit coefficients (written by find_global_pf)
+    output/              pipeline products: .pkl / csv/ / .nc (labeled netCDF twin of
+                         each averaged pickle, utespac.labeled) / *_hf_*.nc (high-
+                         frequency netCDF from python -m utespac.export_hf)
+    PFinfo.json          global planar-fit coefficients as a record table
+                         (utespac.pf_info.PFTable; written by find_global_pf beside
+    PFinfo.pkl           the legacy dict; the JSON is read first when both exist)
     eddypro/             reference runs (EddyPro project, metadata, outputs)
     <other reference>/   anything else used for validation, named by source
 ```

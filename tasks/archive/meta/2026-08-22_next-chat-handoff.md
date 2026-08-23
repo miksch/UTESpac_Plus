@@ -3,10 +3,10 @@
 Opened 2026-08-22 at the close of the audit session; updated the same day
 after the second session landed items 1, 2, 4 and step 2 of item 5 below. State of the tree:
 the audit doc
-[2026-08-22_code-audit-and-python-gameplan.md](2026-08-22_code-audit-and-python-gameplan.md)
+[2026-08-22_code-audit-and-python-gameplan.md](../../active/2026-08-22_code-audit-and-python-gameplan.md)
 holds the findings, the VAC001-vs-EddyPro results, and the migration plan;
-[board.md](../board.md) holds the queue;
-[tests/KNOWN_DIVERGENCES.md](../../tests/KNOWN_DIVERGENCES.md) is the
+[board.md](../../board.md) holds the queue;
+[tests/KNOWN_DIVERGENCES.md](../../../tests/KNOWN_DIVERGENCES.md) is the
 known-divergence ledger the audit asked for (one row per deliberate
 difference from MATLAB, with the expected magnitude). Landed so far: the
 `data/` per-site tree and `tasks/`/`testbed/` silos, the planar-fit
@@ -34,7 +34,7 @@ Sources (all four PDFs now in `library/`, rows in `index.md`, entries in
 equation typography — render the pages if an equation form is in doubt):
 Schotanus1983 (10.1007/BF00164332), Kaimal1991 (10.1007/BF00119215),
 Webb1980 (10.1002/qj.49710644707), Liu2001 (10.1023/A:1019207031397). The
-note [library/writeups/sonic_temperature_flux.md](../../library/writeups/sonic_temperature_flux.md)
+note [library/writeups/sonic_temperature_flux.md](../../../library/writeups/sonic_temperature_flux.md)
 carries the equations with page/equation loci and the symbol each one
 lands on.
 
@@ -126,7 +126,7 @@ reference humidity is ρ_v/(ρ_d + ρ_v) with ρ_d from P − e;
 index; `find_eta` and the CO2 ppm header state their conventions; the
 `sigma` ddof=0 convention is commented at the site and in the ledger.
 The above-canopy ITC reference is now sourced
-([library/writeups/itc_sigmaw.md](../../library/writeups/itc_sigmaw.md)):
+([library/writeups/itc_sigmaw.md](../../../library/writeups/itc_sigmaw.md)):
 the unstable side (1.3 for −0.032 < z/L < 0, 2.0(−z/L)^(1/8) below) is
 Foken 2008 Table 2.11 = Foken et al. 2004 Table 9.1 = Foken et al. 2012
 Table 4.2; the stable side 0 ≤ z/L ≤ 0.4 uses Thomas & Foken 2002's
@@ -145,7 +145,13 @@ None of these are behind `matlabCompat`; the parity consequences are
 rows in the ledger, with "magnitude: to measure" where only the parity
 set (board: validation, first item) can put a number on them.
 
-## 5. Migration steps 2–5 and ec_coherent — step 2 DONE 2026-08-22, next: step 3
+## 5. Migration steps 2–5 and ec_coherent — steps 2 and 3 DONE 2026-08-22, next: step 4
+
+Closed 2026-08-22 after step 3 landed (labeled I/O boundary: `utespac/labeled.py`,
+`utespac/pf_info.py` + `PFinfo.json`, `utespac/export_hf.py`, datetime64
+shims, `SiteInfo.longitude`; record in the audit doc "Migration gameplan"
+step 3, board line under migration). This handoff is archived; steps 4–5
+stay on the migration board line, nothing else from here is open.
 
 Step 2 (config and UI) is in: `utespac/config/` holds `run.toml`, `qc.toml`,
 `pf.toml`, `flux.toml` (commented, mirroring the dataclass defaults;

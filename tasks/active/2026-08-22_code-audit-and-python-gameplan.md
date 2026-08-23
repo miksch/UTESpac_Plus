@@ -253,6 +253,42 @@ regenerated goldens.
    `save_data`/`get_data` emit and read labeled structures; datetime64 at the
    boundary with `campbell_date` surviving as the legacy shim; `PFinfo`
    re-persisted with explicit dims instead of string keys.
+
+   Landed 2026-08-22. `utespac/labeled.py` is the boundary: `tables()` turns
+   every 2-D field of an averaged output into a `LabeledTable` (datetime64
+   time, column labels, heights parsed from the label or the nested table
+   header), `to_frames()` gives DataFrames, `write_netcdf()`/`read_netcdf()`
+   persist the dict as a CF-time netCDF (one `time` dimension; per field a
+   `<f>_column` string coordinate, `<f>_height`, the data variable; the
+   header/flag bookkeeping in variable attributes so the read-back is the
+   legacy dict again; site, run and git provenance as global attributes via
+   `run_attrs`). `save_data` writes that file in place of the old
+   attribute-less dump; `get_data(fmt="nc")` / `get_frames()` read it; the
+   `.nc` of a product is the pickle's twin (VAC001 date 1 GPF ConstDet: zero
+   differences after the round trip, 0.33 MB). `campbell_date` gained the
+   vectorized `matlab_datenum_to_datetime64` / `datetime64_to_matlab_datenum`
+   (millisecond rounding, lossless for logger timestamps); the serial-datenum
+   loops stay as the legacy shim the stages still use. `utespac/pf_info.py`
+   holds `PFTable` (records of height, date window, sector, b0/b1/b2);
+   `find_global_pf` writes `PFinfo.json` beside `PFinfo.pkl` and reads the
+   JSON first; `PFTable.from_legacy/to_legacy` reproduce the `cm_/day_/
+   degrees_` dict exactly, so `sonic_rotation` is untouched until step 4.
+   `utespac/export_hf.py` is the A.2 converter (`python -m utespac.export_hf
+   --site VAC001 --pf GPF --det ConstDet`): dims `time`/`height` (ascending),
+   `u v w` (PF + yaw), `*_tilt`, `Ts`, `theta_v`, `WD`, `spd`, fine-wire, `rhov`
+   [g m⁻³] and `rhoCO2` [mg m⁻³] on their own height dims (the raw pickle now
+   carries `z_h2o`/`z_co2`), `P`, a `record` dimension with u*, L, wdir, the
+   tower-shadow/spike/NaN flags and the SSITC flags from the sibling averaged
+   pickle, a `planar_fit` group (GPF from `PFTable`, LPF from the `dataInfo`
+   strings), and the A.2 global attributes; VAC001 date 1 GPF: 135 MB at
+   float32, 9 s. `SiteInfo.longitude` added (VAC001 −121.9105 from the EddyPro
+   metadata). Acceptance: VAC001 date 1 GPF ConstDet re-run through the
+   pipeline, averaged pickle bit-identical to its predecessor, raw pickle
+   identical apart from the two new height vectors; tests
+   `test_labeled.py`, `test_pf_info.py`, `test_campbell_date.py`,
+   `test_export_hf.py`; suite 132 passed, 1 skipped. xarray is not a
+   dependency (not in the env); the core stays numpy/scipy, netCDF4 and
+   pandas are used at the boundary only.
 4. Stage-by-stage core migration (B.1 inward): `avg`/`simple_avg` →
    `wind_stats` → `sonic_rotation` → `fluxes` last, each against the pinned
    fixtures. Splitting `fluxes.py` goes with its migration: reference-scalar

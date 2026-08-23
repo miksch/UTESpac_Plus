@@ -671,15 +671,19 @@ def fluxes(
                 raw["t"]           = t
                 raw["z"]           = np.full(num_sonics, np.nan)
                 if "irgaH2O" in sensor_info or "LiH2O" in sensor_info:
-                    nh = (sensor_info.get("irgaH2O", sensor_info.get("LiH2O"))).shape[0]
+                    h2o_info = sensor_info.get("irgaH2O", sensor_info.get("LiH2O"))
+                    nh = h2o_info.shape[0]
                     raw["rhov"]             = np.full((len(t), nh), np.nan)
                     raw["rhovPrime"]        = np.full((len(t), nh), np.nan)
                     raw["rhovextenalPrime"] = np.full((len(t), nh), np.nan)
+                    raw["z_h2o"]            = h2o_info[:, 2].astype(float)   # hygrometer heights [m]
                 if "irgaCO2" in sensor_info or "LiCO2" in sensor_info:
-                    nc = (sensor_info.get("irgaCO2", sensor_info.get("LiCO2"))).shape[0]
+                    co2_info = sensor_info.get("irgaCO2", sensor_info.get("LiCO2"))
+                    nc = co2_info.shape[0]
                     raw["rhoCO2"]             = np.full((len(t), nc), np.nan)
                     raw["rhoCO2Prime"]        = np.full((len(t), nc), np.nan)
                     raw["rhoCO2extenalPrime"] = np.full((len(t), nc), np.nan)
+                    raw["z_co2"]              = co2_info[:, 2].astype(float)   # CO2 sensor heights [m]
 
             if save_raw:
                 raw["uPF"][:, ii]         = u_pf

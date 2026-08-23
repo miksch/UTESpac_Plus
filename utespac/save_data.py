@@ -68,9 +68,11 @@ def save_data(
     if info.get("saveCSV", False):
         paths["csv"] = _save_csv(output, out_dir, base_name) or os.path.join(out_dir, "csv")
 
-    # ---- NetCDF ----------------------------------------------------------------
+    # ---- NetCDF (labeled, CF time; utespac.labeled) ------------------------------
     if info.get("saveNetCDF", False):
-        paths["nc"] = _save_netcdf(output, out_dir, base_name) or os.path.join(out_dir, base_name + ".nc")
+        nc_path = _save_netcdf(info, output, out_dir, base_name)
+        if nc_path:
+            paths["nc"] = nc_path
 
     return paths
 
@@ -98,30 +100,14 @@ def _save_csv(output: Dict, out_dir: str, base_name: str) -> None:
         np.savetxt(csv_path, val, delimiter=",", header=header_str, comments="")
 
 
-def _save_netcdf(output: Dict, out_dir: str, base_name: str) -> None:
-    try:
-        import netCDF4 as nc
-    except ImportError:
-        import warnings
-        warnings.warn("netCDF4 package not installed; skipping NetCDF output.")
-        return
-
+def _save_netcdf(info: Dict, output: Dict, out_dir: str, base_name: str) -> Optional[str]:
+    """Labeled netCDF of the averaged output (``utespac.labeled.write_netcdf``);
+    None, with a warning, when netCDF4 is not installed."""
+    from .labeled import run_attrs, write_netcdf
     nc_path = os.path.join(out_dir, base_name + ".nc")
-    if os.path.exists(nc_path):
-        os.remove(nc_path)
-
-    with nc.Dataset(nc_path, "w") as ds:
-        for key, val in output.items():
-            if not isinstance(val, np.ndarray) or val.ndim < 1:
-                continue
-            clean_key = key.replace(" ", "_")[:64]
-            dims = []
-            for di, size in enumerate(val.shape):
-                dname = f"{clean_key}_dim{di}"
-                if dname not in ds.dimensions:
-                    ds.createDimension(dname, size)
-                dims.append(dname)
-            var = ds.createVariable(clean_key, "f4", dims, fill_value=np.nan)
-            var[:] = val.astype(float)
-    log.info("  Saved NetCDF: %s", nc_path)
-    return nc_path
+    try:
+        return write_netcdf(output, nc_path, attrs=run_attrs(info, output))
+    except ImportError as exc:
+        import warnings
+        warnings.warn(f"{exc}; skipping NetCDF output.")
+        return None
