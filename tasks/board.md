@@ -3,21 +3,9 @@
 One line per open task; format and lifecycle in [README.md](README.md).
 Rationale, measurements and rulings live in the linked docs, not here.
 
-## utespac-core
-
-- [PENDING 2026-08-22] GPF coefficient indexing + b0 removal: fix landed in
-  `utespac/rotation.py` (`PlanarFit.apply`, `apply_global_fit`), pinned by
-  `tests/test_planar_fit.py`, verified on VAC001 against EddyPro's
-  planar fit. Remaining: regenerate GPF outputs/raw pickles for the
-  French Meadows sites (Gill, IRGA) -- nothing of theirs is in the repo
-  any more (user removed the Gill/IRGA folders 2026-08-22), so this runs
-  wherever their `siteInfo` and 48-h inputs live, reusing each site's
-  PFinfo (the legacy pickle is still read; the run writes PFinfo.json). --
-  EFFORT M (reprocessing), RISK low. Source: findings 1-2 in
-  [active/2026-08-22_code-audit-and-python-gameplan.md](active/2026-08-22_code-audit-and-python-gameplan.md).
 ## migration
 
-- [PENDING 2026-08-22] Labeled inter-stage model (B.1 inward of the I/O
+- [ACTIVE 2026-08-22] Labeled inter-stage model (B.1 inward of the I/O
   boundary). The stage numerics live in typed pieces (`averaging`,
   `rotation.rotate_sonics` -> `RotationResult`, `flux.reference`/`levels`/
   `engine`/`tables`), but the pipeline still passes the legacy `output`
@@ -25,18 +13,21 @@ Rationale, measurements and rulings live in the linked docs, not here.
   wrappers `avg`/`wind_stats`/`sonic_rotation`/`fluxes`. Remaining: a
   labeled run object (tables + datetime64 time + sensor records) that the
   pipeline hands from stage to stage, the wrappers retired, `save_data`
-  writing from it; gated by `tests/test_pinned_fixture.py`. -- EFFORT L,
+  writing from it; gated by `tests/test_pinned_fixture.py`. User ruling
+  2026-08-22: this comes before the ec_coherent build-out, so the
+  architecture is settled first. -- EFFORT L,
   RISK med. Source: integration notes B.1/B.2; the migration record in
   [active/2026-08-22_code-audit-and-python-gameplan.md](active/2026-08-22_code-audit-and-python-gameplan.md)
   "Migration gameplan" steps 4-5.
 
 ## validation
 
-- [ACTIVE 2026-08-22] 3D planar-fit validation figure: landed for VAC001
-  (single sector, whole IOP) in `testbed/scripts/pf_vac001_eddypro.py`;
-  still to do per height/sector/date-bin on the multi-sonic sites once
-  they are migrated into `data/`. -- EFFORT S, RISK low. Source: findings
-  1-2 in
+- [BLOCKED 2026-08-22] 3D planar-fit validation figure per
+  height/sector/date-bin: landed for the VAC001 10.85 m sonic (single
+  sector, whole IOP) in `testbed/scripts/pf_vac001_eddypro.py`; the
+  per-height form waits on the other VAC001 levels, which the user has
+  not supplied yet (the French Meadows sites will not be processed --
+  user ruling 2026-08-22). -- EFFORT S, RISK low. Source: findings 1-2 in
   [active/2026-08-22_code-audit-and-python-gameplan.md](active/2026-08-22_code-audit-and-python-gameplan.md).
 - [ACTIVE 2026-08-22] External-reference validation against EddyPro (ruled
   2026-08-22: EddyPro, not previous UTESpac runs; caveat -- EddyPro q'
@@ -55,6 +46,7 @@ Rationale, measurements and rulings live in the linked docs, not here.
   [../testbed/2026-08-12_ec_coherent_gameplan.md](../testbed/2026-08-12_ec_coherent_gameplan.md).
   Unblocked 2026-08-22: the GPF coefficient fix landed and every VAC001
   product (LPF and GPF, raw and averaged) has been regenerated with it;
-  the A.2 converter (`utespac.export_hf`) exists. Only VAC001 pickles are
-  in `data/`; any FM-site pickle from before the fix must not be consumed.
-  -- EFFORT L, RISK med.
+  the A.2 converter (`utespac.export_hf`) exists; VAC001 is the only site
+  (user ruling 2026-08-22). Ordered after the labeled inter-stage model
+  (migration line) so the architecture it builds on is settled. --
+  EFFORT L, RISK med.

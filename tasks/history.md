@@ -3,6 +3,11 @@
 Rolling log of roughly the last 15 closures; older records live only in
 archive/. Format: `- [DONE|DROPPED YYYY-MM-DD] <one line> -- <link>`.
 
+- [DROPPED 2026-08-22] GPF regeneration for the French Meadows sites (Gill,
+  IRGA) with the fixed rotation: the user will not process those sites;
+  VAC001 (flat, so the slope-geometry keys stay unused) is the only site.
+  The fix itself is in `utespac/rotation.py` and recorded in the audit doc,
+  findings 1-2.
 - [DONE 2026-08-22] De-MATLAB migration steps 4-5 (closes the migration
   board line). Step 4: pinned fixture `tests/fixtures/vac001_1hz/` +
   `test_pinned_fixture.py`; `utespac/averaging.py` behind `avg`/`simple_avg`/
