@@ -35,12 +35,30 @@ class SpectraConfig:
 
 
 @dataclass(frozen=True)
+class RampsConfig:
+    """Ramp detection, wavelet path (``[ramps]``; library/writeups/ec_ramps.md)."""
+    signals: Tuple[str, ...] = ("Ts", "u")   # "e" (TKE) waits on Mangan et al. 2022
+    wavelet: str = "mhat"                    # [CITED] CB 1993 zero-crossing method
+    peak: str = "smallest_scale"             # smallest_scale (Thomas & Foken 2007) | global (CB 1993)
+    D_min_s: float = 6.2                     # variance-peak search from this event duration up  [CITED] Thomas & Foken 2007 §3.1 (their site)
+    a_min_s: float = 1.0                     # scale grid [s]  [ASSUMED]
+    a_max_s: float = 300.0
+    n_scales_per_decade: int = 16
+    slope_Ts: str = "auto"                   # negative | positive | both | auto (sign of w'Ts')
+    slope_u: str = "positive"                # CB 1993 I p. 375
+    edge_scales: float = 3.0                 # drop detections within edge_scales*a0 of the ends  [ASSUMED]
+    refine: str = "none"                     # none | ramp | haar: re-time at the first-derivative wavelet extremum (DECIDE, task doc)
+    max_events: int = 300                    # padding of the event axis
+
+
+@dataclass(frozen=True)
 class ECConfig:
     """Run-level configuration for ec_coherent."""
     modules: Tuple[str, ...] = ("spectra",)
     output_suffix: str = "coherent"       # <Site>_coherent_<PF>_<Det>_<date>.nc
     preprocess: PreprocessConfig = field(default_factory=PreprocessConfig)
     spectra: SpectraConfig = field(default_factory=SpectraConfig)
+    ramps: RampsConfig = field(default_factory=RampsConfig)
 
     @classmethod
     def from_config(cls, config=None, **overrides) -> "ECConfig":
@@ -51,14 +69,16 @@ class ECConfig:
         """
         raw = _resolve(config)
         vals: Dict[str, Any] = {}
-        for sect, klass in (("preprocess", PreprocessConfig), ("spectra", SpectraConfig)):
+        for sect, klass in (("preprocess", PreprocessConfig), ("spectra", SpectraConfig),
+                            ("ramps", RampsConfig)):
             d = dict(raw.pop(sect, {}) or {})
             d.update(overrides.pop(sect, {}) or {})
             _check_unknown(klass, d, sect)
             if "nperseg" in d and d["nperseg"] in (0, "none", "None"):
                 d["nperseg"] = None
-            if "scalars" in d:
-                d["scalars"] = tuple(d["scalars"])
+            for key in ("scalars", "signals"):
+                if key in d:
+                    d[key] = tuple(d[key])
             vals[sect] = klass(**d)
         top = dict(raw.get("run", {}) or {})
         top.update({k: v for k, v in raw.items() if k != "run"})

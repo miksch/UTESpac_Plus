@@ -32,12 +32,13 @@ result.ok, [d.paths for d in result.dates]
 
 ## Coherent-structure analysis (`ec_coherent`)
 
-A sibling package that reads the `utespac-hf-1` high-frequency netCDF the pipeline writes with `saveRawConditionedData` and adds one analysis netCDF per file (`<Site>_coherent_<PF>_<Det>_<date>.nc`, a group per module). Settings: `ec_coherent/config/ec_coherent.toml` (overridable like the pipeline TOMLs); science notes: `library/writeups/ec_preprocess.md`, `ec_spectra.md`; plan: `testbed/2026-08-12_ec_coherent_gameplan.md`. Modules landed so far: `spectra` (spectra, cospectra, quadrature spectra, ogives).
+A sibling package that reads the `utespac-hf-1` high-frequency netCDF the pipeline writes with `saveRawConditionedData` and adds one analysis netCDF per file (`<Site>_coherent_<PF>_<Det>_<date>.nc`, a group per module). Settings: `ec_coherent/config/ec_coherent.toml` (overridable like the pipeline TOMLs); science notes: `library/writeups/ec_preprocess.md`, `ec_spectra.md`; plan: `testbed/2026-08-12_ec_coherent_gameplan.md`. Modules landed so far: `spectra` (spectra, cospectra, quadrature spectra, ogives) and `ramps` (wavelet zero-crossing microfront detector on Ts and u; `library/writeups/ec_ramps.md`).
 
 ```bash
 python -m ec_coherent.cli data/VAC001/output/VAC001_hf_GPF_ConstDet_2023_07_06.nc           # all records
 python -m ec_coherent.cli data/VAC001/output/VAC001_hf_*.nc --records 0-5 --modules spectra
 python testbed/scripts/ec_spectra_vac001.py                                                 # closure + Kaimal figure
+python testbed/scripts/ec_ramps_vac001.py --record 70                                        # scalograms + detections
 ```
 
 ---

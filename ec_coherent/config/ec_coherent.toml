@@ -7,7 +7,7 @@
 # Provenance labels follow LLM_PRACTICE (dopli): [CITED] [DERIVED] [ASSUMED].
 
 [run]
-modules = ["spectra"]          # analyses to run, in order
+modules = ["spectra", "ramps"]  # analyses to run, in order
 output_suffix = "coherent"     # <Site>_coherent_<PF>_<Det>_<date>.nc next to the HF file
 
 [preprocess]
@@ -22,3 +22,19 @@ taper = "boxcar"               # boxcar | hann; boxcar closes Parseval exactly (
 nperseg = 0                    # 0 = full-record periodogram; N = Welch segments of N samples
 n_bins_per_decade = 10         # log-binning density  [ASSUMED]
 scalars = ["Ts", "rhov", "rhoCO2"]
+
+[ramps]
+# Wavelet (zero-crossing) ramp detector, library/writeups/ec_ramps.md
+signals = ["Ts", "u"]          # "e" (TKE, Mangan et al. 2022) not yet implemented
+wavelet = "mhat"               # MHAT zero-crossing method  [CITED] Collineau & Brunet 1993 I §4.3.3
+peak = "smallest_scale"        # smallest-scale variance maximum (Thomas & Foken 2007 §3.1) | "global" (CB 1993)
+D_min_s = 6.2                  # [s] peak search over event durations D >= this  [CITED] Thomas & Foken 2007 §3.1 (low-pass <6.2 s; their spruce site)
+a_min_s = 1.0                  # [s] scale grid  [ASSUMED]
+a_max_s = 300.0
+n_scales_per_decade = 16
+slope_Ts = "auto"              # negative (unstable ramp) | positive (stable inverse ramp) | both | auto from sign(w'Ts')
+slope_u = "positive"           # [CITED] CB 1993 I p. 375
+edge_scales = 3.0              # detections within edge_scales * a0 of the window ends dropped  [ASSUMED]
+refine = "none"                # none | ramp | haar -- re-time each event at the RAMP/HAAR transform extremum within +-a0
+#                                (the MHAT zero-crossing lands ~0.35 a0 after an ideal microfront; DECIDE slot in the task doc)
+max_events = 300

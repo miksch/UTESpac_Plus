@@ -28,7 +28,8 @@ Rationale, measurements and rulings live in the linked docs, not here.
 - [ACTIVE 2026-08-23] ec_coherent build-out per
   [../testbed/2026-08-12_ec_coherent_gameplan.md](../testbed/2026-08-12_ec_coherent_gameplan.md);
   working doc [active/2026-08-23_ec-coherent-buildout.md](active/2026-08-23_ec-coherent-buildout.md)
-  (steps 1-2 landed: io/preprocess/spectra; steps 3-7 open).
+  (steps 1-2 landed: io/preprocess/spectra; step 4 wavelet detector landed,
+  structure-function and TKE detectors open; steps 3, 5-7 open).
   Unblocked 2026-08-22: the GPF coefficient fix landed and every VAC001
   product (LPF and GPF, raw and averaged) has been regenerated with it;
   the A.2 HF netCDF is written by the pipeline (`utespac.export_hf.write_hf`,

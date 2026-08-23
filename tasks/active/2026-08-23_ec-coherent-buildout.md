@@ -27,7 +27,7 @@ Ancillaries on `record`: `ustar`, `L`, `wdir`, `wind_flag`, `spike_flag`,
 | 1 | `io` + `preprocess` (A.2 converter already in `utespac.export_hf`) | landed 2026-08-23 |
 | 2 | `spectra` | landed 2026-08-23 |
 | 3 | `mrd`, `quadrant`/`octant` | pending (Howell & Mahrt 1997, Vickers & Mahrt 2003; Wallace 2016, Lu & Willmarth 1973, Raupach 1981, Li & Bou-Zeid 2011, Li & Bo 2019 to read) |
-| 4 | `ramps` (wavelet first) | pending; `pywt` not installed in the env yet |
+| 4 | `ramps` (wavelet first) | wavelet detector landed 2026-08-23 (Ts, u; `pywt` installed); structure-function (Van Atta) detector and TKE (Mangan 2022) pending -- sources unread |
 | 5 | `ampmod`, `scales` | pending |
 | 6 | `coherent_flux` | pending |
 | 7 | `cli` + full-file regression | `cli` runs the landed modules over one file; extend per module |
@@ -96,7 +96,46 @@ Ancillaries on `record`: `ustar`, `L`, `wdir`, `wind_flag`, `spike_flag`,
   Ts variance on six windows (block detrend), boxcar closes exactly;
   boxcar is the default (spectra note, deviation register).
 
+## Step 4, wavelet path (2026-08-23)
+
+- Read: Collineau & Brunet 1993 I (transform eq. 4, wavelet variance
+  eq. 8, duration scale eq. 22, Table I, zero-crossing method §4.3) and II
+  (calibration §4.1, time localization §5.2, conditional averages eq. 3,
+  triple decomposition §7.2), Gao, Shaw & Paw U 1989 (ramp and microfront
+  description), Thomas & Foken 2007 §3.1-3.2 (highest-frequency variance
+  peak after a 6.2 s low-pass, Mexican hat at D_e, flux contribution eqs.
+  1-7). Note: `library/writeups/ec_ramps.md`.
+- Landed: `ec_coherent/ramps.py` (`mhat`, `ramp_wavelet`, `haar`, `cwt`,
+  `wavelet_variance`, `duration_scale`, `zero_crossings`, `refine_times`,
+  `detect`, `run`), `[ramps]` config, `ramps` in the CLI,
+  `tests/test_ec_ramps.py`, `testbed/scripts/ec_ramps_vac001.py`; suite
+  192 green.
+- Findings: (1) CB Table II geometry confirmed -- D is the event length,
+  half the pattern period; (2) the MHAT zero-crossing at a0 lags an ideal
+  microfront by 0.35 a0; RAMP/HAAR re-timing removes it (DECIDE below);
+  (3) VAC001: u' gives a clean single-peak scalogram (D ≈ 11 s, ~80
+  events/30 min, spacing ≈ 2D); Ts' has no ramp-scale peak in most
+  records (small-scale shoulder at 3 s, trend hump at 60-260 s), so
+  temperature-based detection at this site rests on the `D_min_s` choice
+  -- recorded in the note; the coherent-flux module should probably
+  condition on u' (or w') events here rather than Ts' as Thomas & Foken do.
+- Not done: Van Atta / Paw U / Spano / Chen (structure-function
+  detector), Mangan 2022 (TKE, IQA) -- unread, no code.
+
 ## Open decisions
+
+DECIDE: `refine` default for the wavelet detector -- keep the MHAT
+zero-crossing time as the paper does (`none`, landed), or re-time each
+event at the RAMP extremum within ±a0 (`ramp`), which puts ideal
+microfronts to one sample but combines the paper's two schemes. (default:
+`none`; the option stays available)
+A:
+
+DECIDE: detection signal for VAC001 -- Ts' (Thomas & Foken's choice,
+ill-posed here) or u' (clean scalogram) as the event set the coherent-flux
+module conditions on. (default: u', with Ts' reported alongside)
+A:
+
 
 DECIDE: Welch segmenting vs full-record periodogram as the default
 spectral estimator. The landed default is the full-record periodogram
