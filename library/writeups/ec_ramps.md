@@ -147,6 +147,20 @@ uses the first derivative-like wavelets with a threshold for detection,
 not as a re-timing step after a threshold-free detection, so the
 combination is a deviation awaiting the user's ruling (task doc).
 
+On real data the ideal-train lag does not survive (measured 2026-08-23 on
+all events of VAC001 GPF ConstDet 2023-07-06,
+`testbed/scripts/ec_ramps_issue_vac001.py`, figure
+`testbed/scratch/ec_ramps_issues_vac001.png` panel c): over 6585 u and
+1737 Ts events the median of (zero-crossing − RAMP-refined)/$a_0$ is 0.00,
+the distribution spreads over the full $\pm a_0$ search window, and only
+16 % of u events agree within $0.1\,a_0$ -- on real turbulence the RAMP
+extremum within $\pm a_0$ is frequently a different nearby feature, so
+re-timing adds scatter rather than removing a bias. Panel d (record 18,
+09:30, where Ts detection works, $a_0$ = 4.2 s): the zero-crossings land
+on the visible sharp drops, a median +0.4 s after the refined times. The
+$+0.35\,a_0$ lag is a property of the ideal isolated-ramp geometry, not of
+these data; it supports keeping `refine = "none"` as the default.
+
 ## Outputs (`/ramps` group)
 
 Per record, height and signal (`Ts`, `u`; TKE waits on Mangan 2022): `a0_*`

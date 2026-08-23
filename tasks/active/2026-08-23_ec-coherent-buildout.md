@@ -124,16 +124,33 @@ Ancillaries on `record`: `ustar`, `L`, `wdir`, `wind_flag`, `spike_flag`,
 
 ## Open decisions
 
+Both issues plotted on real data 2026-08-23 (user request):
+`testbed/scripts/ec_ramps_issue_vac001.py` →
+`testbed/scratch/ec_ramps_issues_vac001.png`. Panel a: record 21 (11:00,
+the day's largest w'Ts'), Ts ramps clearly visible in the trace, the Ts
+detector finds 7 events at D = 104 s while the u detector's 74 events land
+on the visible ramps -- Ts ramps visible but not detectable through the Ts
+scalogram (panel b: no interior Ts peak between the small-scale shoulder
+and the trend hump). Panels c-d: pooled over all 6585 u / 1737 Ts events
+of the day, the (zero-crossing − RAMP-refined)/a0 lag has median 0.00 and
+±a0 scatter (only 16 % agree within 0.1 a0) -- the +0.35 a0 lag is an
+ideal-train artifact, absent on real data; where Ts detection works
+(record 18) the zero-crossings sit on the visible drops (+0.4 s median).
+Both findings recorded in the ec_ramps note.
+
 DECIDE: `refine` default for the wavelet detector -- keep the MHAT
 zero-crossing time as the paper does (`none`, landed), or re-time each
 event at the RAMP extremum within ±a0 (`ramp`), which puts ideal
-microfronts to one sample but combines the paper's two schemes. (default:
-`none`; the option stays available)
+microfronts to one sample but on real data adds ±a0 scatter with no
+systematic correction (figure panel c). (default: `none`; the option
+stays available)
 A:
 
-DECIDE: detection signal for VAC001 -- Ts' (Thomas & Foken's choice,
-ill-posed here) or u' (clean scalogram) as the event set the coherent-flux
-module conditions on. (default: u', with Ts' reported alongside)
+DECIDE: detection signal for VAC001 -- Ts' (Thomas & Foken's choice;
+visible ramps but usually no ramp-scale scalogram peak here, figure
+panels a-b) or u' (clean scalogram, events land on the visible Ts ramps)
+as the event set the coherent-flux module conditions on. (default: u',
+with Ts' reported alongside)
 A:
 
 
