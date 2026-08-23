@@ -1,10 +1,18 @@
-"""simpleAvg – block-average a matrix based on a serial-date timestamp column."""
+"""simpleAvg – block-average a matrix based on a serial-date timestamp column.
+
+Legacy entry point: the timestamp column is located by value (a datenum
+between 2000 and 2030), the spacing is checked, and the reduction is
+:func:`utespac.averaging.block_mean`. New code passes the time axis
+explicitly to :func:`utespac.averaging.block_average` instead.
+"""
 
 import warnings
+from datetime import datetime
 
 import numpy as np
-from .campbell_date import datetime_to_matlab_datenum, MATLAB_EPOCH
-from datetime import datetime
+
+from .averaging import block_last, block_mean, n_periods, period_bounds
+from .campbell_date import datetime_to_matlab_datenum
 
 
 # MATLAB datenum bounds for identifying a timestamp column
@@ -29,10 +37,8 @@ def simple_avg(
         Averaging period in minutes.
     return_timestamps : bool
         If False, the timestamp column is dropped from the output.
-    wd_col : int or None
-        0-based column index of wind direction for vector averaging.
-    ws_col : int or None
-        0-based column index of wind speed for vector averaging.
+    wd_col, ws_col : int or None
+        0-based wind-direction and wind-speed columns for vector averaging.
 
     Returns
     -------
@@ -48,17 +54,11 @@ def simple_avg(
             t_col = c
             break
     if t_col is None:
-        # Cannot find a valid timestamp column; return as-is
         warnings.warn("simple_avg: could not identify timestamp column; returning input unchanged.")
         return mat
 
     t = mat[:, t_col]
-
-    # Number of averaging bins
-    dt_days = avg_per / (24.0 * 60.0)
-    N = round(np.ceil(t[-1]) - np.floor(t[0])) / dt_days
-    N = int(round(N))
-
+    N = n_periods(t, avg_per)
     if N == 0 or N > n_rows:
         warnings.warn("simple_avg: N out of range; returning input unchanged.")
         return mat
@@ -69,27 +69,11 @@ def simple_avg(
         warnings.warn("simple_avg: timestamp spacing inconsistent; returning input unchanged.")
         return mat
 
-    # Breakpoints
-    bp = np.round(np.linspace(0, n_rows, N + 1)).astype(int)
-
-    avg_mat = np.full((N, n_cols), np.nan)
-
-    for i in range(N):
-        chunk = mat[bp[i]:bp[i + 1], :]
-        if len(chunk) == 0:
-            continue
-        avg_mat[i, :] = np.nanmean(chunk, axis=0)
-        avg_mat[i, t_col] = t[bp[i + 1] - 1]  # timestamp = last sample in bin
-
-        # Vector-average wind direction
-        if wd_col is not None and ws_col is not None:
-            ws = chunk[:, ws_col]
-            wd_rad = np.deg2rad(chunk[:, wd_col])
-            v_mean = np.nanmean(ws * np.sin(wd_rad))
-            u_mean = np.nanmean(ws * np.cos(wd_rad))
-            avg_mat[i, wd_col] = np.degrees(np.arctan2(v_mean, u_mean)) % 360.0
+    bounds = period_bounds(n_rows, N)
+    pairs = [(wd_col, ws_col)] if wd_col is not None and ws_col is not None else None
+    avg_mat = block_mean(mat, bounds, vector_cols=pairs)
+    avg_mat[:, t_col] = block_last(t, bounds)
 
     if not return_timestamps:
         avg_mat = np.delete(avg_mat, t_col, axis=1)
-
     return avg_mat

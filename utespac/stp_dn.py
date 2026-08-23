@@ -1,6 +1,11 @@
-"""stpDn – step-down average (block-mean by fixed row count)."""
+"""stpDn – step-down average (block-mean by fixed row count).
+
+Legacy name for :func:`utespac.averaging.block_mean_rows`.
+"""
 
 import numpy as np
+
+from .averaging import block_mean_rows
 
 
 def stp_dn(data: np.ndarray, rows: int) -> np.ndarray:
@@ -16,11 +21,4 @@ def stp_dn(data: np.ndarray, rows: int) -> np.ndarray:
     -------
     out : ndarray, shape (N // rows, M)
     """
-    data = np.asarray(data, dtype=float)
-    n = data.shape[0]
-    n_out = n // rows
-    data2d = data.reshape(n, -1) if data.ndim == 1 else data
-    out = np.full((n_out, data2d.shape[1]), np.nan)
-    for i in range(n_out):
-        out[i, :] = np.nanmean(data2d[i * rows:(i + 1) * rows, :], axis=0)
-    return out
+    return block_mean_rows(data, rows)

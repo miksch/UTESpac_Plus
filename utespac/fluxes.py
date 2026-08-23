@@ -17,6 +17,7 @@ from .find_delta_time import find_delta_time
 from .find_eta import find_eta
 from .calc_ssitc_flags import calc_ssitc_flags
 from .site_config import sonic_for
+from .wind_stats import wind_direction_speed
 
 log = logging.getLogger("utespac")
 
@@ -696,14 +697,7 @@ def fluxes(
                 raw["Theta_v_son"][:, ii] = theta_son
                 raw["z"][ii]              = height
                 bearing = float(sensor_info["u"][ii, 3]) if sensor_info["u"].shape[1] > 3 else 0.0
-                if manufact == 0:    # RMYoung
-                    u_wd, v_wd = v_raw, -u_raw
-                elif manufact == 2:  # Gill
-                    u_wd, v_wd = -u_raw, -v_raw
-                else:                # Campbell CSAT3
-                    u_wd, v_wd = u_raw, v_raw
-                raw["WD"][:, ii]  = np.mod(np.degrees(np.arctan2(-v_wd, u_wd)) + bearing, 360.0)
-                raw["spd"][:, ii] = np.sqrt(u_wd**2 + v_wd**2)
+                raw["WD"][:, ii], raw["spd"][:, ii] = wind_direction_speed(u_raw, v_raw, bearing, manufact)
 
             # ---- derivedT: block-averaged derived temperatures ----
             avg_ts = simple_avg(np.column_stack([theta_son,     t]), info["avgPer"])[:, 0]

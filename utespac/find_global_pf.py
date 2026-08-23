@@ -13,6 +13,7 @@ from .get_data import get_data
 from .pf_coefficients import pf_coefficients
 from .site_config import list_sites
 from .stp_dn import stp_dn
+from .wind_stats import wind_direction_speed
 
 log = logging.getLogger("utespac")
 
@@ -25,20 +26,8 @@ def _matlab_to_datetime(serial):
 
 
 def _compute_direction(u, v, bearing, manufact):
-    """Compute wind direction [0, 360) from u/v, matching MATLAB findGlobalPF.
-
-    Manufacturer corrections:
-      1 (Campbell)  : u, v as-is
-      0 (RMYoung)   : swap u↔v, negate new v
-      2 (Gill)      : negate both u and v
-    """
-    if manufact == 0:
-        u_dir, v_dir = v, u * -1
-    elif manufact == 2:
-        u_dir, v_dir = -u, -v
-    else:
-        u_dir, v_dir = u, v
-    return np.mod(np.arctan2(-v_dir, u_dir) * 180.0 / np.pi + bearing, 360.0)
+    """Wind direction [0, 360) from u/v (``wind_stats.wind_direction_speed``)."""
+    return wind_direction_speed(u, v, bearing, manufact)[0]
 
 
 def find_global_pf(info: Dict, template: Dict, sensor_info: Dict,

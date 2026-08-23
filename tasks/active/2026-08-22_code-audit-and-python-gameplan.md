@@ -313,6 +313,38 @@ regenerated goldens.
    fixture committable; ec_coherent's closure tests take their 20 Hz
    window from `data/` locally. A multi-sonic fixture waits on the
    French Meadows inputs (board: parity set).
+
+   Stages 1–3 of step 4 landed 2026-08-22. `utespac/averaging.py` holds
+   the period arithmetic once (`n_periods` from the day span — the one
+   place that knows the datenum convention — `period_bounds`,
+   `block_mean`/`block_last`/`block_average`, `block_mean_rows`,
+   `vector_mean_direction`); `avg`, `simple_avg` (timestamp-column
+   detection and spacing checks only) and `stp_dn` are wrappers over it,
+   bit-identical on the fixture. `wind_stats.py` exposes
+   `wind_direction_speed` / `sonic_axes` / `shadow_sector` / `shadow_flag`,
+   and the three copies of the manufacturer axis convention
+   (`wind_stats`, `find_global_pf._compute_direction`, the raw `WD`/`spd`
+   in `fluxes`) now call the one function. `utespac/rotation.py` carries
+   the rotation numerics: `PlanarFit` (fit / matrix / apply / describe),
+   `pf_matrix`, `apply_planar_fit`, `sector_mask`, `fit_sectors`,
+   `apply_global_fit` (date window × sector per `PFRecord`), `yaw_rotate`
+   (per period, on the shared block split), `SonicSeries`,
+   `rotate_sonics` → `RotationResult` (rotated, pf_only, bounds, fits /
+   records / skipped by height, headers, `averaged()`); `sonic_rotation`
+   is the legacy wrapper (accepts a `PFTable` or the `cm_/day_/degrees_`
+   dict, converts with `PFTable.from_legacy`), `pf_coefficients` the keyed
+   form of `fit_sectors`. One deliberate change, in the ledger: the yaw
+   segments come from `period_bounds` instead of `searchsorted(t, t0 +
+   k·dt)`; old-vs-new A/B on the fixture differed in exactly the 6 period
+   edges where the float form was one sample late (planar fits, `PFSonic`,
+   and every other row identical), the fixture was re-pinned, and the 20
+   Hz / 10 Hz serial-date grids show the two splits coincide, so the
+   48-h products are unchanged (VAC001 date 1 GPF ConstDet regenerated
+   through the migrated stages: averaged and raw pickles bit-identical to
+   their predecessors). Tests: `test_averaging.py`, `test_wind_stats.py`,
+   `test_rotation.py`; suite 154 passed, 1 skipped. Left in step 4: the
+   `fluxes` split, then the pipeline calling `rotate_sonics` directly
+   (step 5 retires the wrapper with the other parity artifacts).
 5. Retire parity (B.8): drop the compat flag, the gap columns, the duplicate
    R column and the `skew_Theata_v` typo in one commit; re-baseline testkit
    to clean output.
