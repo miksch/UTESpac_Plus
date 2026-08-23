@@ -1,4 +1,5 @@
-"""Planar-fit mechanics: coefficient contract, offset removal, compat path."""
+"""Planar-fit mechanics: coefficient contract, offset removal, and what the
+legacy MATLAB indexing did (audit findings 1-2)."""
 
 import numpy as np
 import pytest

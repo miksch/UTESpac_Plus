@@ -14,10 +14,6 @@
 [run]
 UTESpacVersion = "5.0-Python"
 avgPer = 30            # [min] averaging period; must divide 60
-matlabCompat = false   # reproduce the MATLAB port's legacy behaviours for
-#                        parity runs (planar-fit coefficient indexing, 0.61
-#                        sonic-humidity coefficient, buoyancy flux in the WPL
-#                        terms, whole-file NaN blocks in get_data)
 
 [output]
 saveRawConditionedData = true   # QC'd raw tables as pickle (*_raw_*.pkl)

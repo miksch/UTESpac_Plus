@@ -413,7 +413,28 @@ regenerated goldens.
    comparison and the audit.
    (default: (b) — nothing is blocked on it; the flag costs one boolean
    and two branches.)
-   A:
+   A: (c) — user ruling 2026-08-22: the MATLAB products will not be
+   assembled; the EddyPro comparison was good enough.
+
+   Done 2026-08-22 on that ruling: `matlabCompat` removed from
+   `RunConfig`/`run.toml`/`to_info`, `utespac_main` (`--matlab-compat`),
+   `run_vac001_gpf.py` (`--compat`), `rotation.apply_global_fit`/
+   `rotate_sonics`, `sonic_rotation`, `flux.levels`/`flux.engine`
+   (`FluxOptions`), `get_data` (`matlab_compat=` kwarg) and the netCDF
+   attributes; the duplicate `R_wPF_CO2` column and the `skew_Theata_v`
+   label removed from `flux.tables.TABLE_SPECS` (R is 15 columns per
+   sonic; the label reads `skew_Theta_v`); `tests/test_regression.py`,
+   `compare_outputs.py`, `run_test.py` deleted and `utespac/testkit.py`
+   reduced to `get_header`/`column_stats`/`compare_field` (used by the
+   EddyPro comparison scripts); the fixture re-pinned (only the R shape
+   and the two headers moved; every value identical);
+   `tests/KNOWN_DIVERGENCES.md` reframed as the record of departures from
+   MATLAB rather than an acceptance statement; the parity-set board line
+   dropped. The legacy stage wrappers (`sonic_rotation`, `fluxes` with the
+   `output` dict) stay: they are the adapters between the stages' legacy
+   data model and the new pieces, and retiring them is the labeled
+   inter-stage model (B.1 inward of the boundary), a separate piece of
+   work, not a parity artifact. Suite 154 passed.
 
 ec_coherent development starts after step 1 (it must not consume pre-fix GPF
 pickles) and can proceed in parallel with steps 2-3, which it does not depend

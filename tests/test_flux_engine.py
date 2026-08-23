@@ -71,17 +71,17 @@ def test_covariances_have_the_built_in_signs():
 
 
 def test_schotanus_temperature_flux_is_below_the_buoyancy_flux():
-    lev = _level()
-    r = _run(lev)
-    r_compat = _run(lev, FluxOptions(detrend="constant", matlab_compat=True))
+    r = _run(_level())
     # w'T' = w'Ts' - 0.51 T w'q' with a positive moisture flux: smaller than w'Ts'
     assert r.values["H"]["Tair_wPF"] < r.values["H"]["Ts_w"]
-    # legacy path: the rescaled Ts perturbations the level supplies (theta_son_air
-    # built with 0.51 here), no covariance term
-    assert r_compat.values["H"]["Tair_wPF"] == pytest.approx(
-        r_compat.values["H"]["Ts_w"] / (1 + 0.51 * 0.008), rel=1e-6)
-    # WPL LE driven by w'T' (new) vs buoyancy flux (compat) differ
-    assert r.values["LHflux"]["LE_WPL_wPF"] != r_compat.values["LHflux"]["LE_WPL_wPF"]
+    # the WPL LE is driven by that w'T', so it sits below the buoyancy-driven form
+    ref_T = 295.0
+    rho_v, rho_d = 0.0095, 1.18
+    Lv = r.values["LHflux"]["Lv"]
+    wpl = 1.0 + 28.97 / 18.0153 * rho_v / rho_d
+    le_buoy = 1000.0 * Lv * wpl * (r.values["LHflux"]["E_wPF"] / 1000.0
+                                   + rho_v / ref_T * r.values["H"]["Thv_wPF"])
+    assert r.values["LHflux"]["LE_WPL_wPF"] < le_buoy
 
 
 def test_flags_blank_the_right_columns():

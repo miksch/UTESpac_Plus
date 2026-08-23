@@ -72,8 +72,6 @@ def test_apply_global_fit_by_date_and_sector():
     assert np.allclose(out[:4, 2], 0.0, atol=1e-9)            # first sector, on the plane
     assert np.allclose(out[4:7], np.column_stack([u, v, w])[4:7])   # identity record
     assert np.isnan(out[7]).all()                                # outside every date window
-    legacy = apply_global_fit(u, v, w, t, d, recs[:1], matlab_compat=True)
-    assert not np.allclose(legacy[:4, 2], 0.0, atol=1e-3)       # b0, b1 read as slopes
 
 
 def test_yaw_rotate_zeroes_period_mean_v():

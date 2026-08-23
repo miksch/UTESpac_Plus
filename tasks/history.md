@@ -3,6 +3,23 @@
 Rolling log of roughly the last 15 closures; older records live only in
 archive/. Format: `- [DONE|DROPPED YYYY-MM-DD] <one line> -- <link>`.
 
+- [DONE 2026-08-22] De-MATLAB migration steps 4-5 (closes the migration
+  board line). Step 4: pinned fixture `tests/fixtures/vac001_1hz/` +
+  `test_pinned_fixture.py`; `utespac/averaging.py` behind `avg`/`simple_avg`/
+  `stp_dn`; `wind_stats` primitives shared; `utespac/rotation.py`
+  (`PlanarFit`, `rotate_sonics` → `RotationResult`, `sonic_rotation` on
+  `PFTable`); the `fluxes` split into `utespac/flux/` (`reference`, `levels`,
+  `engine`, `tables`) with `fluxes.py` as orchestrator; verified by the
+  fixture, old-vs-new A/Bs and VAC001 date-1 GPF on 20 Hz data. Step 5:
+  MATLAB parity retired on the user's ruling (EddyPro is the validation
+  reference) -- `matlabCompat` gone from `RunConfig`/`run.toml`/rotation/
+  flux/`get_data`/CLI, duplicate `R_wPF_CO2` column and `skew_Theata_v`
+  label gone, `tests/test_regression.py`, `compare_outputs.py`,
+  `run_test.py` and the `.mat` loaders in `testkit` deleted, `PFinfo.json`
+  written alone (legacy pickle still read), fixture re-pinned; the
+  parity-set validation line dropped -- record in
+  [active/2026-08-22_code-audit-and-python-gameplan.md](active/2026-08-22_code-audit-and-python-gameplan.md)
+  "Migration gameplan" steps 4-5 and [../tests/KNOWN_DIVERGENCES.md](../tests/KNOWN_DIVERGENCES.md).
 - [DONE 2026-08-22] Next-chat handoff closed: items 1-4 landed or closed,
   item 5 steps 2-3 landed; the remaining migration steps 4-5 live on the
   migration board line, the user-side notes (card_convert copy deletable,

@@ -171,7 +171,6 @@ class RunConfig:
     rootFolder: Optional[str] = None
     UTESpacVersion: str = "5.0-Python"
     avgPer: int = 30
-    matlabCompat: bool = False
     saveRawConditionedData: bool = True
     saveNetCDF: bool = True
     saveCSV: bool = True
@@ -242,7 +241,6 @@ class RunConfig:
             "saveRawConditionedData": self.saveRawConditionedData,
             "saveNetCDF": self.saveNetCDF,
             "saveCSV": self.saveCSV,
-            "matlabCompat": self.matlabCompat,
             "PF": self.pf.to_info(),
         }
         info.update(self.flux.to_info())

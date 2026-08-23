@@ -196,7 +196,6 @@ def run_attrs(info: Dict, output: Optional[Dict] = None) -> Dict:
         "pf_type": "GPF" if pf_mode == "global" else "LPF",
         "rotation": "planar_fit+yaw (applied by UTESpac sonic_rotation)",
         "detrend": info.get("detrendingFormat", "linear"),
-        "matlab_compat": int(bool(info.get("matlabCompat", False))),
         "utespac_version": info.get("UTESpacVersion"),
         "git_commit": git_commit(),
         "created": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),

@@ -338,7 +338,7 @@ prompts) so it doubles as the reference for migrated `utespac` code.
 7. `cli` plus full-file regression.
 
 Testing follows the repo's existing pattern (pytest, pinned fixtures per
-`tests/test_regression.py` and `utespac/testkit.py`): one clean 30-min window
+`tests/test_pinned_fixture.py` and `tests/fixtures/vac001_1hz/`): one clean 30-min window
 per site class -- one 20 Hz multi-height, one 10 Hz single-height -- with the
 closure identities asserted for every module (spectral integrals recover
 variances, MRD modes sum to covariances, quadrant fractions sum to one, H = 0

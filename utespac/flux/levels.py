@@ -115,7 +115,7 @@ def _avg_table_flag(output, sensor_info, key, height, table_names, N, limit, op)
 def build_level(ii: int, data, output: Dict, sensor_info: Dict, info: Dict,
                 table_names: List[str], ref: ReferenceState,
                 rotated: np.ndarray, pf_only: np.ndarray, N: int, t: np.ndarray,
-                slope_axis: str, matlab_compat: bool) -> LevelInputs:
+                slope_axis: str) -> LevelInputs:
     """Assemble the ``ii``-th sonic level (see module docstring)."""
     tbl_idx = int(sensor_info["u"][ii, 0])
     height = float(sensor_info["u"][ii, 2])
@@ -285,8 +285,7 @@ def build_level(ii: int, data, output: Dict, sensor_info: Dict, info: Dict,
     # Mean-humidity rescale of the sonic temperature, T = T_s/(1 + 0.51 q)
     # (Schotanus et al. 1983 eq. 5; library/writeups/sonic_temperature_flux.md).
     # MATLAB fluxes.m:575 used the virtual-temperature 0.61 ("modified by Diane").
-    sonic_coeff = 0.61 if matlab_compat else SONIC_HUMIDITY_COEFF
-    theta_son_air = (T_son + 273.15) / (1.0 + sonic_coeff * q_fast_local) - 273.15
+    theta_son_air = (T_son + 273.15) / (1.0 + SONIC_HUMIDITY_COEFF * q_fast_local) - 273.15
 
     # ---- fine-wire at this height ----
     fw = theta_fw = Vtheta_fw = None

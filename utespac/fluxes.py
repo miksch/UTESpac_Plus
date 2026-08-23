@@ -62,7 +62,6 @@ def fluxes(
     N = n_periods(t, info["avgPer"], whole_days=False)
     bp = period_bounds(len(t), N)
     has_fw = "fw" in sensor_info
-    matlab_compat = bool(info.get("matlabCompat", False))
 
     # Slope geometry (SiteInfo): slope angle, fall-line direction, and which
     # planar-fit horizontal axis lies along the fall line. Only the angle
@@ -90,7 +89,6 @@ def fluxes(
         use_canopy_itc=bool(info.get("useCanopyITC", True)),
         latitude=info.get("latitude"),
         calc_dissipation=bool(info.get("calcDissipation", False)),
-        matlab_compat=matlab_compat,
         angle=angle,
         downslope_aspect=downslope_aspect,
     )
@@ -104,7 +102,7 @@ def fluxes(
         height = heights[ii]
         try:
             lev = build_level(ii, data, output, sensor_info, info, table_names, ref,
-                              rotated_sonic_data, pf_sonic_data, N, t, slope_axis, matlab_compat)
+                              rotated_sonic_data, pf_sonic_data, N, t, slope_axis)
             scan = info.get("tableScanFrequency") or []
             lev_opts = replace(opts, scan_freq=float(scan[lev.table_index])
                                if lev.table_index < len(scan) else opts.scan_freq)

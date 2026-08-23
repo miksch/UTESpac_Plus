@@ -15,7 +15,6 @@ def get_data(
     avg_per: int = None,
     qualifier: str = None,
     rows=None,
-    matlab_compat: bool = False,
     fmt: str = "pkl",
 ) -> Dict:
     """Load and vertically concatenate processed UTESpac output files.
@@ -39,7 +38,7 @@ def get_data(
       numeric field in a file has a different shape from what has already been
       accumulated, a NaN block of the expected size is inserted so that all
       fields remain row-aligned after concatenation. Applied to unlabeled
-      fields always, and to every field when ``matlab_compat`` is True.
+      fields (labeled ones align by label, above).
     * **Late-initialised field warning** (MATLAB lines 147-149): if a field
       appears for the first time in a file that is not the first one loaded, a
       warning is emitted.
@@ -59,9 +58,6 @@ def get_data(
         Substring that must appear in output file names (e.g. ``'LPF'``).
     rows : int, list, or 0
         0 → all rows; integer → first N rows; list → specific row indices.
-    matlab_compat : bool
-        Use the MATLAB shape check for labeled fields too (whole-file NaN
-        block on any column-count change) instead of aligning by label.
 
     Returns
     -------
@@ -210,7 +206,7 @@ def get_data(
 
             elif existing.ndim == 2 and val.ndim == 2:
                 exp_rows = n_expected if n_expected is not None else val.shape[0]
-                hk = None if matlab_compat else _header_key(d, key)
+                hk = _header_key(d, key)
                 acc_labels = _labels(output_struct.get(hk)) if hk else None
                 new_labels = _labels(d.get(hk)) if hk else None
                 labeled = (

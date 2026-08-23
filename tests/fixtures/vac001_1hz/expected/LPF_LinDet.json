@@ -144,7 +144,6 @@
    "10.85m :R_wPF_CO2_WPL",
    "10.85m :R_uPFwPF_wPFCO2",
    "10.85m :R_wPFCO2_wPFThetav",
-   "10.85m :R_wPF_CO2",
    "10.85m :R_uPFwPF_wPFH2O_WPL",
    "10.85m :R_wPFH2O_WPL_wPFThetav",
    "10.85m :R_wPF_H2O_WPL"
@@ -267,7 +266,7 @@
    "10.85m :skew_uPF",
    "10.85m :skew_vPF",
    "10.85m :skew_wPF",
-   "10.85m :skew_Theata_v",
+   "10.85m :skew_Theta_v",
    "10.85m :skew_H2O",
    "10.85m :skew_H2O_WPL",
    "10.85m :skew_CO2",

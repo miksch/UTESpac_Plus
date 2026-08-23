@@ -6,56 +6,32 @@ Rationale, measurements and rulings live in the linked docs, not here.
 ## utespac-core
 
 - [PENDING 2026-08-22] GPF coefficient indexing + b0 removal: fix landed in
-  `utespac/sonic_rotation.py` (legacy behaviour behind `info["matlabCompat"]`),
-  pinned by `tests/test_planar_fit.py`, verified on VAC001 against EddyPro's
+  `utespac/rotation.py` (`PlanarFit.apply`, `apply_global_fit`), pinned by
+  `tests/test_planar_fit.py`, verified on VAC001 against EddyPro's
   planar fit. Remaining: regenerate GPF outputs/raw pickles for the
   French Meadows sites (Gill, IRGA) -- nothing of theirs is in the repo
   any more (user removed the Gill/IRGA folders 2026-08-22), so this runs
   wherever their `siteInfo` and 48-h inputs live, reusing each site's
-  PFinfo.pkl; and add `matlabCompat` to the testkit parity runs. --
+  PFinfo (the legacy pickle is still read; the run writes PFinfo.json). --
   EFFORT M (reprocessing), RISK low. Source: findings 1-2 in
   [active/2026-08-22_code-audit-and-python-gameplan.md](active/2026-08-22_code-audit-and-python-gameplan.md).
 ## migration
 
-- [ACTIVE 2026-08-22] De-MATLAB migration steps 2-5. Step 2 landed
-  2026-08-22 (packaged TOMLs + `RunConfig`, `run_utespac`/`RunResult`,
-  prompts behind `utespac/prompts.py`, `logging`, thin CLI). Step 3 landed
-  2026-08-22: `utespac/labeled.py` (labeled tables/DataFrames of the
-  averaged output, CF netCDF writer/reader that is the pickle's twin;
-  `save_data` writes it, `get_data(fmt="nc")`/`get_frames` read it),
-  datetime64 shims in `campbell_date`, `PFinfo.json` via
-  `utespac/pf_info.PFTable` beside the legacy pickle, the A.2 HF converter
-  `utespac/export_hf.py` (`python -m utespac.export_hf`), `SiteInfo.longitude`;
-  VAC001 date-1 GPF averaged pickle bit-identical, suite 132 passed.
-  Step 4 stages 1-3 landed 2026-08-22 against the pinned fixture
-  (`tests/fixtures/vac001_1hz`): `utespac/averaging.py` (period
-  arithmetic once; `avg`/`simple_avg`/`stp_dn` wrappers), `wind_stats`
-  primitives shared by `find_global_pf` and `fluxes`, `utespac/rotation.py`
-  (`PlanarFit`, `rotate_sonics` → `RotationResult`, `sonic_rotation` as
-  the wrapper on `PFTable`); VAC001 date-1 GPF products bit-identical,
-  suite 154 passed. The `fluxes` split landed the same day as
-  `utespac/flux/` (`reference`, `levels`, `engine`, `tables`; `fluxes.py`
-  the orchestrator), verified by the fixture, an eight-variant old-vs-new
-  A/B (≤ 1e-13) and VAC001 date-1 GPF on 20 Hz data (≤ 5e-13, summation
-  order only; ledger row). Step 4 is complete; `PFinfo.pkl` is no longer
-  written (step 5, safe part). Remaining: the rest of step 5 — retire
-  the compat flag, the duplicate R column and `skew_Theata_v`, the MATLAB
-  loaders in `testkit`, the legacy stage wrappers (pipeline on
-  `rotate_sonics` and the flux pieces directly), re-pin the fixture — is
-  BLOCKED on the DECIDE slot in the gameplan doc (retire MATLAB parity
-  now vs after the parity set has run once; default: after). -- EFFORT M,
-  RISK med. Detail:
+- [PENDING 2026-08-22] Labeled inter-stage model (B.1 inward of the I/O
+  boundary). The stage numerics live in typed pieces (`averaging`,
+  `rotation.rotate_sonics` -> `RotationResult`, `flux.reference`/`levels`/
+  `engine`/`tables`), but the pipeline still passes the legacy `output`
+  dict, `sensor_info` arrays and datenum time between stages through the
+  wrappers `avg`/`wind_stats`/`sonic_rotation`/`fluxes`. Remaining: a
+  labeled run object (tables + datetime64 time + sensor records) that the
+  pipeline hands from stage to stage, the wrappers retired, `save_data`
+  writing from it; gated by `tests/test_pinned_fixture.py`. -- EFFORT L,
+  RISK med. Source: integration notes B.1/B.2; the migration record in
   [active/2026-08-22_code-audit-and-python-gameplan.md](active/2026-08-22_code-audit-and-python-gameplan.md)
   "Migration gameplan" steps 4-5.
 
 ## validation
 
-- [PENDING 2026-08-22] Assemble parity set: MATLAB .mat + PFinfo + run
-  settings for all three sites (both PF modes). The committed pinned
-  fixture landed 2026-08-22 as `tests/fixtures/vac001_1hz/` (one VAC001
-  day at 1 Hz, LPF and GPF expected outputs, `tests/test_pinned_fixture.py`);
-  what remains is the MATLAB side for `test_regression.py`. -- EFFORT S,
-  RISK low. Detail: audit doc "Validation data to assemble".
 - [ACTIVE 2026-08-22] 3D planar-fit validation figure: landed for VAC001
   (single sector, whole IOP) in `testbed/scripts/pf_vac001_eddypro.py`;
   still to do per height/sector/date-bin on the multi-sonic sites once

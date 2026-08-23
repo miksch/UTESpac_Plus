@@ -34,7 +34,6 @@ LEGACY_INFO = {
     "nanTest": {"maxPercent": 55},
     "diagnosticTest": {"H2OminSignal": 0.7, "CO2minSignal": 0.7, "meanGasDiagnosticLimit": 0.1,
                        "meanSonicDiagnosticLimit": 50, "meanLiGasDiagnosticLimit": 220},
-    "matlabCompat": False,
 }
 
 

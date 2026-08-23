@@ -95,7 +95,6 @@ def main(argv=None):
     ap.add_argument("--run-config", help="path to a run.toml overriding the packaged one")
     ap.add_argument("--no-prompts", action="store_true",
                     help="scripted planar-fit selection (single sector, all dates), no confirmations")
-    ap.add_argument("--matlab-compat", action="store_true", help="legacy MATLAB behaviours")
     ap.add_argument("-q", "--quiet", action="store_true", help="warnings and errors only")
     args = ap.parse_args(argv)
 
@@ -105,8 +104,6 @@ def main(argv=None):
     overrides = {"rootFolder": args.root}
     if args.avg_per is not None:
         overrides["avgPer"] = args.avg_per
-    if args.matlab_compat:
-        overrides["matlabCompat"] = True
     pf_over = {}
     if args.pf:
         pf_over["globalCalculation"] = args.pf

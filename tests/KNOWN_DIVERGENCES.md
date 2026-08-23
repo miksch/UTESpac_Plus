@@ -1,16 +1,21 @@
 # Known divergences from the MATLAB pipeline
 
 One entry per deliberate difference between `utespac/` and UTESpac MATLAB,
-with the expected magnitude in the golden-file comparison
-(`tests/test_regression.py`, default `max_rel < 0.01`). This file is the
-acceptance statement for parity: a field may exceed the default tolerance
-only if a row here says so and `TOL_OVERRIDES` carries the number. Rows
-marked "magnitude: to measure" are waiting on the parity set (board:
-validation / "Assemble parity set"); record the measured value there when
-it lands.
+with its expected magnitude. MATLAB parity was retired on 2026-08-22 (user
+ruling: the MATLAB products will not be assembled; the EddyPro comparison
+in the audit doc is the validation reference), so this file is a record of
+where and by how much the Python pipeline departs from the original, not
+an acceptance statement for a comparison that runs. The `matlabCompat`
+flag that reproduced the legacy physics, the golden-file test
+(`tests/test_regression.py`), the `.mat` loaders in `utespac/testkit.py`
+and the duplicate/typo columns kept for positional comparison went with
+it; the "Behind `matlabCompat`?" column below records what the flag used
+to cover. Rows marked "magnitude: to measure" have no MATLAB reference to
+measure against and stay as estimates.
 
-| Date | Where | Divergence | Behind `matlabCompat`? | Expected magnitude | Why |
+| Date | Where | Divergence | Was behind `matlabCompat` (retired 2026-08-22) | Expected magnitude | Why |
 |---|---|---|---|---|---|
+| 2026-08-22 | `flux/tables.py` R, skew | The duplicate `R_wPF_CO2` column (MATLAB R col 14) is dropped and the `skew_Theata_v` label reads `skew_Theta_v`. | — | R has 15 columns per sonic instead of 16; one header label | Parity retired (B.8); fixture re-pinned. |
 | 2026-08-22 | `sonic_rotation.py` | Global planar fit applied with (b1, b2) instead of (b0, b1); b0 removed from w. | yes | u* ~18 %, LE ~20 % on VAC001 GPF; mean wPF shifts by b0 | Audit findings 1-2; Wilczak et al. 2001 eqs. 35-39. |
 | 2026-08-22 | `get_data.py` | Labeled 2-D fields concatenated by header label (union of columns, NaN where absent) instead of the whole-file NaN block on a column-count change. | yes (`matlab_compat=` kwarg) | no numeric change where column sets agree; restores whole days otherwise | Audit "get_data blanks whole days"; VAC001 fine-wire outage 07-12..07-17. |
 | 2026-08-22 | `fluxes.py` derivedT | `derivedTheader` trimmed together with the all-NaN columns of `derivedT`. | no | header only | Header/data width mismatch broke label alignment. |

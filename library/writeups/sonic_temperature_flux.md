@@ -21,9 +21,9 @@ is $(1 - M_v/M_a)$, 0.51 is $(\gamma_v/\gamma_a - M_v/M_a)$.
 
 Implemented by `SONIC_HUMIDITY_COEFF` and `air_temperature_from_sonic` in
 [utespac/sonic_temperature.py](../../utespac/sonic_temperature.py); the
-mean rescale `theta_son_air` in [utespac/fluxes.py](../../utespac/fluxes.py)
+mean rescale `theta_son_air` in [utespac/flux/levels.py](../../utespac/flux/levels.py)
 uses it. MATLAB `fluxes.m:575` carried 0.51 commented out and 0.61 active
-("modified by Diane"); `info["matlabCompat"]` restores 0.61.
+("modified by Diane"); the 0.61 path went with MATLAB parity on 2026-08-22.
 
 ## Fluctuations and the temperature flux — Schotanus et al. (1983), eqs. 6, 8 [@Schotanus1983]
 
@@ -47,12 +47,12 @@ Implemented by `air_temperature_perturbation` in
 [utespac/sonic_temperature.py](../../utespac/sonic_temperature.py):
 $T' = T_s' - 0.51\,\bar T\,q'$ sample by sample, with $q' = \rho_v'/\bar\rho$
 from the high-frequency hygrometer (IRGASON/LI-7500/KH2O) at the level and
-$\bar T$ the period-mean air temperature. `fluxes.py` applies it inside the
+$\bar T$ the period-mean air temperature. `utespac/flux/engine.py` applies it inside the
 H2O block so the `T_air'w'` / `T_air'wPF'` columns of `H` are
 $\overline{w'T'}$; where no high-frequency humidity exists they fall back
 to the mean-humidity rescale (`theta_son_air`), which corrects the mean but
 not the covariance. Deviation: the crosswind term is not applied (heads
-correct it internally); `matlabCompat` keeps the rescale-only columns.
+correct it internally); the rescale-only columns remain where no high-frequency humidity exists.
 
 ## WPL density corrections — Webb, Pearman & Leuning (1980), eqs. 14, 24, 25, 44 [@Webb1980]
 
@@ -69,13 +69,13 @@ $$ E = (1 + \mu\sigma)\left\{\overline{w'\rho_v'} + \frac{\bar\rho_v}{\bar T}\,\
 $$ F = F_{raw} + \frac{\bar\rho_c}{\bar\rho_a}\,\frac{\mu}{1+\mu\sigma}\,E + \frac{\bar\rho_c}{\bar\rho_a}\,\frac{H}{c_p\,\bar\rho\,\bar T}\ \text{(flux form, eq. 44, p. 91)} $$
 
 $T'$ here is the air temperature: the heat term is the thermal expansion of
-dry air. Implemented in [utespac/fluxes.py](../../utespac/fluxes.py) by
+dry air. Implemented in [utespac/flux/engine.py](../../utespac/flux/engine.py) by
 `kin_sen_flux` (the `T_air'wPF'` column above) feeding the `LHflux` W/m²
 columns, the KH2O O₂ correction and the `CO2flux` WPL column, and by
 `rhov_ext` / `rhoc_ext` (sample-wise external fluctuations using `TairP`).
 MATLAB `fluxes.m:1073` drove these with the buoyancy flux
 $\overline{w'\theta_v'}$ (`Theta_v'wPF'`), which embeds the humidity term
-of eq. 8 a second time; `matlabCompat` restores that.
+of eq. 8 a second time; that path was retired with MATLAB parity on 2026-08-22.
 
 ## Field check
 

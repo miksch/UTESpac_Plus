@@ -32,13 +32,12 @@ def test_set_get_and_trim_drop_all_nan_columns():
     assert np.isnan(vals[0, 1]) and vals[1, 1] == 0.5
 
 
-def test_duplicate_R_label_has_its_own_key():
+def test_parity_artifacts_are_gone():
     tab = FluxTable(TABLE_SPECS["R"], 1, [10.0])
-    assert tab.labels.count("10m :R_wPF_CO2") == 2
-    tab.set(0, 10.0, "R_wPF_CO2", 0.1)
-    tab.set(0, 10.0, "R_wPF_CO2_dup", 0.2)
-    i = tab.labels.index("10m :R_wPF_CO2")
-    assert tab.values[0, i] == 0.1 and tab.values[0, i + 4] == 0.2
+    assert len(tab.labels) == 1 + 15                      # the duplicate MATLAB col 14 is gone
+    assert len(set(tab.labels)) == len(tab.labels)
+    skew = FluxTable(TABLE_SPECS["skew"], 1, [10.0])
+    assert "10m :skew_Theta_v" in skew.labels and not any("Theata" in lab for lab in skew.labels)
 
 
 def test_flux_tables_sigma_tfw_only_with_fine_wire_and_store_rules():

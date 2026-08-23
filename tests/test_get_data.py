@@ -55,18 +55,6 @@ def test_new_column_widens_accumulated_block(site):
     np.testing.assert_array_equal(d["H"], [[1, 10, np.nan], [2, 20, 7]])
 
 
-def test_matlab_compat_blanks_whole_file(site):
-    root, out = site
-    _write(out, "X_30minAvg_LPF_01.pkl", ["time", "a", "b"], np.array([[1., 10., 100.]]))
-    _write(out, "X_30minAvg_LPF_02.pkl", ["time", "b"], np.array([[2., 200.]]))
-
-    with pytest.warns(UserWarning, match="NaN block"):
-        d = get_data(root, site="VAC001", avg_per=30, qualifier="LPF", matlab_compat=True)
-
-    assert d["Hheader"] == ["time", "a", "b"]
-    assert np.all(np.isnan(d["H"][1]))
-
-
 def test_unlabeled_field_keeps_shape_check(site):
     root, out = site
     hdr = ["time", "a"]

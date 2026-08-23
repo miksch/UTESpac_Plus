@@ -1,9 +1,9 @@
 """Pinned-fixture regression: the pipeline on the committed VAC001_1Hz day
 reproduces the expected outputs in tests/fixtures/vac001_1hz/expected/.
 
-This is the migration safety net that runs on any machine (the MATLAB
-golden-file comparison in test_regression.py needs reference data on
-disk). A failure means a numeric or structural change in the pipeline:
+This is the regression safety net that runs on any machine (MATLAB parity
+was retired 2026-08-22; EddyPro is the external reference, see the audit
+doc). A failure means a numeric or structural change in the pipeline:
 either a defect, or a deliberate change that needs a ledger row in
 tests/KNOWN_DIVERGENCES.md and a re-pin (build_fixture.py pin).
 """

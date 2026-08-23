@@ -6,8 +6,7 @@ period's sample range and returns a :class:`PeriodResult`: the named
 values of every output table (keys as in :mod:`.tables`) and the
 per-sample series the raw product stores. Formulas and flag masking are
 those of ``fluxes.m`` with the audit corrections (Schotanus temperature
-flux, WPL on w'T', slope geometry from SiteInfo); ``matlab_compat``
-restores the legacy 0.61 / buoyancy-flux path.
+flux, WPL on w'T', slope geometry from SiteInfo).
 """
 
 from dataclasses import dataclass, field
@@ -41,7 +40,6 @@ class FluxOptions:
     latitude: Optional[float] = None
     calc_dissipation: bool = False
     scan_freq: float = 20.0             # [Hz] of the sonic's table (dissipation lag)
-    matlab_compat: bool = False
     angle: float = 0.0                  # slope angle [deg]
     downslope_aspect: float = 30.0      # fall-line direction from north [deg]
 
@@ -81,7 +79,6 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
     """All flux statistics of level *lev* for period *jj* (samples ``s0:s1``)."""
     r = PeriodResult()
     det = opts.detrend
-    compat = opts.matlab_compat
     unrot = bool(lev.unrot_flag[jj])
     rot = bool(lev.rot_flag[jj])
     tsf = bool(lev.Ts_flag[jj])
@@ -264,13 +261,11 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
         # (Schotanus 1983 eq. 6; Liu et al. 2001 eq. 10), so w'T' = w'Ts' -
         # 0.51 T w'q' (eq. 8 / eq. 12). It replaces the mean-humidity rescale in
         # the T_air columns and is the temperature flux every WPL term uses.
-        # Under matlab_compat the rescaled TairP and the buoyancy flux stay.
-        if not compat:
-            qP = (H2Op / 1000.0) / (rho_d_j + rho_v_j)                   # kg/kg
-            T_air_mean_K = np.nanmean(lev.theta_son_air[s0:s1]) + 273.15
-            TairP = air_temperature_perturbation(TsP, qP, T_air_mean_K)
-            r.put("H", "Tair_w", np.nan if (unrot or tsf or h2of) else np.nanmean(wP * TairP))
-            r.put("H", "Tair_wPF", np.nan if (rot or tsf or h2of) else np.nanmean(wPF_P * TairP))
+        qP = (H2Op / 1000.0) / (rho_d_j + rho_v_j)                       # kg/kg
+        T_air_mean_K = np.nanmean(lev.theta_son_air[s0:s1]) + 273.15
+        TairP = air_temperature_perturbation(TsP, qP, T_air_mean_K)
+        r.put("H", "Tair_w", np.nan if (unrot or tsf or h2of) else np.nanmean(wP * TairP))
+        r.put("H", "Tair_wPF", np.nan if (rot or tsf or h2of) else np.nanmean(wPF_P * TairP))
 
         # WPL external H2O fluctuation
         rhov_ext = (Md / Mv * (rho_v_j / rho_d_j) * (H2Op / 1000.0)
@@ -304,7 +299,7 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
         # Temperature flux for the WPL terms (Webb et al. 1980 eqs. 24-25, 44):
         # w'T', i.e. the Schotanus-corrected T_air'wPF' column. MATLAB
         # (fluxes.m:1073) used the buoyancy flux Theta_v'wPF'.
-        kin_sen_flux = r.get("H", "Thv_wPF") if compat else r.get("H", "Tair_wPF")
+        kin_sen_flux = r.get("H", "Tair_wPF")
         wpl = 1.0 + Md / Mv * rho_v_j / rho_d_j
 
         r.put("LHflux", "Lv", Lv)
@@ -364,7 +359,7 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
             # R CO2 (MATLAB cols 5-17 order)
             if tsf or rot:
                 r.blank("R", "R_uPFwPF_wPFCO2_WPL", "R_wPFCO2_WPL_wPFThetav", "R_wPF_CO2", "R_wPF_CO2_WPL",
-                        "R_uPFwPF_wPFCO2", "R_wPFCO2_wPFThetav", "R_wPF_CO2_dup",
+                        "R_uPFwPF_wPFCO2", "R_wPFCO2_wPFThetav",
                         "R_uPFwPF_wPFH2O_WPL", "R_wPFH2O_WPL_wPFThetav", "R_wPF_H2O_WPL")
                 r.blank("eta", "eta_wPFCO2_WPL", "eta_wPFCO2")
                 r.blank("delta_flux_ctrb", "S_wPFCO2_WPL", "S_wPFCO2")
@@ -376,7 +371,6 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
                 r.put("R", "R_wPF_CO2_WPL", _corr(wPF_P, rho_CO2p + rhoc_ext))
                 r.put("R", "R_uPFwPF_wPFCO2", _corr(uPF_P * wPF_P, rho_CO2p * wPF_P))
                 r.put("R", "R_wPFCO2_wPFThetav", _corr(rho_CO2p * wPF_P, ThvP * wPF_P))
-                r.put("R", "R_wPF_CO2_dup", _corr(wPF_P, rho_CO2p))      # duplicate (MATLAB col 14)
                 r.put("R", "R_uPFwPF_wPFH2O_WPL", _corr(uPF_P * wPF_P, (H2Op + rhov_ext * 1e3) * wPF_P))
                 r.put("R", "R_wPFH2O_WPL_wPFThetav", _corr((H2Op + rhov_ext * 1e3) * wPF_P, ThvP * wPF_P))
                 r.put("R", "R_wPF_H2O_WPL", _corr(wPF_P, H2Op + rhov_ext * 1e3))

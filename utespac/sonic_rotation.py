@@ -46,7 +46,6 @@ def sonic_rotation(
 
     output.setdefault("warnings", [])
     num_sonics = sensor_info["u"].shape[0]
-    matlab_compat = bool(info.get("matlabCompat", False))
     t = data[int(sensor_info["u"][0, 0])][:, 0]
     output.setdefault("rotatedSonicHeader", [""] * (3 * num_sonics))
     output.setdefault("PFSonicHeader", [""] * (3 * num_sonics))
@@ -68,7 +67,7 @@ def sonic_rotation(
     for ii in range(num_sonics):
         sonics.append(_sonic_series(ii, data, output, sensor_info, table_names))
 
-    res = rotate_sonics(sonics, t, info["avgPer"], pf_table, matlab_compat)
+    res = rotate_sonics(sonics, t, info["avgPer"], pf_table)
 
     for ii, s in enumerate(sonics):
         c0 = 3 * ii

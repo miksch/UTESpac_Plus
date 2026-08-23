@@ -11,7 +11,7 @@ find_global_pf reads through get_data(qualifier="LPF").
 Usage (repo root, UTESpac_Plus env)::
 
     python testbed/scripts/run_vac001_gpf.py [--detrend constant|linear]
-                                             [--dates 1 2 ...] [--compat]
+                                             [--dates 1 2 ...]
                                              [--reuse-pf] [--bins 90 270]
 """
 
@@ -31,9 +31,6 @@ def main():
     ap.add_argument("--dates", type=int, nargs="*", default=None)
     ap.add_argument("--site", default="VAC001")
     ap.add_argument("--detrend", choices=["linear", "constant"], default="constant")
-    ap.add_argument("--compat", action="store_true",
-                    help="matlabCompat=True: legacy coefficient indexing, no b0 removal, "
-                         "0.61 sonic coefficient, buoyancy-flux WPL driver")
     ap.add_argument("--reuse-pf", action="store_true",
                     help="reuse existing PFinfo.json instead of recomputing")
     ap.add_argument("--bins", type=float, nargs="*", default=[],
@@ -44,7 +41,6 @@ def main():
     config = RunConfig.from_config(
         rootFolder=os.path.join(ROOT, "data"),
         saveNetCDF=False, saveCSV=True, saveRawConditionedData=True,
-        matlabCompat=args.compat,
         pf={"globalCalculation": "global",
             "recalculateGlobalCoefficients": not args.reuse_pf},
         flux={"detrendingFormat": args.detrend},

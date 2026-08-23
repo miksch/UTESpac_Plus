@@ -155,11 +155,10 @@ def _day_bounds(rec: PFRecord) -> Tuple[float, float]:
 
 
 def apply_global_fit(u, v, w, t, direction_hf, records: Sequence[PFRecord],
-                     remove_offset: bool = True, matlab_compat: bool = False) -> np.ndarray:
+                     remove_offset: bool = True) -> np.ndarray:
     """Planar-fit winds from the stored records of one height: each record
     covers its date window and direction sector; samples outside every
-    record stay NaN. ``matlab_compat`` reproduces the MATLAB indexing (b0,
-    b1 read as the slopes, no offset removal)."""
+    record stay NaN."""
     n = len(t)
     out = np.full((n, 3), np.nan)
     t = np.asarray(t, dtype=float)
@@ -168,11 +167,7 @@ def apply_global_fit(u, v, w, t, direction_hf, records: Sequence[PFRecord],
         mask = (t >= d0) & (t < d1) & sector_mask(direction_hf, rec.sector_lo, rec.sector_hi)
         if not mask.any():
             continue
-        if matlab_compat:
-            fit = PlanarFit(0.0, rec.b0, rec.b1)
-            out[mask] = fit.apply(u[mask], v[mask], w[mask], remove_offset=False)
-        else:
-            out[mask] = PlanarFit.from_record(rec).apply(u[mask], v[mask], w[mask], remove_offset)
+        out[mask] = PlanarFit.from_record(rec).apply(u[mask], v[mask], w[mask], remove_offset)
     return out
 
 
@@ -237,8 +232,7 @@ class RotationResult:
 
 
 def rotate_sonics(sonics: Sequence[SonicSeries], t: np.ndarray, avg_per: float,
-                  pf_table: Optional[PFTable] = None, matlab_compat: bool = False
-                  ) -> RotationResult:
+                  pf_table: Optional[PFTable] = None) -> RotationResult:
     """Planar-fit (local from each sonic's good period means, or global from
     *pf_table*) and yaw-rotate every sonic. A height the global table does
     not cover, or a local fit without enough periods, is skipped with its
@@ -260,7 +254,7 @@ def rotate_sonics(sonics: Sequence[SonicSeries], t: np.ndarray, avg_per: float,
             dir_hf = np.full(n, np.nan)
             for j in range(N):
                 dir_hf[bounds[j]:bounds[j + 1]] = s.direction_avg[j] if j < len(s.direction_avg) else np.nan
-            wind_pf = apply_global_fit(s.u, s.v, s.w, t, dir_hf, recs, matlab_compat=matlab_compat)
+            wind_pf = apply_global_fit(s.u, s.v, s.w, t, dir_hf, recs)
         else:
             g = s.good_periods
             fit = PlanarFit.fit(s.u_bar[g], s.v_bar[g], s.w_bar[g])
@@ -271,7 +265,7 @@ def rotate_sonics(sonics: Sequence[SonicSeries], t: np.ndarray, avg_per: float,
                 continue
             log.info(f"  Sonic @ {s.height}m  pitch={fit.pitch_deg:.3g}°  roll={fit.roll_deg:.3g}°  "
                      f"b0={fit.b0:.3g} m/s")
-            wind_pf = fit.apply(s.u, s.v, s.w, remove_offset=not matlab_compat)
+            wind_pf = fit.apply(s.u, s.v, s.w)
         c0 = 3 * i
         res.pf_only[:, c0:c0 + 3] = wind_pf
         res.rotated[:, c0:c0 + 3] = yaw_rotate(wind_pf, bounds)

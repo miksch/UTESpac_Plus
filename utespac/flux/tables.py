@@ -6,9 +6,10 @@ same block of named columns for every sonic level. Values are written by
 column *key* (``tab.set(row, height, "Ts_w", value)``), the display label
 is rendered from the key's template, and :meth:`FluxTable.trimmed` drops
 all-NaN columns exactly as the legacy ``_trim_both`` did, so the stored
-matrices and ``<name>Header`` lists are unchanged. :data:`TABLE_SPECS`
-is the legacy column order; the duplicate ``R_wPF_CO2`` column and the
-``skew_Theata_v`` label are kept until parity is retired (B.8).
+matrices and ``<name>Header`` lists keep their form. :data:`TABLE_SPECS`
+is the legacy column order, without the MATLAB artifacts retired on
+2026-08-22 (the duplicate ``R_wPF_CO2`` column, the ``skew_Theata_v``
+label).
 """
 
 from dataclasses import dataclass, field
@@ -82,7 +83,6 @@ TABLE_SPECS: Dict[str, TableSpec] = {s.name: s for s in [
         ("R_wPF_CO2_WPL", "{hn}m :R_wPF_CO2_WPL"),
         ("R_uPFwPF_wPFCO2", "{hn}m :R_uPFwPF_wPFCO2"),
         ("R_wPFCO2_wPFThetav", "{hn}m :R_wPFCO2_wPFThetav"),
-        ("R_wPF_CO2_dup", "{hn}m :R_wPF_CO2"),      # duplicate (MATLAB col 14)
         ("R_uPFwPF_wPFH2O_WPL", "{hn}m :R_uPFwPF_wPFH2O_WPL"),
         ("R_wPFH2O_WPL_wPFThetav", "{hn}m :R_wPFH2O_WPL_wPFThetav"),
         ("R_wPF_H2O_WPL", "{hn}m :R_wPF_H2O_WPL"),
@@ -113,7 +113,7 @@ TABLE_SPECS: Dict[str, TableSpec] = {s.name: s for s in [
     TableSpec("epsilon", "epsilonHeader", [("epsilon", "{hn}m :epsilon")], extra=True),
     TableSpec("skew", "skewHeader", [
         ("skew_uPF", "{hn}m :skew_uPF"), ("skew_vPF", "{hn}m :skew_vPF"), ("skew_wPF", "{hn}m :skew_wPF"),
-        ("skew_Theta_v", "{hn}m :skew_Theata_v"),        # MATLAB typo preserved
+        ("skew_Theta_v", "{hn}m :skew_Theta_v"),
         ("skew_H2O", "{hn}m :skew_H2O"), ("skew_H2O_WPL", "{hn}m :skew_H2O_WPL"),
         ("skew_CO2", "{hn}m :skew_CO2"), ("skew_CO2_WPL", "{hn}m :skew_CO2_WPL"),
     ], extra=True),
