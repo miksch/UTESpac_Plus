@@ -134,6 +134,33 @@ pieces).
   `load_products`, `export_hf` as a view; the pickle last (its own ledger
   row and re-pin when it goes).
 
+## Record
+
+S1–S3 landed 2026-08-22. `utespac/model.py`: `Sensor`/`Sensors`, `Run`
+(with the kernel-side accessors `hf`, `hf_time`, `period_mean`, `flag`,
+`period_time`), the converters in both directions for every piece and
+`run_from_legacy`/`to_legacy_output`; a legacy→model→legacy round trip on
+the fixture pipeline reproduces every array, header and raw field exactly.
+`utespac/stages.py`: `load_run`, `condition` (over the `qc_table` kernel
+factored out of `condition_data`), `average`, `wind`, `rotate` (on
+`rotate_sonics`), `flux` (on `flux.reference`/`levels`/`engine`/`tables`,
+now reading the `Run` through `Sensors`); `pipeline.run_utespac` calls
+them and writes through `to_legacy_output`/`raw_to_legacy`, `keep_runs=True`
+keeps each date's `Run` on its `DateResult`. The legacy wrappers
+`fluxes.py`, `sonic_rotation.py`, `avg.py`, `wind_stats()` and
+`condition_data()` are deleted (`simple_avg`/`stp_dn` stay as thin
+legacy names; `find_global_pf` still uses `stp_dn` and `get_data`).
+Verification: fixture pins unchanged (both configurations); VAC001 date 1
+GPF ConstDet regenerated — every numeric array within 1e-11 of the
+pre-migration product (float resolution of the datenum round trip), the
+R/skew header differences being the parity retirement. Suite 161 passed.
+`averaging.n_periods_dt64` is the datetime64 form of the day-span rule.
+
+Left: S4 (the run netCDF writer/reader, `get_data` on it,
+`load_products`, `export_hf` as a view of `run.raw`, the pickle's fate);
+`find_global_pf` and `get_data` still work on the legacy dict — they read
+products across dates, which is S4's reader.
+
 DECIDE: when S4 lands, does the legacy pickle stay as an output option or
 go? (default: goes, with the fixture re-pinned to the run file; `get_data`
 reads run files and, for the old VAC001 products, pickles.)

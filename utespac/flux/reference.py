@@ -4,16 +4,18 @@ The flux computation needs, for every period, a reference pressure,
 temperature and specific humidity at the lowest sonic and the dry/vapour/
 moist densities built from them. :func:`reference_state` assembles them
 from whatever the site logs (barometer, slow T/RH probe, IRGA or KH2O
-humidity, sonic temperature as the fallback) exactly as ``fluxes.m`` did.
+humidity, sonic temperature as the fallback) exactly as ``fluxes.m`` did,
+reading the sensors of a :class:`~utespac.model.Run`.
 """
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Optional
 
 import numpy as np
 
 from ..averaging import block_average, n_periods
+from ..model import Run, Sensor
 from ..rh_to_spec_hum import rh_to_spec_hum
 
 log = logging.getLogger("utespac")
@@ -48,10 +50,10 @@ class ReferenceState:
         return len(self.P_kPa)
 
 
-def _nearest(sensor_info: Dict, key: str, z_ref: float):
-    """(table, column) of the *key* sensor nearest to z_ref."""
-    idx = int(np.argmin(np.abs(sensor_info[key][:, 2] - z_ref)))
-    return int(sensor_info[key][idx, 0]), int(sensor_info[key][idx, 1])
+def nearest(run: Run, field: str, z_ref: float) -> Sensor:
+    """The *field* sensor nearest to z_ref."""
+    sensors = run.sensors.by_field(field)
+    return min(sensors, key=lambda s: abs(s.height - z_ref))
 
 
 def _period_means(values, t, avg_per):
@@ -69,21 +71,22 @@ def _interp_to_fast(q_avg, t_avg, t_fast):
     return np.interp(t_fast, x, y)
 
 
-def reference_state(data: List[Optional[np.ndarray]], sensor_info: Dict, info: Dict,
-                    t: np.ndarray) -> ReferenceState:
-    """Build the :class:`ReferenceState` for one run (fast time axis *t*)."""
+def reference_state(run: Run) -> ReferenceState:
+    """Build the :class:`ReferenceState` for one run."""
+    info = run.site
     avg_per = info["avgPer"]
-    z_ref = float(np.min(sensor_info["u"][:, 2]))
+    t = run.time_hf_datenum
+    z_ref = float(min(run.sonic_heights()))
     altitude = float(info.get("siteElevation", 0))
     P_ref_kPa = 101.325 * (1 - 2.25577e-5 * (altitude + z_ref)) ** 5.25588
 
     # --- pressure ---
     P_kPa_avg: Optional[np.ndarray] = None
     P_raw_hf = P_t_hf = raw_P = None
-    if "P" in sensor_info:
-        P_tbl, P_col = _nearest(sensor_info, "P", z_ref)
-        P_raw = data[P_tbl][:, P_col].copy()
-        P_t = data[P_tbl][:, 0]
+    if run.sensors.has("P"):
+        sP = nearest(run, "P", z_ref)
+        P_raw = run.hf(sP).copy()
+        P_t = run.hf_time(sP.table)
         if np.nanmedian(P_raw) > 200:
             P_raw /= 10.0
         P_kPa_avg, _ = _period_means(P_raw, P_t, avg_per)
@@ -103,17 +106,17 @@ def reference_state(data: List[Optional[np.ndarray]], sensor_info: Dict, info: D
 
     # --- reference temperature ---
     T_ref_K_avg: Optional[np.ndarray] = None
-    if "T" in sensor_info:
-        T_tbl, T_col = _nearest(sensor_info, "T", z_ref)
-        T_ref_K_avg, _ = _period_means(data[T_tbl][:, T_col], data[T_tbl][:, 0], avg_per)
+    if run.sensors.has("T"):
+        sT = nearest(run, "T", z_ref)
+        T_ref_K_avg, _ = _period_means(run.hf(sT), run.hf_time(sT.table), avg_per)
         if np.nanmedian(T_ref_K_avg) < 200:
             T_ref_K_avg += 273.15
         log.info(f"Slow-response T found. Median T_ref = {np.nanmedian(T_ref_K_avg) - 273.15:.3g} °C")
 
     if T_ref_K_avg is None or np.nansum(~np.isnan(T_ref_K_avg)) == 0:
-        if "Tson" in sensor_info:
-            T_tbl, T_col = _nearest(sensor_info, "Tson", z_ref)
-            T_ref_K_avg, _ = _period_means(data[T_tbl][:, T_col], t, avg_per)
+        if run.sensors.has("Tson"):
+            sTs = nearest(run, "Tson", z_ref)
+            T_ref_K_avg, _ = _period_means(run.hf(sTs), t, avg_per)
             if np.nanmedian(T_ref_K_avg) < 200:
                 T_ref_K_avg += 273.15
             log.info(f"Using sonic T as Tref. Median = {np.nanmedian(T_ref_K_avg) - 273.15:.3g} °C")
@@ -123,22 +126,21 @@ def reference_state(data: List[Optional[np.ndarray]], sensor_info: Dict, info: D
     # --- reference specific humidity ---
     q_default = info.get("qRef", 12) / 1000.0
     q_ref_avg = q_ref_fast = None
-    if "RH" in sensor_info:
-        RH_tbl, RH_col = _nearest(sensor_info, "RH", z_ref)
-        RH_avg, RH_avg_t = _period_means(data[RH_tbl][:, RH_col], data[RH_tbl][:, 0], avg_per)
+    if run.sensors.has("RH"):
+        sRH = nearest(run, "RH", z_ref)
+        RH_avg, RH_avg_t = _period_means(run.hf(sRH), run.hf_time(sRH.table), avg_per)
         q_ref_avg = rh_to_spec_hum(RH_avg, P_kPa_avg, T_ref_K_avg)
         if (~np.isnan(q_ref_avg)).any():
             q_ref_fast = _interp_to_fast(q_ref_avg, RH_avg_t, t)
             log.info(f"RH found. Median q_ref = {1000 * np.nanmedian(q_ref_avg):.3g} g/kg")
         else:
             q_ref_avg = None
-    elif "irgaH2O" in sensor_info or "KH2O" in sensor_info:
+    elif run.sensors.has("irgaH2O") or run.sensors.has("KH2O"):
         # No slow-response RH — q from the IRGA/KH2O vapour density (matches MATLAB),
         # q = rho_v / (rho_d + rho_v) with rho_d from P - e.
-        h2o_key = "irgaH2O" if "irgaH2O" in sensor_info else "KH2O"
-        h2o_tbl, h2o_col = _nearest(sensor_info, h2o_key, z_ref)
-        h2o_avg, h2o_avg_t = _period_means(data[h2o_tbl][:, h2o_col].copy(),
-                                           data[h2o_tbl][:, 0], avg_per)        # g/m³
+        h2o_key = "irgaH2O" if run.sensors.has("irgaH2O") else "KH2O"
+        sH = nearest(run, h2o_key, z_ref)
+        h2o_avg, h2o_avg_t = _period_means(run.hf(sH).copy(), run.hf_time(sH.table), avg_per)  # g/m³
         rho_v_ref = h2o_avg / 1000.0                                             # kg/m³
         e_ref_Pa = rho_v_ref * Rv * T_ref_K_avg
         rho_d_ref = (P_kPa_avg * 1000.0 - e_ref_Pa) / (Rd * T_ref_K_avg)

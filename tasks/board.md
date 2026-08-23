@@ -6,14 +6,17 @@ Rationale, measurements and rulings live in the linked docs, not here.
 ## migration
 
 - [ACTIVE 2026-08-22] Labeled inter-stage model (B.1 inward of the I/O
-  boundary). The stage numerics live in typed pieces (`averaging`,
-  `rotation.rotate_sonics` -> `RotationResult`, `flux.reference`/`levels`/
-  `engine`/`tables`), but the pipeline still passes the legacy `output`
-  dict, `sensor_info` arrays and datenum time between stages through the
-  wrappers `avg`/`wind_stats`/`sonic_rotation`/`fluxes`. Remaining: a
-  labeled run object (tables + datetime64 time + sensor records) that the
-  pipeline hands from stage to stage, the wrappers retired, `save_data`
-  writing from it; gated by `tests/test_pinned_fixture.py`. User ruling
+  boundary). S1-S3 landed 2026-08-22: `utespac/model.py` (`Sensors`,
+  `Run` of xarray Datasets with datetime64 time, converters to/from the
+  legacy structures) and `utespac/stages.py` (`load_run` → `condition` →
+  `average` → `wind` → `rotate` → `flux` on the `Run`); the pipeline calls
+  them and the wrappers `fluxes.py`/`sonic_rotation.py`/`avg.py`/
+  `wind_stats()`/`condition_data()` are gone; fixture pins unchanged,
+  VAC001 date-1 GPF within float resolution. Remaining (S4): the run
+  netCDF writer/reader with groups, `get_data`/`find_global_pf` reading it,
+  `load_products` across dates, `export_hf` as a view of `run.raw`, the
+  legacy pickle's fate (DECIDE in the doc); gated by
+  `tests/test_pinned_fixture.py`. User ruling
   2026-08-22: this comes before the ec_coherent build-out, so the
   architecture is settled first; in-memory model xarray end-to-end (user
   ruling 2026-08-22; xarray added to the env and pyproject). -- EFFORT L,

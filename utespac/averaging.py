@@ -6,11 +6,12 @@ grid, NaN where nothing was logged), so the row split and the time split
 coincide. This module holds that arithmetic once: :func:`n_periods` from
 the day span, :func:`period_bounds` for the block edges, :func:`block_mean`
 / :func:`block_last` for the reductions, :func:`block_average` as the one
-call the stages make. ``avg``, ``simple_avg`` and ``stp_dn`` are thin
+call the stages make. ``simple_avg`` and ``stp_dn`` are thin legacy
 wrappers over it.
 
-Time is still the MATLAB serial datenum the stages carry; the day-span
-rule in :func:`n_periods` is the one place that knows it.
+The kernels take the MATLAB serial datenum the run model renders for them
+(``Run.hf_time``); the day-span rule lives in :func:`n_periods` and its
+``datetime64`` twin :func:`n_periods_dt64`.
 """
 
 import warnings
@@ -40,6 +41,21 @@ def n_periods(t: np.ndarray, avg_per_min: float, whole_days: bool = True) -> int
     else:
         span = t[-1] - t[0]
     return int(round(span / dt))
+
+
+def n_periods_dt64(t, avg_per_min: float, whole_days: bool = True) -> int:
+    """:func:`n_periods` for a ``datetime64`` axis: the day span from the
+    midnight before the first stamp to the midnight at or after the last."""
+    t = np.asarray(t).astype("datetime64[ns]")
+    if whole_days:
+        d0 = t[0].astype("datetime64[D]").astype("datetime64[ns]")
+        d1 = t[-1].astype("datetime64[D]").astype("datetime64[ns]")
+        if d1 != t[-1]:
+            d1 = d1 + np.timedelta64(1, "D")
+        span_min = (d1 - d0) / np.timedelta64(1, "m")
+    else:
+        span_min = (t[-1] - t[0]) / np.timedelta64(1, "m")
+    return int(round(span_min / float(avg_per_min)))
 
 
 def period_bounds(n_rows: int, n_per: int) -> np.ndarray:

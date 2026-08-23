@@ -5,9 +5,8 @@ pieces: :class:`PlanarFit` (the Wilczak et al. 2001 regression, its
 rotation matrix and its application), :func:`sector_mask` (the
 wind-direction sectors of a global fit), :func:`yaw_rotate` (per-period
 yaw into the mean wind) and :func:`rotate_sonics`, which rotates every
-sonic of a run and returns a :class:`RotationResult`. ``sonic_rotation``
-is the legacy wrapper that maps the ``output``/``sensor_info`` dicts onto
-these and back.
+sonic of a run and returns a :class:`RotationResult`; ``utespac.stages.rotate``
+feeds it from the run model.
 
 Wilczak, J. M., S. P. Oncley and S. A. Stage (2001), Sonic anemometer tilt
 correction algorithms, Boundary-Layer Meteorol. 99, 127-150: eqs. 35-39

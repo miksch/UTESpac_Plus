@@ -122,6 +122,45 @@ class Run:
     def sonic_heights(self) -> List[float]:
         return self.sensors.heights("u")
 
+    # -- kernel-side accessors (numpy views; time as datenum for the kernels) --
+    def hf(self, sensor: "Sensor") -> np.ndarray:
+        """High-frequency series of a sensor."""
+        return self.tables[sensor.table][sensor.column].values
+
+    def hf_time(self, table: str) -> np.ndarray:
+        """Datenum time axis of a table (cached per table)."""
+        cache = self.__dict__.setdefault("_datenum_cache", {})
+        if table not in cache:
+            cache[table] = to_datenum(self.tables[table][TIME_HF].values)
+        return cache[table]
+
+    @property
+    def time_hf_datenum(self) -> np.ndarray:
+        u = self.sensors.by_field("u")
+        return self.hf_time(u[0].table if u else self.table_names[0])
+
+    def period_mean(self, sensor: "Sensor") -> Optional[np.ndarray]:
+        """Per-period mean of a sensor's column, None when the table was not averaged."""
+        per = self.periods.get(sensor.table)
+        if per is None or sensor.column not in per:
+            return None
+        return per[sensor.column].values
+
+    def period_time(self) -> np.ndarray:
+        """Period-end stamps (datetime64) of the first averaged table."""
+        for name in self.table_names:
+            if name in self.periods:
+                return self.periods[name][TIME].values
+        raise ValueError("no averaged table on the run")
+
+    def flag(self, sensor: "Sensor", which: str, n: int) -> np.ndarray:
+        """Per-period ``spike``/``nan`` flag of a sensor's column; zeros when absent."""
+        ds = self.flags.get(sensor.table)
+        if ds is None or which not in ds or sensor.column not in list(ds[COLUMN].values):
+            return np.zeros(n, dtype=bool)
+        j = list(ds[COLUMN].values).index(sensor.column)
+        return ds[which].values[:, j].astype(bool)
+
 
 # ── time helpers ─────────────────────────────────────────────────────────────
 

@@ -28,7 +28,7 @@ import pandas as pd
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 from utespac.pf_coefficients import pf_coefficients      # noqa: E402
-from utespac.sonic_rotation import _build_pf_matrix     # noqa: E402
+from utespac.rotation import pf_matrix as _build_pf_matrix   # noqa: E402
 from utespac.testkit import get_header                  # noqa: E402
 
 SITE_DIR = os.path.join(ROOT, "data", "VAC001")

@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from utespac.pf_coefficients import pf_coefficients
-from utespac.sonic_rotation import _apply_pf, _build_pf_matrix
+from utespac.rotation import apply_planar_fit as _apply_pf, pf_matrix as _build_pf_matrix
 
 
 def _synthetic_plane(b0=0.04, b1=-0.08, b2=0.03, n=500, seed=0):

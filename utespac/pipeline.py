@@ -1,15 +1,18 @@
 """The UTESpac processing pipeline as a function with a structured result.
 
 ``run_utespac(config, site, dates)`` drives find_files → find_instruments →
-(find_global_pf) → per date: load_data → find_serial_date →
-condition_data → avg → wind_stats → sonic_rotation → fluxes → save_data,
-and returns a :class:`RunResult` instead of printing. Interaction for the
-global planar fit goes through a prompter (:mod:`utespac.prompts`); with
-none given the selection is scripted (single sector, all dates).
+(find_global_pf) → per date: load_data → find_serial_date → the stages of
+:mod:`utespac.stages` on a labeled :class:`~utespac.model.Run`
+(``load_run`` → ``condition`` → ``average`` → ``wind`` → ``rotate`` →
+``flux``) → save_data through the legacy adapters, and returns a
+:class:`RunResult` instead of printing. Interaction for the global planar
+fit goes through a prompter (:mod:`utespac.prompts`); with none given the
+selection is scripted (single sector, all dates).
 
-The stages still read the legacy ``info`` dict; ``RunConfig.to_info()``
-renders it here and ``find_files`` adds the site facts, so a legacy
-``info`` dict is accepted too (``run_utespac(info=..., template=...)``).
+The stages read the run facts from the legacy ``info`` dict
+(``Run.site``); ``RunConfig.to_info()`` renders it here and ``find_files``
+adds the site facts, so a legacy ``info`` dict is accepted too
+(``run_utespac(info=..., template=...)``).
 """
 
 import logging
@@ -19,8 +22,9 @@ from typing import Any, Dict, List, Optional, Union
 
 from .run_config import RunConfig
 from .prompts import PFPrompter, ScriptedPFSelection
-from .model import Run, run_from_legacy, to_legacy_output, raw_to_legacy
+from .model import Run, to_legacy_output, raw_to_legacy
 from .pf_info import PFTable
+from . import stages
 
 log = logging.getLogger("utespac")
 
@@ -95,11 +99,6 @@ def run_utespac(config: Optional[RunConfig] = None, *, site: str, dates="all",
     from .find_global_pf import find_global_pf
     from .load_data import load_data
     from .find_serial_date import find_serial_date
-    from .condition_data import condition_data
-    from .avg import avg
-    from .wind_stats import wind_stats
-    from .sonic_rotation import sonic_rotation
-    from .fluxes import fluxes
     from .save_data import save_data
 
     headers, data_files, table_names, info = find_files(info, site=site, dates=dates)
@@ -114,18 +113,15 @@ def run_utespac(config: Optional[RunConfig] = None, *, site: str, dates="all",
         try:
             data, data_info = load_data(row, i + 1, len(data_files), info, table_names)
             data, data_info, info = find_serial_date(data, data_info, info)
-            data, output = condition_data(data, info, table_names, template, headers)
-            output = avg(data, info, table_names, output, headers, sensor_info)
-            output = wind_stats(output, sensor_info, table_names, info)
-            rotated, pf_only, output, data_info = sonic_rotation(
-                output, data, sensor_info, info, data_info, table_names, pf_info)
-            output, raw = fluxes(data, rotated, pf_only, info, output, sensor_info, table_names)
-            # the labeled run (utespac.model): what the stages will exchange
-            # natively; the legacy dict/raw the writer consumes come from it
-            run = run_from_legacy(info, data, headers, table_names, sensor_info, output,
-                                  rotated, pf_only, raw, data_info,
+            # the labeled run (utespac.model / utespac.stages)
+            run = stages.load_run(info, data, headers, table_names, sensor_info, data_info,
                                   pf_table=PFTable.from_legacy(pf_info) if pf_info else None)
-            paths = save_data(info, to_legacy_output(run), data_info, headers, table_names,
+            stages.condition(run, template)
+            stages.average(run)
+            stages.wind(run)
+            stages.rotate(run)
+            stages.flux(run)
+            paths = save_data(info, to_legacy_output(run), run.notes, headers, table_names,
                               raw_to_legacy(run.raw), template)
             results.append(DateResult(i + 1, list(row), "ok", paths=paths,
                                       run=run if keep_runs else None))

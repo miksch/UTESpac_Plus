@@ -1,12 +1,10 @@
-"""windStats – mean wind speed, direction, and the tower-shadow flag.
+"""Wind direction, speed and the tower-shadow flag.
 
-:func:`wind_direction_speed` and :func:`shadow_flag` are the shared
-primitives (``find_global_pf`` and ``fluxes`` use the same ones);
-:func:`wind_stats` is the stage wrapper that fills ``output['spdAndDir']``.
+:func:`wind_direction_speed` and :func:`shadow_flag` are the primitives
+``utespac.stages.wind``, ``find_global_pf`` and the flux stage share.
 """
 
-import warnings
-from typing import Dict, List, Tuple
+from typing import Tuple
 
 import numpy as np
 
@@ -60,56 +58,3 @@ def shadow_flag(direction, tower_bearing: float, sonic_bearing: float, envelope:
         inside = (d > min_a) & (d < max_a)
     return inside.astype(float), min_a, max_a
 
-
-def wind_stats(output: Dict, sensor_info: Dict, table_names: List[str], info: Dict) -> Dict:
-    """Compute wind speed and direction for each sonic and flag bad-sector data.
-
-    Populates ``output['spdAndDir']`` and ``output['spdAndDirHeader']``.
-    Also initialises ``output['warnings']``.
-    """
-    output.setdefault("warnings", [])
-
-    if "u" not in sensor_info:
-        return output
-
-    num_sonics = sensor_info["u"].shape[0]
-    tower_bearing = float(info.get("tower", 0))
-    wind_env = float(info["windDirectionTest"]["envelopeSize"])
-
-    for ii in range(num_sonics):
-        try:
-            tbl_idx = int(sensor_info["u"][ii, 0])
-            bearing = float(sensor_info["u"][ii, 3])
-            height = float(sensor_info["u"][ii, 2])
-            manufact = int(sensor_info["u"][ii, 4]) if sensor_info["u"].shape[1] > 4 else 1
-
-            u_col = int(sensor_info["u"][sensor_info["u"][:, 2] == height, 1][0])
-            v_col = int(sensor_info["v"][sensor_info["v"][:, 2] == height, 1][0])
-            tname = table_names[tbl_idx]
-
-            t = output[tname][:, 0]
-            direction, speed = wind_direction_speed(output[tname][:, u_col], output[tname][:, v_col],
-                                                    bearing, manufact)
-            flag, min_a, max_a = shadow_flag(direction, tower_bearing, bearing, wind_env)
-
-            # spdAndDir: timestamps in col 0, then [dir, spd, flag] per sonic
-            n = len(t)
-            if "spdAndDir" not in output:
-                output["spdAndDir"] = np.full((n, 1 + num_sonics * 3), np.nan)
-                output["spdAndDirHeader"] = ["timeStamp"] + [""] * (num_sonics * 3)
-                output["spdAndDir"][:, 0] = t
-
-            c0 = 1 + ii * 3
-            output["spdAndDir"][:n, c0] = direction
-            output["spdAndDir"][:n, c0 + 1] = speed
-            output["spdAndDir"][:n, c0 + 2] = flag
-            output["spdAndDirHeader"][c0] = f"{height}m direction"
-            output["spdAndDirHeader"][c0 + 1] = f"{height}m speed"
-            output["spdAndDirHeader"][c0 + 2] = f"{height}m flag {min_a:.3g}<dir<{max_a:.3g}"
-
-        except Exception as exc:
-            msg = f"Unable to find wind stats at {height}m: {exc}"
-            warnings.warn(msg)
-            output["warnings"].append(msg)
-
-    return output
