@@ -16,9 +16,11 @@ data/
                          be concatenated (e.g. one IRGASON per logger table)
     utespac/             formatted 48-h inputs written by raw_processing:
                          <PREFIX>_<table>_header.dat + <PREFIX>_<table>_<d1>000000_<d2>000000.txt
-    output/              pipeline products: .pkl / csv/ / .nc (labeled netCDF twin of
-                         each averaged pickle, utespac.labeled) / *_hf_*.nc (high-
-                         frequency netCDF from python -m utespac.export_hf)
+    output/              pipeline products, netCDF only: <Site>_<avgPer>minAvg_<PF>_<Det>_<date>.nc
+                         (the utespac-run-2 run file, utespac.run_io) / *_hf_*.nc (the
+                         high-frequency products, utespac.export_hf) / csv/ on request;
+                         .pkl files are products of runs before 2026-08-22 (get_data
+                         still reads them with fmt="pkl")
     PFinfo.json          global planar-fit coefficients as a record table
                          (utespac.pf_info.PFTable, written by find_global_pf; a
                          PFinfo.pkl left by an earlier run is still read when no

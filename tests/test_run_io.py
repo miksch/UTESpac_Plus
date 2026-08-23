@@ -76,3 +76,24 @@ def test_load_products_concatenates_dates(tmp_path):
     assert "Ts_w" in prod["H"] and prod["H"]["Ts_w"].dims == (M.TIME, M.HEIGHT)
     with pytest.raises(FileNotFoundError):
         load_products(tmp_path, "X", qualifier="GPF")
+
+
+def test_save_data_writes_run_file_and_csv_only(tmp_path):
+    """save_data: the run netCDF always, CSV on request, no pickle; the HF file
+    only when the run carries raw products."""
+    import os
+    from utespac.save_data import save_data
+    (tmp_path / "X").mkdir()
+    run = _run()
+    run.site.update({"rootFolder": str(tmp_path), "date": "2023_07_08", "saveCSV": True,
+                     "saveRawConditionedData": True, "PF": {"globalCalculation": "local"},
+                     "detrendingFormat": "linear", "latitude": 38.3, "longitude": -121.9})
+    paths = save_data(run)
+    assert set(paths) == {"nc", "csv"}           # raw is None -> no HF file
+    assert paths["nc"].endswith(os.path.join("X", "output", "X_30minAvg_LPF_LinDet_2023_07_08.nc"))
+    assert sorted(f for f in os.listdir(tmp_path / "X" / "output") if f != "csv") == \
+        ["X_30minAvg_LPF_LinDet_2023_07_08.nc"]
+    assert (tmp_path / "X" / "output" / "csv" / "X_30minAvg_LPF_LinDet_2023_07_08_H.csv").exists()
+    back = read_run(paths["nc"])
+    assert back.attrs["site_id"] == "X" and back.attrs["pf_type"] == "LPF"
+    assert np.array_equal(M.to_legacy_output(back)["H"], M.to_legacy_output(run)["H"], equal_nan=True)

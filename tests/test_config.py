@@ -14,7 +14,6 @@ LEGACY_INFO = {
     "UTESpacVersion": "5.0-Python",
     "avgPer": 30,
     "saveRawConditionedData": True,
-    "saveNetCDF": True,
     "saveCSV": True,
     "calcDissipation": False,
     "storeExtraStats": True,

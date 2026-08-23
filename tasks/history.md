@@ -3,6 +3,41 @@
 Rolling log of roughly the last 15 closures; older records live only in
 archive/. Format: `- [DONE|DROPPED YYYY-MM-DD] <one line> -- <link>`.
 
+- [DONE 2026-08-23] `run_io` readers open each run file once:
+  `read_run` and `load_products` take one `netCDF4.Dataset` handle and read
+  every group through an `xr.backends.NetCDF4DataStore` on it, `run_files`
+  sniffs `utespac_format` from the netCDF attributes without an xarray open.
+  Measured on the VAC001 LPF LinDet 2023-07-06 run file: `read_run`
+  0.88 -> 0.27 s, `run_files` over the 24 run files 3.5 -> 0.8 s; the Run
+  read is identical field by field to the previous reader on a GPF and an
+  LPF file, 164 tests pass.
+- [DONE 2026-08-23] The 48 pre-netCDF VAC001 pickles (`VAC001_30minAvg_*.pkl`,
+  `VAC001_raw_*.pkl`, ~14 GB) deleted by the user; the run files and HF
+  netCDF regenerated the same day reproduce them (entry below).
+  `data/VAC001/PFinfo.pkl` is still on disk (superseded by `PFinfo.json`,
+  nothing reads it while the JSON exists).
+- [DONE 2026-08-23] VAC001 products regenerated as the netCDF outputs:
+  `run_vac001.py` (LPF, linear and constant detrend) and `run_vac001_gpf.py`
+  (GPF, `PFinfo.json` reused) on all 8 dates with `saveRawConditionedData`
+  -- 24 `utespac-run-2` run files and 24 `_hf_` HF netCDF in
+  `data/VAC001/output`, the lone `utespac-averaged-1` file overwritten. The
+  run files reproduce the pre-netCDF pickles field by field (max relative
+  difference 7e-14, the duplicate `R` column and `skew_Theata_v` label being
+  the parity retirement), the HF files equal the raw pickles to float32;
+  `compare_vac001_eddypro.py` (GPF ConstDet joined table identical to the
+  2026-08-22 one; H Tair'wPF' bias −0.03 W/m², LE 0.984, Fc 0.975) and
+  `pf_vac001_eddypro.py` (b0 0.0425, b1 −0.0811, b2 0.0295) give the audit
+  doc's numbers unchanged -- record in the audit doc "VAC001 test dataset";
+  the pickle delete stays on the board.
+- [DONE 2026-08-22] Labeled inter-stage model (closes the migration board
+  line): `utespac/model.py` (`Sensors`, `Run` of xarray Datasets) and
+  `utespac/stages.py` replace the MATLAB-shaped glue between stages;
+  `utespac/run_io.py` writes/reads the `utespac-run-2` run netCDF, the only
+  averaged product from here on (user ruling 2026-08-22: the end nc product,
+  no pickles); the HF netCDF is written from the `Run` by
+  `utespac.export_hf.write_hf`; `get_data` defaults to the run files,
+  `load_products` gives them as Datasets; fixture pins unchanged -- record in
+  [archive/migration/2026-08-22_labeled-run-model.md](archive/migration/2026-08-22_labeled-run-model.md).
 - [DROPPED 2026-08-22] GPF regeneration for the French Meadows sites (Gill,
   IRGA) with the fixed rotation: the user will not process those sites;
   VAC001 (flat, so the slope-geometry keys stay unused) is the only site.

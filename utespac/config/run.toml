@@ -16,12 +16,12 @@ UTESpacVersion = "5.0-Python"
 avgPer = 30            # [min] averaging period; must divide 60
 
 [output]
-saveRawConditionedData = true   # QC'd raw tables as pickle (*_raw_*.pkl)
-saveNetCDF = true               # labeled CF netCDF of the averaged output beside the
-#                                 pickle (utespac.labeled; needs netCDF4, skipped with a
-#                                 warning otherwise). High-frequency netCDF is the
-#                                 separate converter, python -m utespac.export_hf.
-saveCSV = true
+# The averaged products are always written as one utespac-run-2 netCDF per
+# date (<Site>_<avgPer>minAvg_<PF>_<Det>_<date>.nc, utespac.run_io).
+saveRawConditionedData = true   # high-frequency products (rotated winds, Ts, scalars)
+#                                 as the utespac-hf-1 netCDF <Site>_hf_<PF>_<Det>_<date>.nc
+#                                 (utespac.export_hf, integration notes A.2)
+saveCSV = true                  # the averaged matrices as CSV under output/csv/
 
 # Sensor-name templates: '*' stands for the height in the header name.
 [template]

@@ -25,13 +25,12 @@ def main():
                     help="1-based date rows to process (default: all)")
     ap.add_argument("--site", default="VAC001")
     ap.add_argument("--detrend", choices=["linear", "constant"], default="linear")
-    ap.add_argument("--netcdf", action="store_true", help="also write .nc")
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
     config = RunConfig.from_config(
         rootFolder=os.path.join(ROOT, "data"),
-        saveNetCDF=args.netcdf, saveCSV=True, saveRawConditionedData=True,
+        saveCSV=True, saveRawConditionedData=True,
         pf={"globalCalculation": "local", "recalculateGlobalCoefficients": False},
         flux={"detrendingFormat": args.detrend},
     )

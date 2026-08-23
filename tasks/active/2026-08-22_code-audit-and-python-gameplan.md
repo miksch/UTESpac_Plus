@@ -650,6 +650,28 @@ mean ≈ 75 W/m², r² 0.74) is dominated by the provisional Rn/G rather than
 by the turbulent side. If Rn or G are revised, re-run the script; nothing
 in the ranking depends on their absolute level.
 
+Regeneration as netCDF (2026-08-23). With the legacy pickle retired as an
+output (labeled run model, history.md), the three product sets above were
+re-run from the 48-h inputs -- `run_vac001.py` linear and constant
+detrend, `run_vac001_gpf.py --reuse-pf` with the `PFinfo.json` on disk --
+and `data/VAC001/output` now holds 24 `utespac-run-2` run files and 24
+`_hf_` HF netCDF (LPF_LinDet, LPF_ConstDet, GPF_ConstDet × 8 dates). Checks:
+every averaged field of every run file equals the pickle it replaces (max
+relative difference 7e-14, on `L`; the only header differences are the
+parity-retirement `R` duplicate and `skew_Theata_v`), the HF series equal
+the raw pickles to float32 (6e-8) with identical NaN masks and timestamps,
+the GPF ConstDet joined table from `compare_vac001_eddypro.py` is identical
+to the 2026-08-22 one column by column (so the Schotanus table above stands),
+the LPF tilts per 48-h window and the planar-fit coefficient table are
+unchanged. The LPF LinDet/ConstDet joined tables differ from their 08-22
+morning versions only in the columns the Schotanus/WPL and minor-fixes
+batches changed later that day (H Tair'wPF', LE, Fc; H Thv'wPF', u*, TKE
+at 1e-4 relative), consistent with those fixes and ruled out as a boundary
+effect by the pickle parity above -- for reference
+the LPF ConstDet run now gives H Tair'wPF' bias +0.04 W/m² (RMSE 1.4),
+LE 0.980, Fc 0.972, u* 1.010, TKE 1.004, and LPF LinDet H Tair'wPF' bias
+−0.6 (RMSE 7.9), LE 0.961, Fc 0.964.
+
 ## Validation data to assemble
 
 For "did the port break anything" (parity):

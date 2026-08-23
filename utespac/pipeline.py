@@ -4,7 +4,7 @@
 (find_global_pf) → per date: load_data → find_serial_date → the stages of
 :mod:`utespac.stages` on a labeled :class:`~utespac.model.Run`
 (``load_run`` → ``condition`` → ``average`` → ``wind`` → ``rotate`` →
-``flux``) → save_data through the legacy adapters, and returns a
+``flux`` → ``save_data``: the run netCDF, the HF netCDF, CSV), and returns a
 :class:`RunResult` instead of printing. Interaction for the global planar
 fit goes through a prompter (:mod:`utespac.prompts`); with none given the
 selection is scripted (single sector, all dates).
@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from .run_config import RunConfig
 from .prompts import PFPrompter, ScriptedPFSelection
-from .model import Run, to_legacy_output, raw_to_legacy
+from .model import Run
 from .pf_info import PFTable
 from . import stages
 
@@ -121,8 +121,7 @@ def run_utespac(config: Optional[RunConfig] = None, *, site: str, dates="all",
             stages.wind(run)
             stages.rotate(run)
             stages.flux(run)
-            paths = save_data(info, to_legacy_output(run), run.notes, headers, table_names,
-                              raw_to_legacy(run.raw), template, run=run)
+            paths = save_data(run)
             results.append(DateResult(i + 1, list(row), "ok", paths=paths,
                                       run=run if keep_runs else None))
         except Exception as exc:   # one bad date must not stop the run

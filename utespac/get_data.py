@@ -15,14 +15,15 @@ def get_data(
     avg_per: int = None,
     qualifier: str = None,
     rows=None,
-    fmt: str = "pkl",
+    fmt: str = "nc",
 ) -> Dict:
     """Load and vertically concatenate processed UTESpac output files.
 
-    ``fmt="pkl"`` reads the pickles, ``fmt="nc"`` the netCDF written beside
-    them (a ``utespac-run-2`` run file through :mod:`utespac.run_io`, or the
-    older ``utespac-averaged-1`` file through :func:`utespac.labeled.read_netcdf`);
-    both give the same dict. :func:`get_frames` returns it as DataFrames;
+    ``fmt="nc"`` (default) reads the netCDF products (a ``utespac-run-2`` run
+    file through :mod:`utespac.run_io`, or the older ``utespac-averaged-1`` file
+    through :func:`utespac.labeled.read_netcdf`); ``fmt="pkl"`` the pickles of
+    runs before 2026-08-22 (no longer written); both give the same dict.
+    :func:`get_frames` returns it as DataFrames;
     :func:`utespac.run_io.load_products` gives the products as Datasets.
 
     Fields that carry a column header (``<field>Header``/``<field>header``)
@@ -93,7 +94,7 @@ def get_data(
     parts.append(f".{fmt}")
     pattern = os.path.join(site_path, "".join(parts))
 
-    all_files = sorted(glob.glob(pattern))
+    all_files = sorted(f for f in glob.glob(pattern) if "_hf_" not in os.path.basename(f))
     if not all_files:
         raise FileNotFoundError(f"No output files found matching {pattern}")
 
@@ -245,7 +246,7 @@ def get_data(
 
 
 def get_frames(root_folder: str, site=None, avg_per: int = None, qualifier: str = None,
-               rows=None, fmt: str = "pkl") -> Dict:
+               rows=None, fmt: str = "nc") -> Dict:
     """:func:`get_data` as pandas DataFrames (``DatetimeIndex`` named ``time``,
     header labels as columns); see :func:`utespac.labeled.to_frames`."""
     from .labeled import to_frames
@@ -255,18 +256,13 @@ def get_frames(root_folder: str, site=None, avg_per: int = None, qualifier: str 
 
 def _read_nc_as_legacy(path: str) -> Dict:
     """A netCDF product as the legacy output dict: a ``utespac-run-2`` run file
-    through :func:`utespac.model.to_legacy_output`, else the older
+    through :func:`utespac.run_io.read_run_legacy`, else the older
     ``utespac-averaged-1`` file through :func:`utespac.labeled.read_netcdf`."""
     import xarray as xr
     with xr.open_dataset(path, engine="netcdf4") as ds:
         fmt = ds.attrs.get("utespac_format")
     if fmt == "utespac-run-2":
-        from .model import to_legacy_output
-        from .run_io import read_run
-        run = read_run(path)
-        d = to_legacy_output(run)
-        d["dataInfo"] = run.notes
-        d["tableNames"] = list(run.table_names)
-        return d
+        from .run_io import read_run_legacy
+        return read_run_legacy(path)
     from .labeled import read_netcdf
     return read_netcdf(path)

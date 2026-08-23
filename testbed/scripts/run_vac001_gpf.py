@@ -40,7 +40,7 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
     config = RunConfig.from_config(
         rootFolder=os.path.join(ROOT, "data"),
-        saveNetCDF=False, saveCSV=True, saveRawConditionedData=True,
+        saveCSV=True, saveRawConditionedData=True,
         pf={"globalCalculation": "global",
             "recalculateGlobalCoefficients": not args.reuse_pf},
         flux={"detrendingFormat": args.detrend},

@@ -127,8 +127,7 @@ def write_run(run: Run, path, attrs: Optional[Dict] = None) -> str:
     return path
 
 
-def _groups(path: str) -> List[str]:
-    import netCDF4
+def _walk_groups(root) -> List[str]:
     out = []
 
     def walk(g, prefix):
@@ -136,52 +135,79 @@ def _groups(path: str) -> List[str]:
             full = f"{prefix}/{name}" if prefix else name
             out.append(full)
             walk(sub, full)
-    with netCDF4.Dataset(path, "r") as ds:
-        walk(ds, "")
+    walk(root, "")
     return out
 
 
-def _open(path: str, group: str) -> xr.Dataset:
-    with xr.open_dataset(path, group=group, engine="netcdf4", decode_timedelta=False) as ds:
-        return ds.load()
+def _open_file(path: str):
+    import netCDF4
+    return netCDF4.Dataset(path, "r")
+
+
+def _load_group(nc, group: str) -> xr.Dataset:
+    """One group of an open ``netCDF4.Dataset`` *nc* as a loaded Dataset
+    (a store on the shared handle -- the file is opened once per read)."""
+    store = xr.backends.NetCDF4DataStore(nc, group=group)
+    return xr.open_dataset(store, decode_timedelta=False).load()
+
+
+def _format_of(path: str) -> Optional[str]:
+    """``utespac_format`` of a netCDF file, None if absent or unreadable."""
+    import netCDF4
+    try:
+        with netCDF4.Dataset(path, "r") as nc:
+            return nc.getncattr("utespac_format") if "utespac_format" in nc.ncattrs() else None
+    except Exception:
+        return None
 
 
 def read_run(path) -> Run:
     """A :class:`Run` from a ``utespac-run-2`` file (no high-frequency tables)."""
     path = str(path)
-    with xr.open_dataset(path, engine="netcdf4") as root:
-        attrs = dict(root.attrs)
-    if attrs.get("utespac_format") != FORMAT:
-        raise ValueError(f"{path}: not a {FORMAT} file (utespac_format={attrs.get('utespac_format')!r})")
-    groups = _groups(path)
-    headers = {k: (list(v[0]), [None if h is None else h for h in v[1]])
-               for k, v in json.loads(attrs.get("headers", "{}")).items()}
-    run = Run(site=json.loads(attrs.get("run_facts", "{}")),
-              sensors=_sensors_from_dataset(_open(path, "sensors")) if "sensors" in groups else Sensors(),
-              table_names=json.loads(attrs.get("table_names", "[]")), headers=headers,
-              notes=json.loads(attrs.get("notes", "[]")), warnings=json.loads(attrs.get("warnings", "[]")))
-    for g in groups:
-        if g.startswith("periods/"):
-            run.periods[g.split("/", 1)[1]] = _open(path, g)
-        elif g.startswith("flags/"):
-            ds = _open(path, g)
-            for v in ("spike", "nan"):
-                if v in ds:
-                    ds[v] = ds[v].astype(bool)
-            run.flags[g.split("/", 1)[1]] = ds
-        elif g == "wind":
-            run.wind = _open(path, g)
-        elif g == "rotation":
-            run.rotation = _open(path, g)
-        elif g.startswith("products/"):
-            run.products[g.split("/", 1)[1]] = _open(path, g)
-        elif g == "planar_fit":
-            from .pf_info import PFTable
-            with xr.open_dataset(path, group=g, engine="netcdf4") as ds:
-                run.pf_table = PFTable.from_dict(json.loads(ds.attrs["pf_table"]))
+    with _open_file(path) as nc:
+        attrs = {k: nc.getncattr(k) for k in nc.ncattrs()}
+        if attrs.get("utespac_format") != FORMAT:
+            raise ValueError(f"{path}: not a {FORMAT} file (utespac_format={attrs.get('utespac_format')!r})")
+        groups = _walk_groups(nc)
+        headers = {k: (list(v[0]), [None if h is None else h for h in v[1]])
+                   for k, v in json.loads(attrs.get("headers", "{}")).items()}
+        run = Run(site=json.loads(attrs.get("run_facts", "{}")),
+                  sensors=(_sensors_from_dataset(_load_group(nc, "sensors"))
+                           if "sensors" in groups else Sensors()),
+                  table_names=json.loads(attrs.get("table_names", "[]")), headers=headers,
+                  notes=json.loads(attrs.get("notes", "[]")), warnings=json.loads(attrs.get("warnings", "[]")))
+        for g in groups:
+            if g.startswith("periods/"):
+                run.periods[g.split("/", 1)[1]] = _load_group(nc, g)
+            elif g.startswith("flags/"):
+                ds = _load_group(nc, g)
+                for v in ("spike", "nan"):
+                    if v in ds:
+                        ds[v] = ds[v].astype(bool)
+                run.flags[g.split("/", 1)[1]] = ds
+            elif g == "wind":
+                run.wind = _load_group(nc, g)
+            elif g == "rotation":
+                run.rotation = _load_group(nc, g)
+            elif g.startswith("products/"):
+                run.products[g.split("/", 1)[1]] = _load_group(nc, g)
+            elif g == "planar_fit":
+                from .pf_info import PFTable
+                run.pf_table = PFTable.from_dict(json.loads(nc[g].getncattr("pf_table")))
     run.attrs = {k: v for k, v in attrs.items()
                  if k not in ("run_facts", "table_names", "headers", "notes", "warnings")}
     return run
+
+
+def read_run_legacy(path) -> Dict:
+    """A run file as the legacy output dict (``to_legacy_output`` plus ``dataInfo``
+    and ``tableNames``) -- what the pickle held; for readers not yet on the Run."""
+    from .model import to_legacy_output
+    run = read_run(path)
+    out = to_legacy_output(run)
+    out["dataInfo"] = run.notes
+    out["tableNames"] = list(run.table_names)
+    return out
 
 
 def run_files(root, site: str, avg_per: Optional[int] = None, qualifier: Optional[str] = None
@@ -196,15 +222,8 @@ def run_files(root, site: str, avg_per: Optional[int] = None, qualifier: Optiona
     if qualifier is not None:
         parts.append(f"{qualifier}*")
     parts.append(".nc")
-    files = []
-    for f in sorted(glob.glob(os.path.join(out_dir, "".join(parts)))):
-        try:
-            with xr.open_dataset(f, engine="netcdf4") as ds:
-                if ds.attrs.get("utespac_format") == FORMAT:
-                    files.append(f)
-        except Exception:
-            continue
-    return files
+    return [f for f in sorted(glob.glob(os.path.join(out_dir, "".join(parts))))
+            if _format_of(f) == FORMAT]
 
 
 def load_products(root, site: str, avg_per: Optional[int] = None, qualifier: Optional[str] = None,
@@ -216,11 +235,12 @@ def load_products(root, site: str, avg_per: Optional[int] = None, qualifier: Opt
         raise FileNotFoundError(f"no {FORMAT} files for {site!r} under {root}")
     per_name: Dict[str, List[xr.Dataset]] = {}
     for f in files:
-        for g in _groups(f):
-            if g.startswith("products/"):
-                name = g.split("/", 1)[1]
-                if names is not None and name not in names:
-                    continue
-                per_name.setdefault(name, []).append(_open(f, g))
+        with _open_file(f) as nc:
+            for g in _walk_groups(nc):
+                if g.startswith("products/"):
+                    name = g.split("/", 1)[1]
+                    if names is not None and name not in names:
+                        continue
+                    per_name.setdefault(name, []).append(_load_group(nc, g))
     return {name: xr.concat(parts, dim=TIME, join="outer", combine_attrs="override")
             for name, parts in per_name.items()}

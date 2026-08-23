@@ -1,4 +1,5 @@
-"""generate_ameriflux.py – Create AmeriFlux BASE half-hourly CSV from UTESpac output.
+"""generate_ameriflux.py – Create AmeriFlux BASE half-hourly CSV from UTESpac output
+(the utespac-run-2 run files, read as the legacy dict through utespac.run_io).
 
 Format requirements (ameriflux.lbl.gov/half-hourly-hourly-data-upload-format/):
   - ASCII CSV, comma-delimited, period as decimal separator
@@ -21,7 +22,6 @@ Usage::
 import os
 import re
 import glob
-import pickle
 import warnings
 from collections import defaultdict
 import numpy as np
@@ -104,21 +104,20 @@ def _site_prefix(folder_name):
     m = re.match(r'(site[A-Za-z]+)\d', folder_name)
     return m.group(1) if m else folder_name
 
-def load_pkl_group(folder_list, pf_type):
-    """Load and time-sort all GPF 30min avg pkls from a list of site folders."""
-    # Collect (date_tag, pkl_path) pairs so we can sort chronologically
+def load_run_group(folder_list, pf_type):
+    """Load and time-sort the 30-min run files (utespac-run-2 netCDF, read as
+    the legacy output dict) of one planar-fit type from a list of site folders."""
+    from utespac.run_io import read_run_legacy
     file_pairs = []
     for folder in folder_list:
         for fp in glob.glob(os.path.join(folder, "output",
-                                          f"*_30minAvg_{pf_type}_LinDet_*.pkl")):
+                                          f"*_30minAvg_{pf_type}_LinDet_*.nc")):
             file_pairs.append(fp)
     if not file_pairs:
         return None
 
-    parts = []
-    for fp in sorted(file_pairs):   # lexicographic sort = chronological for YYYY_MM_DD suffix
-        with open(fp, "rb") as f:
-            parts.append(pickle.load(f))
+    # lexicographic sort = chronological for the YYYY_MM_DD suffix
+    parts = [read_run_legacy(fp) for fp in sorted(file_pairs)]
 
     combined = {}
     for key in parts[0]:
@@ -162,17 +161,17 @@ print(f"Discovered {len(site_groups)} site type(s): {sorted(site_groups)}")
 loaded: dict = {}          # prefix → combined data dict
 for prefix, folders in sorted(site_groups.items()):
     print(f"  Loading {prefix} ({len(folders)} folder(s))…")
-    data = load_pkl_group(folders, PF_TYPE)
+    data = load_run_group(folders, PF_TYPE)
     if data is not None:
         loaded[prefix] = data
         n = data["H"].shape[0]
         heights = get_sonic_heights(data)
         print(f"    {n} periods, heights: {heights} m")
     else:
-        print(f"    WARNING: no {PF_TYPE} avg pkl files found — skipping.")
+        print(f"    WARNING: no {PF_TYPE} run files found — skipping.")
 
 if not loaded:
-    raise RuntimeError(f"No {PF_TYPE} pkl files found in any site* folder.")
+    raise RuntimeError(f"No {PF_TYPE} run files (*_30minAvg_{PF_TYPE}_LinDet_*.nc) found in any site* folder.")
 
 # ── discover EC heights and map each to its source ───────────────────────────
 
@@ -424,7 +423,7 @@ else:
     warnings.warn("ROOT_1MIN not set or no FM_DOL_1min files found — "
                   "met/radiation columns will be absent.")
 
-# PA always from UTESpac pkl (independent of 1-min data)
+# PA always from the UTESpac output (independent of 1-min data)
 df["PA_1_1_1"] = pa_timeseries
 
 # ── replace NaN with -9999, enforce column order, write CSV ──────────────────

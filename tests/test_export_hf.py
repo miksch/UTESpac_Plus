@@ -1,15 +1,14 @@
-"""Tests for utespac.export_hf (raw pickle -> HF netCDF)."""
+"""Tests for utespac.export_hf (the HF netCDF of a Run)."""
 
-import pickle
 from datetime import datetime
 
 import numpy as np
 import pytest
 
 from utespac.campbell_date import datetime_to_matlab_datenum
-from utespac.export_hf import export_site, parse_raw_name, raw_to_netcdf, sibling_averaged
+from utespac.export_hf import write_hf
+from utespac.model import Run, Sensors, raw_from_legacy, to_datetime64
 from utespac.pf_info import PFRecord, PFTable
-from utespac.site_config import SiteInfo
 
 netCDF4 = pytest.importorskip("netCDF4")
 
@@ -49,29 +48,32 @@ def _avg():
                          ["10.85m b0=0.01 b1=0.02 b2=0.03 pitch=1 roll=2 deg"]]}
 
 
-def test_names():
-    p = parse_raw_name("data/X/output/X_raw_GPF_ConstDet_2023_07_06.pkl")
-    assert p == {"site": "X", "pf": "GPF", "det": "ConstDet", "date": "2023_07_06"}
-    assert parse_raw_name("X_30minAvg_GPF_ConstDet_2023_07_06.pkl") is None
+def _info(pf="global", detrend="constant"):
+    return {"siteFolder": "X", "date": "2023_07_06", "avgPer": 30, "UTESpacVersion": "5.0-Python",
+            "PF": {"globalCalculation": pf}, "detrendingFormat": detrend,
+            "latitude": 38.3, "longitude": -121.9, "tableScanFrequency": [20, 1 / 1800],
+            "canopyHeight": 6.0, "siteElevation": 18.2, "displacementHeight": 0.0}
 
 
-def test_raw_to_netcdf(tmp_path):
-    raw_path = tmp_path / "X_raw_GPF_ConstDet_2023_07_06.pkl"
-    avg_path = tmp_path / "X_30minAvg_GPF_ConstDet_2023_07_06.pkl"
-    raw_path.write_bytes(pickle.dumps(_raw()))
-    avg_path.write_bytes(pickle.dumps(_avg()))
-    assert sibling_averaged(str(raw_path)) == str(avg_path)
-    si = SiteInfo(latitude=38.3, longitude=-121.9, tableScanFrequency=[20, 1 / 1800],
-                  canopyHeight=6.0, siteElevation=18.2, displacementHeight=0.0)
+def _run(raw, info, pf_table=None):
+    """A Run carrying only what write_hf reads: site facts, raw products, notes, planar fit."""
+    return Run(site=info, sensors=Sensors(), table_names=["X_20Hz"], headers={},
+               raw=raw_from_legacy(raw, to_datetime64(raw["t"])), notes=_avg()["dataInfo"],
+               pf_table=pf_table)
+
+
+def test_write_hf(tmp_path):
     pf = PFTable([PFRecord(10.85, "2023-07-06", "2023-07-21", 0.0, 0.0, 0.04, -0.08, 0.03)])
-    out = raw_to_netcdf(str(raw_path), tmp_path / "x.nc", site_info=si, pf_table=pf, dtype="f8")
+    out = write_hf(_run(_raw(), _info(), pf), tmp_path / "x.nc", output=_avg(), dtype="f8")
     with netCDF4.Dataset(out) as ds:
         assert len(ds.dimensions["time"]) == N and list(ds["height"][:]) == [10.85, 32.18]
+        assert ds.getncattr("utespac_format") == "utespac-hf-1"
         assert ds.getncattr("site_id") == "X" and ds.getncattr("pf_type") == "GPF"
         assert ds.getncattr("detrend_upstream") == "constant"
         assert ds.getncattr("sampling_frequency_hz") == 20.0
         assert ds.getncattr("sampling_frequency_hz_measured") == pytest.approx(20.0, abs=1e-3)
         assert ds.getncattr("flux_averaging_s") == 1800.0 and ds.getncattr("canopy_height") == 6.0
+        assert ds.getncattr("source_files") == "X_20Hz_20230706000000_20230708000000.txt"
         # heights sorted ascending: column 0 is 10.85 m (u = 1.0), column 1 is 32.18 m (u = 2.0)
         assert ds["u"][0, 0] == 1.0 and ds["u"][0, 1] == 2.0
         assert ds["Ts"].units == "degC" and ds["rhov"].units == "g m-3"
@@ -92,21 +94,21 @@ def test_raw_to_netcdf(tmp_path):
         assert pfg["b1"][0] == -0.08 and pfg["date_end"][0] == "2023-07-21"
 
 
-def test_lpf_coefficients_from_data_info_and_export_site(tmp_path):
-    site = tmp_path / "X"
-    (site / "output").mkdir(parents=True)
-    (site / "siteInfo.toml").write_text("latitude = 38.3\nlongitude = -121.9\n")
+def test_lpf_coefficients_from_notes_and_primes(tmp_path):
     raw = _raw()
     raw["z_h2o"] = np.array([10.85])
-    (site / "output" / "X_raw_LPF_LinDet_2023_07_06.pkl").write_bytes(pickle.dumps(raw))
-    (site / "output" / "X_30minAvg_LPF_LinDet_2023_07_06.pkl").write_bytes(pickle.dumps(_avg()))
     with pytest.warns(UserWarning, match="heights unknown"):   # rhoCO2 has no z_co2 and 1 col vs 2 heights
-        written = export_site(tmp_path, "X", pf="LPF", det="LinDet", include_primes=True)
-    assert written == [str(site / "output" / "X_hf_LPF_LinDet_2023_07_06.nc")]
-    with netCDF4.Dataset(written[0]) as ds:
+        out = write_hf(_run(raw, _info("local", "linear")), tmp_path / "X_hf_LPF_LinDet_2023_07_06.nc",
+                       output=_avg(), include_primes=True)
+    with netCDF4.Dataset(out) as ds:
         assert ds.getncattr("pf_type") == "LPF" and ds.getncattr("detrend_upstream") == "linear"
         assert ds["height_rhov"][0] == 10.85 and "rhov_prime" in ds.variables
+        assert ds["u"].dtype == np.float32
         pfg = ds.groups["planar_fit"]
         assert pfg["height"][0] == 10.85 and pfg["b0"][0] == 0.01 and pfg["date_start"][0] == "2023-07-06"
-    with pytest.raises(FileNotFoundError):
-        export_site(tmp_path, "X", pf="GPF")
+
+
+def test_write_hf_needs_raw_products(tmp_path):
+    run = Run(site=_info(), sensors=Sensors(), table_names=[], headers={})
+    with pytest.raises(ValueError, match="raw products"):
+        write_hf(run, tmp_path / "x.nc")

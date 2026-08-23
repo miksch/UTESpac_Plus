@@ -179,4 +179,31 @@ LPF products through `get_data` (pickle or run file alike).
 DECIDE: when S4 lands, does the legacy pickle stay as an output option or
 go? (default: goes, with the fixture re-pinned to the run file; `get_data`
 reads run files and, for the old VAC001 products, pickles.)
-A:
+A: the end nc product only, no pickles for output (user, 2026-08-22) -- landed, record below.
+**User ruling 2026-08-22: the end netCDF product only; no pickles as
+output.** Landed the same day: `save_data(run)` writes the run netCDF
+always, the HF netCDF (`utespac.export_hf.write_hf(run, path)`, the A.2
+file straight from `run.raw` and the averaged products, schema unchanged)
+when `saveRawConditionedData` is on, CSV on `saveCSV`; the averaged and raw
+pickles and the `saveNetCDF` flag are gone (`RunConfig`, `run.toml`,
+`to_info`), netCDF4 is a dependency, `DateResult.paths` carries `nc`/`hf`/
+`csv`. The pickle converter path of `export_hf` (`raw_to_netcdf`,
+`export_site`, the CLI) is deleted; `get_data` defaults to `fmt="nc"` and
+skips `_hf_` files, `fmt="pkl"` stays for the VAC001 products written before
+this date; `find_global_pf` therefore reads LPF run files (the VAC001
+`PFinfo.json` on disk is reused, a fresh GPF computation needs the LPF run
+regenerated first). Fixture: `build_fixture.run_fixture` reads the run file
+back (`run_io.read_run_legacy`) and takes the raw products from the
+in-memory `Run` (the HF file stores float32); pins unchanged — the run file
+reproduces the pickle field by field, ledger row in
+`tests/KNOWN_DIVERGENCES.md`. `test_products_on_disk_are_the_runs_view`
+replaces the pickle-twin test (run file equals the Run's legacy view; HF
+file equals `run.raw` to float32, ancillaries present). Suite 164 passed.
+Readers moved to the new products the same day: `run_io.read_run_legacy`
+(a run file as the legacy dict) serves `get_data`, the fixture runner,
+`testbed/scripts/compare_vac001_eddypro.py`, `pf_vac001_eddypro.py` and
+`generate_ameriflux.py`; `generate_ameriflux_hf.py` reads the `_hf_` netCDF.
+The VAC001 products were regenerated as run and HF files on 2026-08-23
+(history.md; LPF LinDet, LPF ConstDet, GPF ConstDet, all eight dates); the
+run files reproduce the pre-ruling pickles field by field, so the readers
+above find the site again.

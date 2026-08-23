@@ -172,7 +172,6 @@ class RunConfig:
     UTESpacVersion: str = "5.0-Python"
     avgPer: int = 30
     saveRawConditionedData: bool = True
-    saveNetCDF: bool = True
     saveCSV: bool = True
     template: Dict[str, str] = field(default_factory=lambda: dict(_DEFAULT_TEMPLATE))
     qc: QCConfig = field(default_factory=QCConfig)
@@ -239,7 +238,6 @@ class RunConfig:
             "UTESpacVersion": self.UTESpacVersion,
             "avgPer": self.avgPer,
             "saveRawConditionedData": self.saveRawConditionedData,
-            "saveNetCDF": self.saveNetCDF,
             "saveCSV": self.saveCSV,
             "PF": self.pf.to_info(),
         }

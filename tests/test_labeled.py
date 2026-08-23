@@ -1,5 +1,5 @@
 """Tests for utespac.labeled (labeled tables, netCDF round trip) and the
-``fmt="nc"`` path of get_data / save_data."""
+``fmt="nc"`` path of get_data on ``utespac-averaged-1`` files."""
 
 import pickle
 
@@ -129,7 +129,7 @@ def test_get_data_reads_netcdf_like_pkl(tmp_path):
         with open(site / "output" / f"X_30minAvg_LPF_ConstDet_0{i}.pkl", "wb") as fh:
             pickle.dump(o, fh)
         labeled.write_netcdf(o, site / "output" / f"X_30minAvg_LPF_ConstDet_0{i}.nc")
-    from_pkl = get_data(tmp_path, site="VAC001", avg_per=30, qualifier="LPF")
+    from_pkl = get_data(tmp_path, site="VAC001", avg_per=30, qualifier="LPF", fmt="pkl")
     from_nc = get_data(tmp_path, site="VAC001", avg_per=30, qualifier="LPF", fmt="nc")
     _assert_same(from_pkl, from_nc)
     assert from_nc["H"].shape == (8, 3)
@@ -137,19 +137,3 @@ def test_get_data_reads_netcdf_like_pkl(tmp_path):
     assert fr["H"].shape == (8, 2) and fr["H"].index.name == "time"
     with pytest.raises(ValueError, match="fmt"):
         get_data(tmp_path, site="VAC001", fmt="csv")
-
-
-def test_save_data_writes_labeled_netcdf(tmp_path):
-    from utespac.save_data import save_data
-    (tmp_path / "VAC001").mkdir()
-    info = {"rootFolder": str(tmp_path), "siteFolder": "VAC001", "date": "2023_07_06",
-            "avgPer": 30, "saveNetCDF": True, "saveCSV": False,
-            "PF": {"globalCalculation": "local"}, "detrendingFormat": "constant",
-            "latitude": 38.3, "longitude": -121.9}
-    out = _output()
-    paths = save_data(info, out, out["dataInfo"], [], ["X_20Hz"], None, {})
-    assert paths["nc"].endswith("VAC001_30minAvg_LPF_ConstDet_2023_07_06.nc")
-    back = labeled.read_netcdf(paths["nc"])
-    with open(paths["pkl"], "rb") as fh:
-        pkl = pickle.load(fh)
-    _assert_same(pkl, back)

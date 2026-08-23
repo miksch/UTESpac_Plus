@@ -27,7 +27,6 @@ import glob
 import gzip
 import json
 import os
-import pickle
 import shutil
 import sys
 import tempfile
@@ -186,19 +185,21 @@ def stage_site(fixture_dir, root):
 
 
 def run_fixture(config_name, root):
-    """Run the pipeline on the staged site for one config; returns (avg dict, raw dict)."""
+    """Run the pipeline on the staged site for one config; returns (avg dict, raw dict).
+
+    ``avg`` is the run netCDF read back as the legacy dict (what the pickle
+    used to hold), ``raw`` the raw products of the in-memory Run (the HF
+    netCDF stores them as float32, so the pin takes them before the file)."""
     from utespac import RunConfig, run_utespac
-    cfg = RunConfig.from_config(rootFolder=root, saveCSV=False, saveNetCDF=False,
+    from utespac.run_io import read_run_legacy
+    from utespac.model import raw_to_legacy
+    cfg = RunConfig.from_config(rootFolder=root, saveCSV=False,
                                 saveRawConditionedData=True, **CONFIGS[config_name])
-    result = run_utespac(cfg, site=SITE, dates="all")
+    result = run_utespac(cfg, site=SITE, dates="all", keep_runs=True)
     if not result.ok:
         raise RuntimeError(f"{config_name}: {[d.error for d in result.dates if d.error]}")
-    paths = result.dates[0].paths
-    with open(paths["pkl"], "rb") as fh:
-        avg = pickle.load(fh)
-    with open(paths["raw"], "rb") as fh:
-        raw = pickle.load(fh)
-    return avg, raw
+    date = result.dates[0]
+    return read_run_legacy(date.paths["nc"]), raw_to_legacy(date.run.raw)
 
 
 # ── pin / compare ────────────────────────────────────────────────────────────

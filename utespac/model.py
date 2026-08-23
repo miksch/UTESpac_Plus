@@ -1,6 +1,6 @@
 """The labeled run model: sensors as records, data as xarray Datasets.
 
-Design: tasks/active/2026-08-22_labeled-run-model.md. A :class:`Run`
+Design: tasks/archive/migration/2026-08-22_labeled-run-model.md. A :class:`Run`
 carries one processing date of one site — the high-frequency logger
 tables, the per-period flags and means, the wind statistics, the rotated
 winds, the flux products and the raw high-frequency products — as

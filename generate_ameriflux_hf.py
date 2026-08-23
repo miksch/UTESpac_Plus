@@ -1,4 +1,4 @@
-"""generate_ameriflux_hf.py – AmeriFlux high-frequency CSV export from UTESpac raw pkl output.
+"""generate_ameriflux_hf.py – AmeriFlux high-frequency CSV export from the UTESpac HF netCDF (*_hf_*.nc).
 
 Format references:
   https://ameriflux.lbl.gov/data/how-to-upload-data/uploading-high-frequency-data/
@@ -25,9 +25,9 @@ _IU qualifier (AmeriFlux):
   Per AmeriFlux documentation, use of _IU in HF uploads should be discussed with the
   data team (ameriflux-support@lbl.gov) before submission.
 
-Unit notes — Python pkl convention:
-  rhov:    g m⁻³   in both Python and MATLAB pkl
-  rhoCO2:  mg m⁻³  in Python pkl  (MATLAB stores kg m⁻³; see fluxes.py comment)
+Unit notes — HF netCDF convention (utespac.export_hf):
+  rhov:    g m⁻³   (vapour density)
+  rhoCO2:  mg m⁻³
 
 Missing data: -9999  (NaN and ±Inf replaced before writing)
 """
@@ -35,12 +35,16 @@ Missing data: -9999  (NaN and ±Inf replaced before writing)
 import os
 import re
 import glob
-import pickle
+import sys
 import zipfile
 from collections import defaultdict
 
 import numpy as np
 import pandas as pd
+import xarray as xr
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from utespac.campbell_date import datetime64_to_matlab_datenum   # noqa: E402
 
 # ── configuration ─────────────────────────────────────────────────────────────
 
@@ -83,36 +87,44 @@ def safe(arr):
 
 os.makedirs(OUT_DIR, exist_ok=True)
 
-raw_pkls = sorted(glob.glob(
-    os.path.join(ROOT_PY, "site*", "output", f"*_raw_{PF_TYPE}_*.pkl")))
+hf_files = sorted(glob.glob(
+    os.path.join(ROOT_PY, "site*", "output", f"*_hf_{PF_TYPE}_*.nc")))
 
-if not raw_pkls:
-    print(f"No raw {PF_TYPE} pkl files found under {ROOT_PY}/site*/output/")
+if not hf_files:
+    print(f"No {PF_TYPE} HF netCDF files (*_hf_{PF_TYPE}_*.nc) found under {ROOT_PY}/site*/output/")
     raise SystemExit(1)
 
-print(f"Found {len(raw_pkls)} raw {PF_TYPE} pkl file(s).")
+print(f"Found {len(hf_files)} {PF_TYPE} HF netCDF file(s).")
 
 site_csvs = defaultdict(list)
 
-for pkl_path in raw_pkls:
-    site_dir  = os.path.basename(os.path.dirname(os.path.dirname(pkl_path)))
+for hf_path in hf_files:
+    site_dir  = os.path.basename(os.path.dirname(os.path.dirname(hf_path)))
     site_type = re.match(r"(site[A-Za-z]+)\d", site_dir)
     site_type = site_type.group(1) if site_type else site_dir
 
-    print(f"\nProcessing {os.path.basename(pkl_path)}  [{site_dir}] …")
+    print(f"\nProcessing {os.path.basename(hf_path)}  [{site_dir}] …")
 
-    with open(pkl_path, "rb") as fh:
-        raw = pickle.load(fh)
+    with xr.open_dataset(hf_path, engine="netcdf4") as ds:
+        ds = ds.load()
 
-    t     = raw["t"]
-    z     = raw["z"]
-    uPF   = raw["uPF"]
-    vPF   = raw["vPF"]
-    wPF   = raw["wPF"]
-    Ts_C  = raw["sonTs"]            # °C
-    P_kPa = raw["P"][:, 1]         # kPa
-    rhov  = raw["rhov"]             # g m⁻³
-    rCO2  = raw["rhoCO2"]           # mg m⁻³  (Python convention)
+    t     = datetime64_to_matlab_datenum(ds["time"].values)
+    z     = ds["height"].values                      # ascending in the HF file
+    N     = ds.sizes["time"]
+
+    def _var(name, dim="height"):
+        """(N, n_<dim>) array of *name*, NaN when the file lacks it."""
+        if name not in ds:
+            return np.full((N, ds.sizes.get(dim, len(z))), np.nan)
+        return ds[name].values
+
+    uPF   = _var("u")
+    vPF   = _var("v")
+    wPF   = _var("w")
+    Ts_C  = _var("Ts")                               # °C
+    P_kPa = ds["P"].values if "P" in ds else np.full(N, np.nan)   # kPa, on the HF time axis
+    rhov  = _var("rhov", "height_rhov")              # g m⁻³
+    rCO2  = _var("rhoCO2", "height_rhoCO2")          # mg m⁻³
 
     n_sonics = len(z)
     N        = len(t)

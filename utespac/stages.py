@@ -286,7 +286,7 @@ def flux(run: Run) -> Run:
             traceback.print_exc()
 
     # legacy-shaped matrices + headers -> Datasets (the same converter the
-    # boundary uses; the legacy form is what the pickle still wants)
+    # boundary uses; the CSV writer and the HF ancillaries read the legacy form)
     legacy = tables.store({}, store_extra=bool(info.get("storeExtraStats", True)))
     if derivedT_cols:
         timestamps = block_last(t, period_bounds(len(t), n_periods(t, info["avgPer"])))

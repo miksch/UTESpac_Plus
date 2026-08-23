@@ -1,8 +1,8 @@
 """Planar-fit coefficients for VAC001: UTESpac vs EddyPro, plus the 3D
 validation figure (binned (u,v,w) means against the fitted plane).
 
-Reads the LPF 30-min averaged pickles (the same means find_global_pf
-regresses on), fits b0,b1,b2 with utespac.pf_coefficients over (a) the
+Reads the LPF 30-min run files (utespac-run-2 netCDF; the same means
+find_global_pf regresses on), fits b0,b1,b2 with utespac.pf_coefficients over (a) the
 EddyPro planar-fit period 2023-07-06..07-08 and (b) the whole IOP, and
 prints them next to EddyPro's B0/B1/B2 from its planar_fit_*.txt. The
 figure shows the point cloud with three planes: as fitted, as the legacy
@@ -15,7 +15,6 @@ Usage (repo root, UTESpac_Plus env)::
 
 import glob
 import os
-import pickle
 import re
 import sys
 
@@ -29,7 +28,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, ROOT)
 from utespac.pf_coefficients import pf_coefficients      # noqa: E402
 from utespac.rotation import pf_matrix as _build_pf_matrix   # noqa: E402
-from utespac.testkit import get_header                  # noqa: E402
+from utespac.run_io import read_run_legacy, run_files   # noqa: E402
 
 SITE_DIR = os.path.join(ROOT, "data", "VAC001")
 EPOCH = 719529.0
@@ -44,8 +43,8 @@ def angles(b1, b2):
 
 def load_means():
     frames = []
-    for f in sorted(glob.glob(os.path.join(SITE_DIR, "output", "*_30minAvg_LPF_LinDet_*.pkl"))):
-        p = pickle.load(open(f, "rb"))
+    for f in run_files(os.path.join(ROOT, "data"), "VAC001", avg_per=30, qualifier="LPF_LinDet"):
+        p = read_run_legacy(f)
         tbl, hdr = p["VAC001_20Hz"], p["VAC001_20HzHeader"][0]
         sd, sdh = p["spdAndDir"], p["spdAndDirHeader"]
         t = pd.to_datetime((tbl[:, 0] - EPOCH) * 86400, unit="s").round("min")
