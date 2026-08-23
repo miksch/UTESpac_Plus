@@ -257,8 +257,12 @@ def load_expected(config_name, fixture_dir=HERE):
     return arrays, meta
 
 
-def compare(avg, raw, expected, meta, rtol=1e-6, atol=1e-9):
-    """Differences between a run and the pinned snapshot; empty list when none."""
+def compare(avg, raw, expected, meta, rtol=1e-9, atol=1e-12):
+    """Differences between a run and the pinned snapshot; empty list when none.
+
+    The tolerance sits above floating-point summation-order noise (the
+    flux stage reduces single columns, ~1e-13 absolute against the
+    pre-split stage) and far below any physical change."""
     problems = []
     got, got_meta = snapshot(avg, raw)
     for kind in ("avg_fields", "raw_fields"):

@@ -342,9 +342,47 @@ regenerated goldens.
    48-h products are unchanged (VAC001 date 1 GPF ConstDet regenerated
    through the migrated stages: averaged and raw pickles bit-identical to
    their predecessors). Tests: `test_averaging.py`, `test_wind_stats.py`,
-   `test_rotation.py`; suite 154 passed, 1 skipped. Left in step 4: the
-   `fluxes` split, then the pipeline calling `rotate_sonics` directly
-   (step 5 retires the wrapper with the other parity artifacts).
+   `test_rotation.py`; suite 154 passed, 1 skipped.
+
+   The `fluxes` split landed 2026-08-22 as the package `utespac/flux/`:
+   `reference.py` (`reference_state` → `ReferenceState`: P, T, q, ρ_d,
+   ρ_v, ρ, T_v per period at the lowest sonic, q on the fast axis, the
+   barometer samples for the ppm conversion), `levels.py` (`build_level`
+   → `LevelInputs`: one sonic's raw/planar-fit/tilt winds, sonic and
+   derived temperatures, fine-wire, hygrometer and CO2 with their
+   per-period flags, the level's own pressure and HMP humidity, and the
+   `specificHum`/`derivedT` columns it contributes), `engine.py`
+   (`compute_period` → `PeriodResult`: every covariance, WPL term, Obukhov
+   length, SSITC flag and raw per-sample series of one period, values
+   keyed by table and column name, `FluxOptions` for the run settings) and
+   `tables.py` (`TABLE_SPECS`: the legacy column order of every output
+   table as `(key, label template)` pairs — the duplicate `R_wPF_CO2` and
+   the `skew_Theata_v` label kept under their own keys until B.8 —
+   `FluxTable`/`FluxTables` with `set`/`set_many` by key, `trimmed()` as
+   the old `_trim_both`, `store()` in the legacy order with the
+   `storeExtraStats`/`CO2flux` rules). `fluxes.py` is now the ~200-line
+   orchestrator (reference state, per-sonic `build_level`, per-period
+   `compute_period`, raw-product bookkeeping, `derivedT`); the stride
+   arithmetic (`c_H = 3 + ii*12`, the 13-wide sigma stride, the 17-wide
+   R allocation) and the 200 lines of header reconstruction are gone.
+   Verification: fixture LPF/GPF pinned values within rtol 1e-9; an
+   old-vs-new A/B on the fixture inputs under eight option variants
+   (default, `matlabCompat`, `calcDissipation`, `storeExtraStats` off,
+   `useTrefHMP` off, `shiftzRef`, slope geometry, raw off) — identical
+   keys, headers and NaN patterns, values to ≤ 1e-13 absolute; VAC001
+   date 1 GPF ConstDet regenerated on the 20 Hz data: 44 of 57 averaged
+   arrays bit-identical, 13 within 5e-13, raw identical except the two
+   WPL external-fluctuation arrays within 1e-12. The residual is
+   summation order (the reductions now run on single columns, which numpy
+   sums pairwise, where `simple_avg` summed `[series, t]` stacks
+   sequentially) — a ledger row, not a numeric change; the fixture
+   tolerance is set above it (rtol 1e-9). Tests `test_flux_tables.py`,
+   `test_flux_engine.py`. Not covered by any fixture and ported by
+   transcription only: KH2O and LI-COR hygrometer paths, multi-sonic
+   towers, `birdDir` vector averaging — the parity set (board) is what
+   tests those. Left in step 4: the pipeline calling `rotate_sonics` and
+   the flux pieces directly is step 5 work (retire the legacy wrappers
+   with the other parity artifacts).
 5. Retire parity (B.8): drop the compat flag, the gap columns, the duplicate
    R column and the `skew_Theata_v` typo in one commit; re-baseline testkit
    to clean output.

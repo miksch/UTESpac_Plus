@@ -58,3 +58,4 @@ library/*.pdf
 library/My Library.bib
 # -- committed regression fixtures (tests/fixtures/): keep every file, including the PFinfo.json copy
 !tests/fixtures/**
+tests/fixtures/**/__pycache__/

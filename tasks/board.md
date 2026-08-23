@@ -33,10 +33,15 @@ Rationale, measurements and rulings live in the linked docs, not here.
   primitives shared by `find_global_pf` and `fluxes`, `utespac/rotation.py`
   (`PlanarFit`, `rotate_sonics` → `RotationResult`, `sonic_rotation` as
   the wrapper on `PFTable`); VAC001 date-1 GPF products bit-identical,
-  suite 154 passed. Remaining: the `fluxes` split (reference state →
-  named output tables → level inputs → per-period engine), then step 5
-  retire parity artifacts (`PFinfo.pkl`, compat flag, gap columns,
-  legacy stage wrappers). -- EFFORT L, RISK med. Detail:
+  suite 154 passed. The `fluxes` split landed the same day as
+  `utespac/flux/` (`reference`, `levels`, `engine`, `tables`; `fluxes.py`
+  the orchestrator), verified by the fixture, an eight-variant old-vs-new
+  A/B (≤ 1e-13) and VAC001 date-1 GPF on 20 Hz data (≤ 5e-13, summation
+  order only; ledger row). Step 4 is complete. Remaining: step 5 retire
+  parity artifacts (`PFinfo.pkl`, compat flag, duplicate R column and
+  `skew_Theata_v`, legacy stage wrappers — pipeline on `rotate_sonics` and
+  the flux pieces directly) and re-baseline the fixture to the clean
+  output. -- EFFORT M, RISK med. Detail:
   [active/2026-08-22_code-audit-and-python-gameplan.md](active/2026-08-22_code-audit-and-python-gameplan.md)
   "Migration gameplan" step 4.
 
