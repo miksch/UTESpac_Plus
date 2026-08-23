@@ -20,8 +20,9 @@ data/
                          each averaged pickle, utespac.labeled) / *_hf_*.nc (high-
                          frequency netCDF from python -m utespac.export_hf)
     PFinfo.json          global planar-fit coefficients as a record table
-                         (utespac.pf_info.PFTable; written by find_global_pf beside
-    PFinfo.pkl           the legacy dict; the JSON is read first when both exist)
+                         (utespac.pf_info.PFTable, written by find_global_pf; a
+                         PFinfo.pkl left by an earlier run is still read when no
+                         JSON exists)
     eddypro/             reference runs (EddyPro project, metadata, outputs)
     <other reference>/   anything else used for validation, named by source
 ```

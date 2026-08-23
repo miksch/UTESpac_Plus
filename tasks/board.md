@@ -37,13 +37,16 @@ Rationale, measurements and rulings live in the linked docs, not here.
   `utespac/flux/` (`reference`, `levels`, `engine`, `tables`; `fluxes.py`
   the orchestrator), verified by the fixture, an eight-variant old-vs-new
   A/B (≤ 1e-13) and VAC001 date-1 GPF on 20 Hz data (≤ 5e-13, summation
-  order only; ledger row). Step 4 is complete. Remaining: step 5 retire
-  parity artifacts (`PFinfo.pkl`, compat flag, duplicate R column and
-  `skew_Theata_v`, legacy stage wrappers — pipeline on `rotate_sonics` and
-  the flux pieces directly) and re-baseline the fixture to the clean
-  output. -- EFFORT M, RISK med. Detail:
+  order only; ledger row). Step 4 is complete; `PFinfo.pkl` is no longer
+  written (step 5, safe part). Remaining: the rest of step 5 — retire
+  the compat flag, the duplicate R column and `skew_Theata_v`, the MATLAB
+  loaders in `testkit`, the legacy stage wrappers (pipeline on
+  `rotate_sonics` and the flux pieces directly), re-pin the fixture — is
+  BLOCKED on the DECIDE slot in the gameplan doc (retire MATLAB parity
+  now vs after the parity set has run once; default: after). -- EFFORT M,
+  RISK med. Detail:
   [active/2026-08-22_code-audit-and-python-gameplan.md](active/2026-08-22_code-audit-and-python-gameplan.md)
-  "Migration gameplan" step 4.
+  "Migration gameplan" steps 4-5.
 
 ## validation
 
@@ -72,7 +75,10 @@ Rationale, measurements and rulings live in the linked docs, not here.
   "VAC001 test dataset".
 ## ec-coherent
 
-- [BLOCKED 2026-08-22] ec_coherent build-out per
+- [PENDING 2026-08-22] ec_coherent build-out per
   [../testbed/2026-08-12_ec_coherent_gameplan.md](../testbed/2026-08-12_ec_coherent_gameplan.md).
-  Blocked on the GPF coefficient fix (must not consume pre-fix `uPF/vPF/wPF`
-  pickles); Phase 0 library work can proceed. -- EFFORT L, RISK med.
+  Unblocked 2026-08-22: the GPF coefficient fix landed and every VAC001
+  product (LPF and GPF, raw and averaged) has been regenerated with it;
+  the A.2 converter (`utespac.export_hf`) exists. Only VAC001 pickles are
+  in `data/`; any FM-site pickle from before the fix must not be consumed.
+  -- EFFORT L, RISK med.

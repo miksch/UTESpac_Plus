@@ -3,7 +3,7 @@
 
 [pf]
 globalCalculation = "global"          # "global" (GPF, multi-sector) or "local" (per-file LPF)
-recalculateGlobalCoefficients = true  # false reuses <site>/PFinfo.pkl
+recalculateGlobalCoefficients = true  # false reuses <site>/PFinfo.json
 avgPer = 30                           # [min] period the GPF regression is stepped down to
 globalCalcMaxWind = 20                # [m/s] periods above are left out of the regression
 globalCalcMinWind = 0.5               # [m/s] periods below are left out of the regression

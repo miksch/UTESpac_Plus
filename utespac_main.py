@@ -11,7 +11,7 @@ Usage::
 
     python utespac_main.py                          # prompts for site and dates, GPF
     python utespac_main.py --site VAC001 --dates all --pf local --detrend constant
-    python utespac_main.py --site VAC001 --pf global --reuse-pf  # keep PFinfo.pkl
+    python utespac_main.py --site VAC001 --pf global --reuse-pf  # keep PFinfo.json
     python utespac_main.py --site VAC001 --no-prompts            # scripted PF selection
 
 Interactive prompts (site, dates, planar-fit sectors/dates/confirmation) live
@@ -89,7 +89,7 @@ def main(argv=None):
     ap.add_argument("--site", help="site folder name; prompted when omitted")
     ap.add_argument("--dates", help="'all', or rows like '1 3 4:7'; prompted when omitted")
     ap.add_argument("--pf", choices=["global", "local"], help="planar-fit mode (default: pf.toml)")
-    ap.add_argument("--reuse-pf", action="store_true", help="reuse <site>/PFinfo.pkl (GPF)")
+    ap.add_argument("--reuse-pf", action="store_true", help="reuse <site>/PFinfo.json (GPF)")
     ap.add_argument("--detrend", choices=["linear", "constant"], help="default: flux.toml")
     ap.add_argument("--avg-per", type=int, help="[min] averaging period (default: run.toml)")
     ap.add_argument("--run-config", help="path to a run.toml overriding the packaged one")

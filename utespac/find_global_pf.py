@@ -42,7 +42,7 @@ def find_global_pf(info: Dict, template: Dict, sensor_info: Dict,
     * Date barriers split the data into windows; within each window the
       selection is either all data at once or day-by-day approval (the
       console prompter shows a cumulative pitch/roll figure per bin).
-    * The result is saved to ``<siteFolder>/PFinfo.pkl``.
+    * The result is saved to ``<siteFolder>/PFinfo.json`` (:mod:`utespac.pf_info`).
 
     Every decision (skip a height, bin boundaries, date barriers, use-all vs
     day-by-day, accepted days, final confirmation) comes from ``prompter``
@@ -318,20 +318,19 @@ def find_global_pf(info: Dict, template: Dict, sensor_info: Dict,
 
 
 def save_pf_info(pf_info: Dict, site_path, site: Optional[str] = None) -> Dict[str, str]:
-    """Write ``PFinfo.json`` (labeled :class:`~utespac.pf_info.PFTable`) and the
-    legacy ``PFinfo.pkl`` into *site_path*; returns both paths."""
+    """Write ``PFinfo.json`` (labeled :class:`~utespac.pf_info.PFTable`) into
+    *site_path*; returns ``{"json": path}``. The legacy ``PFinfo.pkl`` is no
+    longer written (migration step 5); :func:`load_pf_info` still reads one."""
     from .pf_info import PFTable
-    pkl_path = os.path.join(site_path, "PFinfo.pkl")
     json_path = os.path.join(site_path, "PFinfo.json")
-    with open(pkl_path, "wb") as fh:
-        pickle.dump(pf_info, fh)
     PFTable.from_legacy(pf_info, site=site).save(json_path)
-    return {"pkl": pkl_path, "json": json_path}
+    return {"json": json_path}
 
 
 def load_pf_info(site_path) -> Optional[Dict]:
-    """Legacy-shaped coefficient dict from ``PFinfo.json`` (preferred) or
-    ``PFinfo.pkl``; None when the site has neither."""
+    """Legacy-shaped coefficient dict from ``PFinfo.json``, or from a
+    ``PFinfo.pkl`` left by an earlier run (converted, with a note to re-run
+    ``find_global_pf`` so the JSON exists); None when the site has neither."""
     from .pf_info import PFTable
     json_path = os.path.join(site_path, "PFinfo.json")
     pkl_path = os.path.join(site_path, "PFinfo.pkl")
@@ -342,6 +341,8 @@ def load_pf_info(site_path) -> Optional[Dict]:
             pf_info = pickle.load(fh)
         if "infoString" not in pf_info:
             pf_info["infoString"] = _build_info_string(pf_info)
+        log.info("Read legacy %s; PFinfo.json is the current form (written by the next "
+                 "find_global_pf run).", pkl_path)
         return pf_info
     return None
 

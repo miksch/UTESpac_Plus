@@ -35,7 +35,7 @@ def main():
                     help="matlabCompat=True: legacy coefficient indexing, no b0 removal, "
                          "0.61 sonic coefficient, buoyancy-flux WPL driver")
     ap.add_argument("--reuse-pf", action="store_true",
-                    help="reuse existing PFinfo.pkl instead of recomputing")
+                    help="reuse existing PFinfo.json instead of recomputing")
     ap.add_argument("--bins", type=float, nargs="*", default=[],
                     help="direction-bin boundaries [deg] for every height (default: none)")
     args = ap.parse_args()

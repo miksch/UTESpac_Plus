@@ -76,7 +76,8 @@ def test_coefficients_lookup():
 
 def test_save_and_load_prefers_json(tmp_path):
     paths = save_pf_info(LEGACY, tmp_path, site="X")
-    assert (tmp_path / "PFinfo.json").is_file() and (tmp_path / "PFinfo.pkl").is_file()
+    assert (tmp_path / "PFinfo.json").is_file()
+    assert not (tmp_path / "PFinfo.pkl").exists()        # the pickle is no longer written
     loaded = load_pf_info(tmp_path)
     _same_legacy(LEGACY, {k: v for k, v in loaded.items() if k != "infoString"})
     # JSON is authoritative when both exist

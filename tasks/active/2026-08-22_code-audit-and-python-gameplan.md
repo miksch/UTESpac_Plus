@@ -387,6 +387,34 @@ regenerated goldens.
    R column and the `skew_Theata_v` typo in one commit; re-baseline testkit
    to clean output.
 
+   Done 2026-08-22 without a decision needed: `find_global_pf` writes
+   `PFinfo.json` only (`save_pf_info` returns `{"json": path}`);
+   `load_pf_info` still reads a `PFinfo.pkl` left by an earlier run and
+   logs that the JSON is the current form. The rest of step 5 removes the
+   ability to compare against MATLAB outputs column by column
+   (`matlabCompat` reproduces the legacy physics for parity runs; the
+   duplicate R column and the `skew_Theata_v` label keep `testkit`'s
+   positional comparison aligned), while the parity set on the board
+   (MATLAB `.mat` + PFinfo + run settings for the three sites) is still
+   pending and no MATLAB comparison has been run on this tree.
+
+   DECIDE: retire MATLAB parity now, or keep it until the parity set has
+   been run once? (a) retire now: drop `matlabCompat` from `RunConfig`,
+   `sonic_rotation`, `flux.levels`/`flux.engine` and `get_data`, delete the
+   `R_wPF_CO2_dup` column and rename `skew_Theata_v` in `TABLE_SPECS`,
+   drop `tests/test_regression.py` + `utespac/testkit.py`'s MATLAB
+   loaders, re-pin the fixture — one commit, the MATLAB comparison is
+   then only possible from git history; (b) keep until the parity set
+   (board: validation) has been assembled and run, then retire in one
+   commit with the measured "magnitude: to measure" ledger rows filled
+   in; (c) never assemble the parity set (the FM sites' MATLAB outputs are
+   off-repo and the VAC001 IOP was never processed in MATLAB) and retire
+   now, accepting that the port is validated only by the EddyPro
+   comparison and the audit.
+   (default: (b) — nothing is blocked on it; the flag costs one boolean
+   and two branches.)
+   A:
+
 ec_coherent development starts after step 1 (it must not consume pre-fix GPF
 pickles) and can proceed in parallel with steps 2-3, which it does not depend
 on beyond the converter.
