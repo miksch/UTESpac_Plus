@@ -20,5 +20,6 @@ testbed runs read from it and write pipeline outputs back under
 `data/<SITE>/output/` or figures into scratch/.
 
 The dated `*.md` gameplans at this level predate the `tasks/` silo and
-stay here as the ec_coherent planning record until the package work
-begins; new plans go to `tasks/active/`.
+stay here as the ec_coherent planning record (the build-out itself is
+tracked in `tasks/active/2026-08-23_ec-coherent-buildout.md`); new plans
+go to `tasks/active/`.

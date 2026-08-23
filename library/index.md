@@ -10,10 +10,10 @@ gitignored; project entries are curated into `references.bib`.
 
 | File (abbreviated) | Bibkey | Check |
 |---|---|---|
-| 1-4020-2265-4.pdf (Lee, Massman & Law eds. 2004, Handbook of Micrometeorology, whole book; ch. 9 is the cited chapter) | Foken2004 | title (2026-08-22) |
+| 1-4020-2265-4.pdf (Lee, Massman & Law eds. 2004, Handbook of Micrometeorology, whole book; ch. 9 = Foken2004, ch. 2 = Moncrieff2004) | Foken2004, Moncrieff2004 | title (2026-08-22; ch. 2 2026-08-23) |
 | A_1018909000098.pdf (Pahlow, Parlange & Porté-Agel 2001, On Monin–Obukhov similarity in the stable ABL) | Pahlow2001 | title (2026-08-22) |
 | Antonia et al. - 1979 - Temperature Ramps... | Antonia1979 | visual (scan; no text layer -- render pages for extraction) |
-| Aubinet et al. - 2012 - Eddy Covariance A Practical Guide... (whole book; ch. 4 is the cited chapter) | Foken2012 | title (2026-08-22) |
+| Aubinet et al. - 2012 - Eddy Covariance A Practical Guide... (whole book; ch. 4 = Foken2012, ch. 3 = Rebmann2012) | Foken2012, Rebmann2012 | title (2026-08-22; ch. 3 2026-08-23) |
 | Atta - 1977 - Effect of coherent structures... | Atta1977 | title (scan with OCR layer) |
 | Balakumar and Adrian - 2007 - Large- and very-large... | Balakumar2007 | title |
 | Blackwelder and Kaplan - 1976 - On the wall structure... | Blackwelder1976 | title |
@@ -74,3 +74,12 @@ gitignored; project entries are curated into `references.bib`.
 - σw/u* for z/L > 0.4: Pahlow2001 (with DeBruin1993, Nieuwstadt1984,
   Sorbjan1986) received 2026-08-22 -- rows above; note in
   `writeups/itc_sigmaw.md`. No open ITC source gap remains.
+
+## ec_coherent notes (as of 2026-08-23)
+
+- `writeups/ec_preprocess.md` -- windows, detrend, Taylor's hypothesis,
+  upstream QC (Moncrieff2004, Rebmann2012, Taylor1938, Stull1988,
+  Wilczak2001, Vickers1997; the Vickers2003 detrend recollection refuted
+  on extraction).
+- `writeups/ec_spectra.md` -- spectra, cospectra, ogives (Kaimal1972 eq. 1
+  and 21a-g, Stull1988 §8.6, Foken1996 eq. 10, Desjardins1989 pp. 61-62).

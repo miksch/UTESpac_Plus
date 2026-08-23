@@ -7,7 +7,7 @@ Original MATLAB code by Derek Jensen & Eric Pardyjak, modified by Diane Wang.
 
 ```bash
 pip3 install numpy scipy matplotlib
-pip3 install netCDF4   # optional — only needed when saveNetCDF=True
+pip3 install xarray netCDF4
 ```
 
 ## Running the pipeline
@@ -28,6 +28,16 @@ config = RunConfig.from_config(rootFolder="data", pf={"globalCalculation": "glob
                                flux={"detrendingFormat": "constant"})
 result = run_utespac(config, site="VAC001", dates="all", prompter=ScriptedPFSelection())
 result.ok, [d.paths for d in result.dates]
+```
+
+## Coherent-structure analysis (`ec_coherent`)
+
+A sibling package that reads the `utespac-hf-1` high-frequency netCDF the pipeline writes with `saveRawConditionedData` and adds one analysis netCDF per file (`<Site>_coherent_<PF>_<Det>_<date>.nc`, a group per module). Settings: `ec_coherent/config/ec_coherent.toml` (overridable like the pipeline TOMLs); science notes: `library/writeups/ec_preprocess.md`, `ec_spectra.md`; plan: `testbed/2026-08-12_ec_coherent_gameplan.md`. Modules landed so far: `spectra` (spectra, cospectra, quadrature spectra, ogives).
+
+```bash
+python -m ec_coherent.cli data/VAC001/output/VAC001_hf_GPF_ConstDet_2023_07_06.nc           # all records
+python -m ec_coherent.cli data/VAC001/output/VAC001_hf_*.nc --records 0-5 --modules spectra
+python testbed/scripts/ec_spectra_vac001.py                                                 # closure + Kaimal figure
 ```
 
 ---
@@ -51,7 +61,7 @@ arrays (`{'name'}`), and preserves inline `%` comments as `#` comments.
 
 ### Generate AmeriFlux BASE data
 
-`generate_ameriflux.py` loads GPF `.pkl` output files from `siteIRGA` and `siteGill`,
+`generate_ameriflux.py` loads the GPF run files (`*_30minAvg_GPF_LinDet_*.nc`) from `siteIRGA` and `siteGill`,
 aggregates slow meteorology and radiation from the 1-min data files, and writes a
 half-hourly AmeriFlux BASE CSV.  Edit the path constants at the top of the script before
 running.

@@ -3,31 +3,6 @@
 One line per open task; format and lifecycle in [README.md](README.md).
 Rationale, measurements and rulings live in the linked docs, not here.
 
-## migration
-
-- [ACTIVE 2026-08-22] Labeled inter-stage model (B.1 inward of the I/O
-  boundary). S1-S3 landed 2026-08-22: `utespac/model.py` (`Sensors`,
-  `Run` of xarray Datasets with datetime64 time, converters to/from the
-  legacy structures) and `utespac/stages.py` (`load_run` → `condition` →
-  `average` → `wind` → `rotate` → `flux` on the `Run`); the pipeline calls
-  them and the wrappers `fluxes.py`/`sonic_rotation.py`/`avg.py`/
-  `wind_stats()`/`condition_data()` are gone; fixture pins unchanged,
-  VAC001 date-1 GPF within float resolution. S4 landed the same day:
-  `utespac/run_io.py` (`write_run`/`read_run`/`load_products`, the
-  `utespac-run-2` netCDF with groups), `save_data` writes it,
-  `get_data(fmt="nc")` reads it, fixture test for pickle/run-file parity.
-  Remaining: `export_hf` as a view of `run.raw` (A.2 schema unchanged) and
-  the legacy pickle's fate -- BLOCKED on the DECIDE slot in the doc
-  (default: the pickle goes and the fixture re-pins to the run file).
-  User ruling
-  2026-08-22: this comes before the ec_coherent build-out, so the
-  architecture is settled first; in-memory model xarray end-to-end (user
-  ruling 2026-08-22; xarray added to the env and pyproject). -- EFFORT L,
-  RISK med. Source: integration notes B.1/B.2; the migration record in
-  [active/2026-08-22_code-audit-and-python-gameplan.md](active/2026-08-22_code-audit-and-python-gameplan.md)
-  "Migration gameplan" steps 4-5. Detail:
-  [active/2026-08-22_labeled-run-model.md](active/2026-08-22_labeled-run-model.md).
-
 ## validation
 
 - [BLOCKED 2026-08-22] 3D planar-fit validation figure per
@@ -50,11 +25,16 @@ Rationale, measurements and rulings live in the linked docs, not here.
   "VAC001 test dataset".
 ## ec-coherent
 
-- [PENDING 2026-08-22] ec_coherent build-out per
-  [../testbed/2026-08-12_ec_coherent_gameplan.md](../testbed/2026-08-12_ec_coherent_gameplan.md).
+- [ACTIVE 2026-08-23] ec_coherent build-out per
+  [../testbed/2026-08-12_ec_coherent_gameplan.md](../testbed/2026-08-12_ec_coherent_gameplan.md);
+  working doc [active/2026-08-23_ec-coherent-buildout.md](active/2026-08-23_ec-coherent-buildout.md)
+  (steps 1-2 landed: io/preprocess/spectra; steps 3-7 open).
   Unblocked 2026-08-22: the GPF coefficient fix landed and every VAC001
   product (LPF and GPF, raw and averaged) has been regenerated with it;
-  the A.2 converter (`utespac.export_hf`) exists; VAC001 is the only site
-  (user ruling 2026-08-22). Ordered after the labeled inter-stage model
-  (migration line) so the architecture it builds on is settled. --
-  EFFORT L, RISK med.
+  the A.2 HF netCDF is written by the pipeline (`utespac.export_hf.write_hf`,
+  `saveRawConditionedData`); VAC001 is the only site (user ruling
+  2026-08-22). The labeled inter-stage model it builds on landed 2026-08-22
+  (history.md): products are the `utespac-run-2` run files, read with
+  `utespac.run_io.load_products`; the VAC001 run and HF files were
+  regenerated from the 48-h inputs 2026-08-23 (history.md), so the input is
+  on disk. -- EFFORT L, RISK med.

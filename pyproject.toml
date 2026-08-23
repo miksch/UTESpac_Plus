@@ -11,19 +11,20 @@ dependencies = [
     "numpy>=1.24",
     "scipy>=1.10",
     "matplotlib>=3.7",
-    "xarray>=2024.1",     # the labeled run model (tasks/active/2026-08-22_labeled-run-model.md)
+    "xarray>=2024.1",     # the labeled run model (tasks/archive/migration/2026-08-22_labeled-run-model.md)
+    "netCDF4>=1.6",       # the products are netCDF (utespac.run_io, utespac.export_hf)
 ]
 
 [project.optional-dependencies]
-netcdf = ["netCDF4>=1.6"]     # only needed for saveNetCDF=True
 raw = ["pandas>=2.0"]         # raw_processing/ and generate_ameriflux scripts
 test = ["pytest>=7"]
 
 [tool.setuptools]
-packages = ["utespac", "utespac.config", "utespac.flux"]
+packages = ["utespac", "utespac.config", "utespac.flux", "ec_coherent", "ec_coherent.config"]
 
 [tool.setuptools.package-data]
 "utespac.config" = ["*.toml"]
+"ec_coherent.config" = ["*.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

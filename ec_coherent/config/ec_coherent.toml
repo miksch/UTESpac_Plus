@@ -1,0 +1,24 @@
+# ec_coherent settings -- mirrors ec_coherent.config.ECConfig
+#
+# The dataclass is the schema and holds these same defaults; values here
+# override it, a config/ec_coherent.toml in the working directory overrides
+# this packaged file, and ECConfig.from_config(**kw) overrides both. Science
+# behind each value: library/writeups/ec_preprocess.md, ec_spectra.md.
+# Provenance labels follow LLM_PRACTICE (dopli): [CITED] [DERIVED] [ASSUMED].
+
+[run]
+modules = ["spectra"]          # analyses to run, in order
+output_suffix = "coherent"     # <Site>_coherent_<PF>_<Det>_<date>.nc next to the HF file
+
+[preprocess]
+detrend = "block"              # block | linear | recursive | butterworth -- Moncrieff et al. 2004 ch. 2;
+#                                block is the Reynolds-averaging choice (eq. 2.8-2.11), [ASSUMED] as default
+filter_tau_s = 300.0           # [s] RC time constant tau_f of 'recursive' (eq. 2.23) and 'butterworth'  [ASSUMED]
+nan_max_frac = 0.1             # windows above this NaN fraction are rejected  [ASSUMED]
+taylor_max_ratio = 0.5         # sigma_M / U_mean validity limit  [CITED] Stull 1988 eq. 1.4d
+
+[spectra]
+taper = "boxcar"               # boxcar | hann; boxcar closes Parseval exactly (task doc 2026-08-23)  [ASSUMED]
+nperseg = 0                    # 0 = full-record periodogram; N = Welch segments of N samples
+n_bins_per_decade = 10         # log-binning density  [ASSUMED]
+scalars = ["Ts", "rhov", "rhoCO2"]
