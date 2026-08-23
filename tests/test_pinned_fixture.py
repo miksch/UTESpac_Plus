@@ -35,3 +35,29 @@ def test_pipeline_matches_pinned_output(staged_root, config_name):
     expected, meta = load_expected(config_name)
     problems = compare(avg, raw, expected, meta)
     assert not problems, f"{config_name}:\n  " + "\n  ".join(problems)
+
+
+def test_run_file_is_the_pickles_twin(tmp_path_factory):
+    """The utespac-run-2 netCDF read back through get_data(fmt="nc") equals the pickle."""
+    import numpy as np
+    from utespac import RunConfig, get_data, run_utespac
+    from build_fixture import SITE
+    root = str(tmp_path_factory.mktemp("vac001_1hz_nc"))
+    stage_site(FIXTURE_DIR, root)
+    cfg = RunConfig.from_config(rootFolder=root, saveCSV=False, saveNetCDF=True,
+                                saveRawConditionedData=False, **CONFIGS["LPF_LinDet"])
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        result = run_utespac(cfg, site=SITE, dates="all")
+    assert result.ok and result.dates[0].paths["nc"].endswith(".nc")
+    pkl = get_data(root, site=SITE, avg_per=30, qualifier="LPF", fmt="pkl")
+    nc = get_data(root, site=SITE, avg_per=30, qualifier="LPF", fmt="nc")
+    for key, val in pkl.items():
+        if key in ("dataInfo",):
+            assert nc[key] == val, key
+        elif key.endswith(("Header", "header")):
+            assert nc[key] == val, key
+        elif isinstance(val, np.ndarray):
+            assert key in nc, key
+            assert val.shape == nc[key].shape, key
+            assert np.array_equal(val.astype(float), nc[key].astype(float), equal_nan=True), key

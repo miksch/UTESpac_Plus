@@ -156,10 +156,25 @@ pre-migration product (float resolution of the datenum round trip), the
 R/skew header differences being the parity retirement. Suite 161 passed.
 `averaging.n_periods_dt64` is the datetime64 form of the day-span rule.
 
-Left: S4 (the run netCDF writer/reader, `get_data` on it,
-`load_products`, `export_hf` as a view of `run.raw`, the pickle's fate);
-`find_global_pf` and `get_data` still work on the legacy dict — they read
-products across dates, which is S4's reader.
+S4 landed 2026-08-22 except the two items below. `utespac/run_io.py`:
+`write_run` (one `utespac-run-2` netCDF per date with groups
+`sensors`, `periods/<table>`, `flags/<table>`, `wind`, `rotation` (period
+means and fit records; the high-frequency rotated winds stay in the raw
+product), `products/<name>`, `planar_fit`; run facts, headers, notes and
+warnings as JSON global attributes; CF time in ms), `read_run` (the `Run`
+back without the input tables; provenance in `Run.attrs`), `run_files`,
+`load_products` (`xr.concat(join="outer")` along `time` across a site's
+run files). `save_data` writes the run file when `saveNetCDF` is on
+(`utespac-averaged-1` is written only by callers without a `Run`; its
+reader stays for files on disk); `get_data(fmt="nc")` reads either format
+into the legacy dict; `tests/test_run_io.py`, and the fixture test
+`test_run_file_is_the_pickles_twin` (pipeline with `saveNetCDF` → the run
+file read back equals the pickle field by field).
+
+Left: `export_hf` as a view of `run.raw` (it still converts raw + averaged
+pickles; the A.2 schema is unchanged, so nothing downstream waits on
+this) and the pickle's fate (DECIDE below). `find_global_pf` reads the
+LPF products through `get_data` (pickle or run file alike).
 
 DECIDE: when S4 lands, does the legacy pickle stay as an output option or
 go? (default: goes, with the fixture re-pinned to the run file; `get_data`

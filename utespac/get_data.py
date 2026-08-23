@@ -19,9 +19,11 @@ def get_data(
 ) -> Dict:
     """Load and vertically concatenate processed UTESpac output files.
 
-    ``fmt="pkl"`` reads the pickles, ``fmt="nc"`` the labeled netCDF written
-    beside them (:func:`utespac.labeled.read_netcdf`); both give the same
-    dict. :func:`get_frames` returns it as DataFrames.
+    ``fmt="pkl"`` reads the pickles, ``fmt="nc"`` the netCDF written beside
+    them (a ``utespac-run-2`` run file through :mod:`utespac.run_io`, or the
+    older ``utespac-averaged-1`` file through :func:`utespac.labeled.read_netcdf`);
+    both give the same dict. :func:`get_frames` returns it as DataFrames;
+    :func:`utespac.run_io.load_products` gives the products as Datasets.
 
     Fields that carry a column header (``<field>Header``/``<field>header``)
     are concatenated by header label: the output columns are the union of
@@ -140,8 +142,7 @@ def get_data(
     for fpath in selected_files:
         try:
             if fmt == "nc":
-                from .labeled import read_netcdf
-                d = read_netcdf(fpath)
+                d = _read_nc_as_legacy(fpath)
             else:
                 with open(fpath, "rb") as fh:
                     d = pickle.load(fh)
@@ -250,3 +251,22 @@ def get_frames(root_folder: str, site=None, avg_per: int = None, qualifier: str 
     from .labeled import to_frames
     return to_frames(get_data(root_folder, site=site, avg_per=avg_per,
                               qualifier=qualifier, rows=rows, fmt=fmt))
+
+
+def _read_nc_as_legacy(path: str) -> Dict:
+    """A netCDF product as the legacy output dict: a ``utespac-run-2`` run file
+    through :func:`utespac.model.to_legacy_output`, else the older
+    ``utespac-averaged-1`` file through :func:`utespac.labeled.read_netcdf`."""
+    import xarray as xr
+    with xr.open_dataset(path, engine="netcdf4") as ds:
+        fmt = ds.attrs.get("utespac_format")
+    if fmt == "utespac-run-2":
+        from .model import to_legacy_output
+        from .run_io import read_run
+        run = read_run(path)
+        d = to_legacy_output(run)
+        d["dataInfo"] = run.notes
+        d["tableNames"] = list(run.table_names)
+        return d
+    from .labeled import read_netcdf
+    return read_netcdf(path)

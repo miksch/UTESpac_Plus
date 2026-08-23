@@ -122,7 +122,7 @@ def run_utespac(config: Optional[RunConfig] = None, *, site: str, dates="all",
             stages.rotate(run)
             stages.flux(run)
             paths = save_data(info, to_legacy_output(run), run.notes, headers, table_names,
-                              raw_to_legacy(run.raw), template)
+                              raw_to_legacy(run.raw), template, run=run)
             results.append(DateResult(i + 1, list(row), "ok", paths=paths,
                                       run=run if keep_runs else None))
         except Exception as exc:   # one bad date must not stop the run

@@ -111,6 +111,7 @@ class Run:
     notes: List[List[str]] = field(default_factory=list)             # legacy dataInfo
     pf_table: Any = None                                             # PFTable or None
     warnings: List[str] = field(default_factory=list)
+    attrs: Dict[str, Any] = field(default_factory=dict)              # provenance of a read run file
 
     @property
     def time_hf(self) -> np.ndarray:
@@ -348,10 +349,15 @@ def rotation_from_legacy(rotated: np.ndarray, pf_only: np.ndarray, output: Dict,
 
 
 def rotation_to_legacy(rot: xr.Dataset) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
+    """``(rotated, pf_only, output entries)``; the high-frequency arrays are
+    empty when the Dataset carries only the period means (a read run file)."""
     k = rot.sizes[HEIGHT]
-    n = rot.sizes[TIME_HF]
-    rotated = rot["rotated"].values.reshape(n, 3 * k)
-    pf_only = rot["pf"].values.reshape(n, 3 * k)
+    if "rotated" in rot:
+        n = rot.sizes[TIME_HF]
+        rotated = rot["rotated"].values.reshape(n, 3 * k)
+        pf_only = rot["pf"].values.reshape(n, 3 * k)
+    else:
+        rotated = pf_only = np.empty((0, 3 * k))
     hdr = [f"{float(h)}m:{c}" for h in rot[HEIGHT].values for c in ("u", "v", "w")]
     out = {"rotatedSonicHeader": hdr, "PFSonicHeader": list(hdr)}
     if "rotated_mean" in rot:

@@ -12,11 +12,14 @@ Rationale, measurements and rulings live in the linked docs, not here.
   `average` → `wind` → `rotate` → `flux` on the `Run`); the pipeline calls
   them and the wrappers `fluxes.py`/`sonic_rotation.py`/`avg.py`/
   `wind_stats()`/`condition_data()` are gone; fixture pins unchanged,
-  VAC001 date-1 GPF within float resolution. Remaining (S4): the run
-  netCDF writer/reader with groups, `get_data`/`find_global_pf` reading it,
-  `load_products` across dates, `export_hf` as a view of `run.raw`, the
-  legacy pickle's fate (DECIDE in the doc); gated by
-  `tests/test_pinned_fixture.py`. User ruling
+  VAC001 date-1 GPF within float resolution. S4 landed the same day:
+  `utespac/run_io.py` (`write_run`/`read_run`/`load_products`, the
+  `utespac-run-2` netCDF with groups), `save_data` writes it,
+  `get_data(fmt="nc")` reads it, fixture test for pickle/run-file parity.
+  Remaining: `export_hf` as a view of `run.raw` (A.2 schema unchanged) and
+  the legacy pickle's fate -- BLOCKED on the DECIDE slot in the doc
+  (default: the pickle goes and the fixture re-pins to the run file).
+  User ruling
   2026-08-22: this comes before the ec_coherent build-out, so the
   architecture is settled first; in-memory model xarray end-to-end (user
   ruling 2026-08-22; xarray added to the env and pyproject). -- EFFORT L,

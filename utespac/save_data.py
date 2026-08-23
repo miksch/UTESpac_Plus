@@ -18,13 +18,16 @@ def save_data(
     table_names: List[str],
     raw_flux: Optional[Dict],
     template: Dict,
+    run=None,
 ) -> Dict:
     """Save output structure to the site output directory.
 
     Produces:
     - A pickle file  ``<SiteName>_<avgPer>minAvg_<PFtype><detrendType><date>.pkl``
     - Optional CSV   (if ``info['saveCSV']`` is True)
-    - Optional NetCDF (if ``info['saveNetCDF']`` is True)
+    - Optional NetCDF (if ``info['saveNetCDF']`` is True): the
+      ``utespac-run-2`` run file (:mod:`utespac.run_io`) when the labeled
+      *run* is given, else the older per-field ``utespac-averaged-1`` file
 
     Returns
     -------
@@ -70,7 +73,7 @@ def save_data(
 
     # ---- NetCDF (labeled, CF time; utespac.labeled) ------------------------------
     if info.get("saveNetCDF", False):
-        nc_path = _save_netcdf(info, output, out_dir, base_name)
+        nc_path = _save_netcdf(info, output, out_dir, base_name, run)
         if nc_path:
             paths["nc"] = nc_path
 
@@ -100,12 +103,18 @@ def _save_csv(output: Dict, out_dir: str, base_name: str) -> None:
         np.savetxt(csv_path, val, delimiter=",", header=header_str, comments="")
 
 
-def _save_netcdf(info: Dict, output: Dict, out_dir: str, base_name: str) -> Optional[str]:
-    """Labeled netCDF of the averaged output (``utespac.labeled.write_netcdf``);
-    None, with a warning, when netCDF4 is not installed."""
+def _save_netcdf(info: Dict, output: Dict, out_dir: str, base_name: str, run=None) -> Optional[str]:
+    """The run netCDF (``utespac.run_io.write_run``) when *run* is given, else
+    the ``utespac-averaged-1`` file (``utespac.labeled.write_netcdf``); None,
+    with a warning, when netCDF4 is not installed."""
     from .labeled import run_attrs, write_netcdf
     nc_path = os.path.join(out_dir, base_name + ".nc")
     try:
+        if run is not None:
+            from .run_io import write_run
+            path = write_run(run, nc_path, attrs=run_attrs(info, output))
+            log.info("  Saved netCDF: %s", path)
+            return path
         return write_netcdf(output, nc_path, attrs=run_attrs(info, output))
     except ImportError as exc:
         import warnings
