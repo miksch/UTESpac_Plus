@@ -15,10 +15,12 @@ Rationale, measurements and rulings live in the linked docs, not here.
   pipeline hands from stage to stage, the wrappers retired, `save_data`
   writing from it; gated by `tests/test_pinned_fixture.py`. User ruling
   2026-08-22: this comes before the ec_coherent build-out, so the
-  architecture is settled first. -- EFFORT L,
+  architecture is settled first; in-memory model xarray end-to-end (user
+  ruling 2026-08-22; xarray added to the env and pyproject). -- EFFORT L,
   RISK med. Source: integration notes B.1/B.2; the migration record in
   [active/2026-08-22_code-audit-and-python-gameplan.md](active/2026-08-22_code-audit-and-python-gameplan.md)
-  "Migration gameplan" steps 4-5.
+  "Migration gameplan" steps 4-5. Detail:
+  [active/2026-08-22_labeled-run-model.md](active/2026-08-22_labeled-run-model.md).
 
 ## validation
 

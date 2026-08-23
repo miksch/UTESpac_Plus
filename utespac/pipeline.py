@@ -19,6 +19,8 @@ from typing import Any, Dict, List, Optional, Union
 
 from .run_config import RunConfig
 from .prompts import PFPrompter, ScriptedPFSelection
+from .model import Run, run_from_legacy, to_legacy_output, raw_to_legacy
+from .pf_info import PFTable
 
 log = logging.getLogger("utespac")
 
@@ -31,6 +33,7 @@ class DateResult:
     status: str                     # "ok" | "error"
     paths: Dict[str, str] = field(default_factory=dict)   # written products by kind
     error: Optional[str] = None
+    run: Optional[Run] = None       # the labeled run, when run_utespac(keep_runs=True)
 
 
 @dataclass
@@ -53,7 +56,8 @@ class RunResult:
 def run_utespac(config: Optional[RunConfig] = None, *, site: str, dates="all",
                 prompter: Optional[PFPrompter] = None,
                 info: Optional[Dict[str, Any]] = None,
-                template: Optional[Dict[str, str]] = None) -> RunResult:
+                template: Optional[Dict[str, str]] = None,
+                keep_runs: bool = False) -> RunResult:
     """Run the pipeline for one site.
 
     Parameters
@@ -70,6 +74,9 @@ def run_utespac(config: Optional[RunConfig] = None, *, site: str, dates="all",
     info, template : legacy inputs
         A fully built ``info`` dict and sensor templates, for callers that
         have not moved to ``RunConfig``.
+    keep_runs : bool
+        Keep each date's labeled :class:`~utespac.model.Run` on its
+        ``DateResult`` (high-frequency data included — memory per date).
     """
     if config is None and info is None:
         raise ValueError("run_utespac needs a RunConfig or a legacy info dict")
@@ -113,8 +120,15 @@ def run_utespac(config: Optional[RunConfig] = None, *, site: str, dates="all",
             rotated, pf_only, output, data_info = sonic_rotation(
                 output, data, sensor_info, info, data_info, table_names, pf_info)
             output, raw = fluxes(data, rotated, pf_only, info, output, sensor_info, table_names)
-            paths = save_data(info, output, data_info, headers, table_names, raw, template)
-            results.append(DateResult(i + 1, list(row), "ok", paths=paths))
+            # the labeled run (utespac.model): what the stages will exchange
+            # natively; the legacy dict/raw the writer consumes come from it
+            run = run_from_legacy(info, data, headers, table_names, sensor_info, output,
+                                  rotated, pf_only, raw, data_info,
+                                  pf_table=PFTable.from_legacy(pf_info) if pf_info else None)
+            paths = save_data(info, to_legacy_output(run), data_info, headers, table_names,
+                              raw_to_legacy(run.raw), template)
+            results.append(DateResult(i + 1, list(row), "ok", paths=paths,
+                                      run=run if keep_runs else None))
         except Exception as exc:   # one bad date must not stop the run
             log.error("Problem with date row %d: %s\n%s", i + 1, exc, traceback.format_exc())
             results.append(DateResult(i + 1, list(row), "error", error=repr(exc)))

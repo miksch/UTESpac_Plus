@@ -11,6 +11,7 @@ dependencies = [
     "numpy>=1.24",
     "scipy>=1.10",
     "matplotlib>=3.7",
+    "xarray>=2024.1",     # the labeled run model (tasks/active/2026-08-22_labeled-run-model.md)
 ]
 
 [project.optional-dependencies]
