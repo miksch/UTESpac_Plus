@@ -23,13 +23,12 @@ def find_files(
     ----------
     info : dict
         Must contain ``info['rootFolder']``.
-    site : str or None
-        Site folder name (e.g. ``'siteFire1'``) for non-interactive use.
-        If None, the user is prompted to select.
+    site : str
+        Site folder name (``'VAC001'``) or bare legacy id; required.
     dates : None, int, list, or ``'all'``
         Which date rows to process (1-based indices).  ``None`` / ``'all'``
-        uses all available dates without a prompt.  An integer selects that
-        single date.  A list selects those rows.
+        uses all available dates.  An integer selects that single date.  A
+        list selects those rows. Interactive selection lives in the CLI.
 
     Returns
     -------
@@ -45,13 +44,10 @@ def find_files(
     if not available:
         raise FileNotFoundError(f"No site directories found in {root}")
 
-    if site is not None:
-        site_dir = resolve_site_dir(root, site)
-    else:
-        for i, s in enumerate(available):
-            print(f"  {i + 1}. {s}")
-        choice = int(input("Please indicate site number of interest: ")) - 1
-        site_dir = available[choice]
+    if site is None:
+        raise ValueError("find_files needs a site name; the CLI (utespac_main) "
+                         f"lists the choices: {', '.join(available)}")
+    site_dir = resolve_site_dir(root, site)
 
     info["siteFolder"] = site_dir
     site_path = os.path.join(root, site_dir)
@@ -131,20 +127,6 @@ def find_files(
     if dates is None or dates == "all":
         # non-interactive: use all dates
         pass
-    elif dates == "prompt":
-        print("\nAvailable dates:")
-        for i, row in enumerate(data_files):
-            print(f"  {i + 1}. {row}")
-        soi_str = input("Input dates of interest (e.g. '1 3 4:7') or '0' for all: ").strip()
-        if soi_str != "0":
-            indices = []
-            for part in soi_str.split():
-                if ":" in part:
-                    a, b = part.split(":")
-                    indices.extend(range(int(a) - 1, int(b)))
-                else:
-                    indices.append(int(part) - 1)
-            data_files = [data_files[i] for i in indices]
     elif isinstance(dates, int):
         data_files = [data_files[dates - 1]]
     elif isinstance(dates, (list, tuple)):

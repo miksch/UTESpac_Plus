@@ -1,7 +1,10 @@
 """avg – block-average each data table to the configured averaging period."""
 
 from typing import Dict, List, Optional
+import logging
 import numpy as np
+
+log = logging.getLogger("utespac")
 
 
 def avg(
@@ -23,7 +26,7 @@ def avg(
     """
     for ii, tbl in enumerate(data):
         tname = table_names[ii]
-        print(f"\nAveraging {tname}")
+        log.info(f"Averaging {tname}")
         if tbl is None or tbl.size == 0:
             continue
 

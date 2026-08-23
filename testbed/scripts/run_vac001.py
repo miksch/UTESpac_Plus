@@ -3,21 +3,20 @@
 Usage (repo root, UTESpac_Plus env)::
 
     python testbed/scripts/run_vac001.py            # all dates, LPF
-    python testbed/scripts/run_vac001.py --dates 1 2
+    python testbed/scripts/run_vac001.py --dates 1 2 --detrend constant
 
-Global PF needs the interactive sector/date prompts in find_global_pf and is
-not driven from here; see the audit task doc for the planned non-interactive
-path.
+Global PF: see run_vac001_gpf.py.
 """
 
 import argparse
+import logging
 import os
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 
-import utespac_main as um  # noqa: E402  (module-level info/template)
+from utespac import RunConfig, run_utespac  # noqa: E402
 
 
 def main():
@@ -29,18 +28,16 @@ def main():
     ap.add_argument("--netcdf", action="store_true", help="also write .nc")
     args = ap.parse_args()
 
-    info = um.info
-    info["rootFolder"] = os.path.join(ROOT, "data")
-    info["PF"]["globalCalculation"] = "local"
-    info["PF"]["recalculateGlobalCoefficients"] = False
-    info["detrendingFormat"] = args.detrend
-    info["saveNetCDF"] = args.netcdf
-    info["saveCSV"] = True
-    info["saveRawConditionedData"] = True
-
-    dates = args.dates if args.dates else "all"
-    um.run_utespac(info, um.template, site=args.site, dates=dates)
+    logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
+    config = RunConfig.from_config(
+        rootFolder=os.path.join(ROOT, "data"),
+        saveNetCDF=args.netcdf, saveCSV=True, saveRawConditionedData=True,
+        pf={"globalCalculation": "local", "recalculateGlobalCoefficients": False},
+        flux={"detrendingFormat": args.detrend},
+    )
+    result = run_utespac(config, site=args.site, dates=args.dates or "all")
+    return 0 if result.ok else 1
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

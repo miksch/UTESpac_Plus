@@ -3,6 +3,14 @@
 Rolling log of roughly the last 15 closures; older records live only in
 archive/. Format: `- [DONE|DROPPED YYYY-MM-DD] <one line> -- <link>`.
 
+- [DONE 2026-08-22] Migration step 2 (config and UI): packaged stage TOMLs
+  in `utespac/config/` with frozen dataclasses (`RunConfig`, `QCConfig`,
+  `PFConfig`, `FluxConfig`; dopli resolution order; `to_info` bridge),
+  `utespac.pipeline.run_utespac` returning `RunResult`, the planar-fit
+  prompts moved behind `utespac.prompts` (scripted + console), `print` →
+  `logging`, `utespac_main.py` reduced to the CLI; VAC001 date-1 GPF/LPF
+  products bit-identical through the new API; suite 114 passed --
+  `tests/test_config.py`, `tests/test_prompts.py`.
 - [DONE 2026-08-22] Legacy `siteGill20250723_20250828` / `siteIRGA…` folders
   moved to `data/Gill` and `data/IRGA` (siteInfo at the site root, headers
   in `utespac/`; the IRGA 1-min header gained its `.dat`); no `site*` folder

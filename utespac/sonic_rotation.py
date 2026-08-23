@@ -3,9 +3,12 @@
 import re
 import warnings
 from typing import Dict, List, Optional
+import logging
 import numpy as np
 from .simple_avg import simple_avg
 from .pf_coefficients import pf_coefficients
+
+log = logging.getLogger("utespac")
 
 
 def sonic_rotation(
@@ -169,7 +172,7 @@ def sonic_rotation(
 
                 n_r = len(u_bar)
                 if n_r < 4:
-                    print(f"  Sonic @ {height}m: insufficient data for planar fit, skipping.")
+                    log.info(f"  Sonic @ {height}m: insufficient data for planar fit, skipping.")
                     continue
 
                 su  = np.sum(u_bar); sv  = np.sum(v_bar); sw  = np.sum(w_bar)
@@ -188,7 +191,7 @@ def sonic_rotation(
                 b1, b2 = float(coef[1]), float(coef[2])
                 pitch = np.degrees(np.arcsin(-b1 / np.sqrt(1 + b1**2)))
                 roll  = np.degrees(np.arcsin(b2  / np.sqrt(1 + b2**2)))
-                print(f"  Sonic @ {height}m  pitch={pitch:.3g}°  roll={roll:.3g}°  b0={coef[0]:.3g} m/s")
+                log.info(f"  Sonic @ {height}m  pitch={pitch:.3g}°  roll={roll:.3g}°  b0={coef[0]:.3g} m/s")
 
                 P = _build_pf_matrix(b1, b2)
                 wind_pf = _apply_pf(P, b0, u, v, w)

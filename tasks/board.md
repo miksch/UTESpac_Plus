@@ -17,11 +17,18 @@ Rationale, measurements and rulings live in the linked docs, not here.
   [active/2026-08-22_code-audit-and-python-gameplan.md](active/2026-08-22_code-audit-and-python-gameplan.md).
 ## migration
 
-- [PENDING 2026-08-22] De-MATLAB migration steps 2-5 (RunConfig/logging with
-  dopli-style packaged config TOMLs in `utespac/config/`; labeled I/O
-  boundary + netCDF converter; stage-by-stage core migration with fluxes.py
-  split; retire parity artifacts). Gated on the utespac-core science fixes
-  landing first. -- EFFORT L, RISK med. Detail:
+- [ACTIVE 2026-08-22] De-MATLAB migration steps 2-5. Step 2 landed
+  2026-08-22: `utespac/config/` packaged TOMLs (`run`, `qc`, `pf`, `flux`)
+  mirrored by frozen dataclasses in `utespac/run_config.py`
+  (`RunConfig.from_config`, `to_info` renders the legacy info dict),
+  `utespac/pipeline.run_utespac` with a `RunResult`, prompts behind
+  `utespac/prompts.py` (`ScriptedPFSelection` / `ConsolePFPrompter`),
+  `logging` in the core, `utespac_main.py` a thin CLI; VAC001 GPF/LPF date-1
+  products identical to the pre-step pickles. Remaining: step 3 labeled I/O
+  boundary + netCDF converter (`lon` on SiteInfo), step 4 stage-by-stage
+  core migration with the `fluxes.py` split (needs the pinned fixtures from
+  the parity-set line), step 5 retire parity artifacts. -- EFFORT L, RISK
+  med. Detail:
   [active/2026-08-22_code-audit-and-python-gameplan.md](active/2026-08-22_code-audit-and-python-gameplan.md)
   "Migration gameplan".
 
@@ -53,7 +60,7 @@ Rationale, measurements and rulings live in the linked docs, not here.
 - [ACTIVE 2026-08-22] Next-chat handoff: items 1 (Schotanus/WPL), 2
   (`get_data`) and 4 (audit fixes) landed 2026-08-22; item 3 closed by the
   user removing the Gill/IRGA folders (GPF regen for them runs off-repo);
-  item 5 (migration steps 2-5, ec_coherent) picked up 2026-08-22, step 2. Detail:
+  item 5 step 2 landed 2026-08-22; step 3 is next. Detail:
   [active/2026-08-22_next-chat-handoff.md](active/2026-08-22_next-chat-handoff.md).
 
 ## ec-coherent

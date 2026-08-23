@@ -1,0 +1,52 @@
+# Data-conditioning tests (Vickers & Mahrt 1997 despiking, absolute limits,
+# wind-direction envelope, NaN fraction, sensor diagnostics) -- mirrors
+# utespac.run_config.QCConfig. Values mirror the dataclass defaults; a
+# partial file is fine. Sections here carry meaning (they are the legacy
+# info["spikeTest"], info["absoluteLimitsTest"], ... blocks).
+#
+# All thresholds are [ASSUMED] inherited from UTESpac v5.0 (MATLAB) unless
+# a provenance note says otherwise.
+
+[spikeTest]
+maxRuns = 20                 # despiking passes
+windowSizeFraction = 1       # window = avgPer * fraction
+maxConsecutiveOutliers = 10  # longer runs are not spikes
+maxPercent = 2               # [%] flag the period when more than this is spiked
+
+[spikeTest.spikeDef]         # [sigma] spike threshold per sensor class
+u = 3.5
+v = 3.5
+w = 5.0
+Tson = 3.5
+fw = 3.5
+irgaCO2 = 3.5
+irgaH2O = 3.5
+KH2O = 3.5
+cup = 3.5
+birdSpd = 3.5
+otherInstrument = 5.0
+
+[absoluteLimitsTest]         # [lo, hi] physical plausibility per sensor class
+u = [-50, 50]
+v = [-50, 50]
+w = [-10, 10]
+Tson = [-20, 80]
+fw = [-20, 80]
+irgaCO2 = [0, 1500]
+irgaH2O = [0, 50]
+KH2O = [0, 50]
+cup = [0, 50]
+birdSpd = [0, 50]
+
+[windDirectionTest]
+envelopeSize = 20            # [deg] half-width of the tower-shadow sector
+
+[nanTest]
+maxPercent = 55              # [%] flag the period when more than this is NaN
+
+[diagnosticTest]
+H2OminSignal = 0.7           # IRGASON signal strength floor
+CO2minSignal = 0.7
+meanGasDiagnosticLimit = 0.1
+meanSonicDiagnosticLimit = 50
+meanLiGasDiagnosticLimit = 220

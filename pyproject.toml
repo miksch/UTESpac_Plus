@@ -19,7 +19,10 @@ raw = ["pandas>=2.0"]         # raw_processing/ and generate_ameriflux scripts
 test = ["pytest>=7"]
 
 [tool.setuptools]
-packages = ["utespac"]
+packages = ["utespac", "utespac.config"]
+
+[tool.setuptools.package-data]
+"utespac.config" = ["*.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

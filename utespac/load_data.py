@@ -1,8 +1,11 @@
 """loadData – import a set of CSV data files for one date."""
 
+import logging
 import os
 from typing import Dict, List, Optional, Tuple
 import numpy as np
+
+log = logging.getLogger("utespac")
 
 
 def load_data(
@@ -35,7 +38,7 @@ def load_data(
     data_info : list of list of str
         Metadata strings per table column.
     """
-    print(
+    log.info(
         f"\nEvaluating date {current_date_num} of {total_dates} "
         f"in folder {info.get('siteFolder', '')}"
     )
@@ -58,7 +61,7 @@ def load_data(
             tname_info = tname if tname in expected_cols_map else table_names[tbl_idx]
             expected_cols = expected_cols_map.get(tname_info, None)
             scan_freq     = freq_map.get(tname_info, None)
-            print(
+            log.info(
                 f"\n  Loading {os.path.basename(fpath)}"
                 + (f"  expected cols={expected_cols}" if expected_cols else "")
             )

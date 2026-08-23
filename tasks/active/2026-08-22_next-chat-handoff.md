@@ -1,7 +1,7 @@
 # Handoff: after the audit and the VAC001 validation pass
 
 Opened 2026-08-22 at the close of the audit session; updated the same day
-after the second session landed items 1, 2 and 4 below. State of the tree:
+after the second session landed items 1, 2, 4 and step 2 of item 5 below. State of the tree:
 the audit doc
 [2026-08-22_code-audit-and-python-gameplan.md](2026-08-22_code-audit-and-python-gameplan.md)
 holds the findings, the VAC001-vs-EddyPro results, and the migration plan;
@@ -14,7 +14,7 @@ rotation fix, VAC001 processed end to end with five validation scripts in
 `testbed/scripts/`, label-aligned `get_data`, the new dissipation
 estimator, slope geometry in `SiteInfo`, the finding-7 fixes, the
 Schotanus/WPL temperature flux, and the sourced ITC σw/u* reference.
-Suite: 105 passed, 1 skipped.
+Suite: 114 passed, 1 skipped.
 
 How to run anything here: repo root, `conda run -n UTESpac_Plus python
 testbed/scripts/<script>.py` (conda at
@@ -145,15 +145,37 @@ None of these are behind `matlabCompat`; the parity consequences are
 rows in the ledger, with "magnitude: to measure" where only the parity
 set (board: validation, first item) can put a number on them.
 
-## 5. Migration steps 2–5 and ec_coherent — next pick-up
+## 5. Migration steps 2–5 and ec_coherent — step 2 DONE 2026-08-22, next: step 3
 
-The migration plan in the audit doc ("Migration gameplan") — RunConfig
-and logging with dopli-style packaged TOMLs in `utespac/config/`, then the
-labeled I/O boundary — is unblocked now that items 1, 2 and 4 are in.
-Board: `## migration`. ec_coherent Phase 0
-(library notes) is unblocked now that the rotation fix is in; its
-converter should run only on regenerated pickles (VAC001's are already
-post-fix).
+Step 2 (config and UI) is in: `utespac/config/` holds `run.toml`, `qc.toml`,
+`pf.toml`, `flux.toml` (commented, mirroring the dataclass defaults;
+`[ASSUMED]` on the inherited thresholds); `utespac/run_config.py` has the
+frozen `RunConfig` / `QCConfig` / `PFConfig` / `FluxConfig` with
+`from_config` (kwarg > dataclass/dict > `config/<name>.toml` in the cwd >
+packaged TOML > default) and `RunConfig.to_info()`, which renders the
+legacy `info` dict the stages still read — the bridge step 4 retires.
+`utespac/pipeline.run_utespac(config, site=, dates=, prompter=)` returns a
+`RunResult` (per-date status and written paths); it also accepts a legacy
+`info` + `template`. Every `input()` left the core: `find_global_pf` takes a
+prompter (`utespac/prompts.py`: `ScriptedPFSelection` is the default —
+single sector, all dates — and `ConsolePFPrompter` carries the interactive
+session with the figures); `find_files`/`get_data` require the site.
+`print` became `logging.getLogger("utespac")`. `utespac_main.py` is the CLI
+(site/date prompts, flags, `--no-prompts`, `--reuse-pf`, `--run-config`).
+`testbed/scripts/run_vac001*.py` use the API (no `builtins.input`
+monkeypatch). Acceptance: VAC001 date 1 GPF ConstDet (averaged + raw) and
+LPF ConstDet regenerated through the new API are bit-identical to the
+products already on disk; suite 114 passed, 1 skipped. Site facts stayed in
+`siteInfo.toml`; the SSITC sub-averaging, canopy and displacement settings
+are still site keys (they are per-site by nature).
+
+Next is step 3 (labeled I/O boundary): the netCDF converter (`lon` to add to
+`SiteInfo`, `latitude` is there), `save_data`/`get_data` on labeled
+structures, datetime64 at the boundary with `campbell_date` as the legacy
+shim, `PFinfo` with explicit dims. Step 4 (stage-by-stage core migration,
+`fluxes.py` split) wants the pinned fixtures from the parity-set board line
+first. ec_coherent Phase 0 (library notes) can run in parallel and its
+converter is step 3's.
 
 ## User-side items noted
 

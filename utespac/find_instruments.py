@@ -1,9 +1,12 @@
 """findInstruments – map sensor templates to [table, column, height] triplets."""
 
 from typing import Dict, List
+import logging
 import numpy as np
 from .strfndw import strfndw
 from .site_config import sonic_for
+
+log = logging.getLogger("utespac")
 
 
 def find_instruments(
@@ -76,6 +79,6 @@ def find_instruments(
 
     # Print summary
     for field, arr in sensor_info.items():
-        print(f"  {field}: {arr.shape[0]} sensor(s) found")
+        log.info(f"  {field}: {arr.shape[0]} sensor(s) found")
 
     return sensor_info

@@ -45,9 +45,9 @@ def get_data(
     ----------
     root_folder : str
         Root directory containing ``site*`` sub-directories.
-    site : str or int or None
-        Site name (without ``'site'`` prefix) or 1-based integer index.
-        If None the user is prompted to select.
+    site : str or int
+        Site folder name, bare legacy id, or 1-based index into the sorted
+        site list; required.
     avg_per : int or None
         Averaging period in minutes (used to filter file names).
     qualifier : str or None
@@ -66,10 +66,8 @@ def get_data(
     sites = list_sites(root_folder)
 
     if site is None:
-        for i, s in enumerate(sites):
-            print(f"  {i + 1}. {s}")
-        choice = int(input("Please indicate site of interest: ")) - 1
-        site_dir = sites[choice]
+        raise ValueError("get_data needs a site name or 1-based index; "
+                         f"available: {', '.join(sites)}")
     elif isinstance(site, int):
         site_dir = sites[site - 1]
     else:

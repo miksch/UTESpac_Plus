@@ -1,8 +1,11 @@
 """findSerialDate – convert Campbell 4-column date vector to MATLAB serial dates."""
 
 from typing import Dict, List, Optional, Tuple
+import logging
 import numpy as np
 from .campbell_date import campbell_date_to_serial_date, matlab_datenum_to_datetime
+
+log = logging.getLogger("utespac")
 
 
 def find_serial_date(
@@ -24,11 +27,11 @@ def find_serial_date(
     -------
     data, data_info, info (all updated)
     """
-    print("\nStoring serial date in column 1 and deleting columns 2–4")
+    log.info("Storing serial date in column 1 and deleting columns 2–4")
     for i, tbl in enumerate(data):
         if tbl is None or tbl.size == 0:
             continue
-        print(f"  Finding serial dates for table {i + 1}")
+        log.info(f"  Finding serial dates for table {i + 1}")
 
         # Columns 0–3 are [year, doy, HHMM, seconds]
         serial = campbell_date_to_serial_date(tbl[:, :4])

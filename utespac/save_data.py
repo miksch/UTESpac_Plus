@@ -1,9 +1,13 @@
 """saveData – persist processed output to disk (.pkl, optional .csv, optional .nc)."""
 
+import logging
 import os
 import pickle
 from typing import Dict, List, Optional
 import numpy as np
+
+
+log = logging.getLogger("utespac")
 
 
 def save_data(
@@ -24,9 +28,12 @@ def save_data(
 
     Returns
     -------
-    output : dict (unchanged)
+    paths : dict
+        Written products by kind: ``"pkl"``, ``"raw"`` (when raw_flux is
+        given), ``"csv"`` (directory) and ``"nc"`` when enabled.
     """
-    print("Saving data")
+    log.info("Saving data")
+    paths: Dict[str, str] = {}
 
     output["dataInfo"]   = data_info
     output["tableNames"] = table_names
@@ -45,7 +52,8 @@ def save_data(
     pkl_path = os.path.join(out_dir, base_name + ".pkl")
     with open(pkl_path, "wb") as fh:
         pickle.dump(output, fh)
-    print(f"  Saved: {pkl_path}")
+    log.info("  Saved: %s", pkl_path)
+    paths["pkl"] = pkl_path
 
     # ---- Pickle (raw 20 Hz output) ----------------------------------------------
     if raw_flux is not None:
@@ -53,17 +61,18 @@ def save_data(
         raw_path = os.path.join(out_dir, raw_name + ".pkl")
         with open(raw_path, "wb") as fh:
             pickle.dump(raw_flux, fh)
-        print(f"  Saved: {raw_path}")
+        log.info("  Saved: %s", raw_path)
+        paths["raw"] = raw_path
 
     # ---- CSV -------------------------------------------------------------------
     if info.get("saveCSV", False):
-        _save_csv(output, out_dir, base_name)
+        paths["csv"] = _save_csv(output, out_dir, base_name) or os.path.join(out_dir, "csv")
 
     # ---- NetCDF ----------------------------------------------------------------
     if info.get("saveNetCDF", False):
-        _save_netcdf(output, out_dir, base_name)
+        paths["nc"] = _save_netcdf(output, out_dir, base_name) or os.path.join(out_dir, base_name + ".nc")
 
-    return output
+    return paths
 
 
 def _save_csv(output: Dict, out_dir: str, base_name: str) -> None:
@@ -114,4 +123,5 @@ def _save_netcdf(output: Dict, out_dir: str, base_name: str) -> None:
                 dims.append(dname)
             var = ds.createVariable(clean_key, "f4", dims, fill_value=np.nan)
             var[:] = val.astype(float)
-    print(f"  Saved NetCDF: {nc_path}")
+    log.info("  Saved NetCDF: %s", nc_path)
+    return nc_path

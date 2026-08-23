@@ -1,5 +1,6 @@
 """fluxes – compute all turbulent statistics (H, τ, LE, CO2, σ, L, η, ε, skew, …)."""
 
+import logging
 from typing import Dict, List, Optional
 import numpy as np
 from scipy.stats import skew as scipy_skew
@@ -16,6 +17,8 @@ from .find_delta_time import find_delta_time
 from .find_eta import find_eta
 from .calc_ssitc_flags import calc_ssitc_flags
 from .site_config import sonic_for
+
+log = logging.getLogger("utespac")
 
 Rd = 287.058   # J/(kg·K)
 Rv = 461.495   # J/(kg·K)
@@ -72,7 +75,7 @@ def fluxes(
     output : dict
     raw    : dict or None
     """
-    print("\nComputing Fluxes")
+    log.info("Computing Fluxes")
 
     if "u" not in sensor_info:
         return output, None
@@ -110,14 +113,14 @@ def fluxes(
         P_t_hf   = P_t
         if np.nansum(~np.isnan(P_kPa_avg)) > 0 and \
                 np.abs((np.nanmedian(P_kPa_avg) - P_ref_kPa) / P_ref_kPa) < 0.05:
-            print(f"Barometer found. Median P = {np.nanmedian(P_kPa_avg):.3g} kPa")
+            log.info(f"Barometer found. Median P = {np.nanmedian(P_kPa_avg):.3g} kPa")
         else:
             P_kPa_avg = None
 
     if P_kPa_avg is None:
         N_est = int(round((t[-1] - t[0]) / (info["avgPer"] / (24.0 * 60.0))))
         P_kPa_avg = np.full(N_est, P_ref_kPa)
-        print(f"No valid barometer – using P_ref = {P_ref_kPa:.3g} kPa.")
+        log.info(f"No valid barometer – using P_ref = {P_ref_kPa:.3g} kPa.")
 
     # --- reference temperature ---
     T_ref_K_avg: Optional[np.ndarray] = None
@@ -131,7 +134,7 @@ def fluxes(
         T_ref_K_avg = T_avg_mat[:, 0]
         if np.nanmedian(T_ref_K_avg) < 200:
             T_ref_K_avg += 273.15
-        print(f"Slow-response T found. Median T_ref = {np.nanmedian(T_ref_K_avg) - 273.15:.3g} °C")
+        log.info(f"Slow-response T found. Median T_ref = {np.nanmedian(T_ref_K_avg) - 273.15:.3g} °C")
 
     if T_ref_K_avg is None or np.nansum(~np.isnan(T_ref_K_avg)) == 0:
         if "Tson" in sensor_info:
@@ -144,7 +147,7 @@ def fluxes(
             T_ref_K_avg = T_avg_mat[:, 0]
             if np.nanmedian(T_ref_K_avg) < 200:
                 T_ref_K_avg += 273.15
-            print(f"Using sonic T as Tref. Median = {np.nanmedian(T_ref_K_avg) - 273.15:.3g} °C")
+            log.info(f"Using sonic T as Tref. Median = {np.nanmedian(T_ref_K_avg) - 273.15:.3g} °C")
         else:
             T_ref_K_avg = np.full(len(P_kPa_avg), 293.15)
 
@@ -166,7 +169,7 @@ def fluxes(
             x = np.concatenate([[np.floor(RH_avg_t[valid][0])], RH_avg_t[valid]])
             y = np.concatenate([[q_ref_avg[valid][0]], q_ref_avg[valid]])
             q_ref_fast = np.interp(t, x, y)
-            print(f"RH found. Median q_ref = {1000 * np.nanmedian(q_ref_avg):.3g} g/kg")
+            log.info(f"RH found. Median q_ref = {1000 * np.nanmedian(q_ref_avg):.3g} g/kg")
         else:
             q_ref_avg  = np.full(len(T_ref_K_avg), info.get("qRef", 12) / 1000.0)
             q_ref_fast = np.full(len(t),            info.get("qRef", 12) / 1000.0)
@@ -190,7 +193,7 @@ def fluxes(
             x = np.concatenate([[np.floor(h2o_avg_t[valid][0])], h2o_avg_t[valid]])
             y = np.concatenate([[q_ref_avg[valid][0]], q_ref_avg[valid]])
             q_ref_fast = np.interp(t, x, y)
-            print(f"No RH – qRef from {h2o_key}. Median q_ref = {1000 * np.nanmedian(q_ref_avg):.3g} g/kg")
+            log.info(f"No RH – qRef from {h2o_key}. Median q_ref = {1000 * np.nanmedian(q_ref_avg):.3g} g/kg")
         else:
             q_ref_avg  = np.full(len(T_ref_K_avg), info.get("qRef", 12) / 1000.0)
             q_ref_fast = np.full(len(t), info.get("qRef", 12) / 1000.0)
@@ -212,7 +215,7 @@ def fluxes(
     if info.get("shiftzRef", False):
         z_ref = float(info["zRefLowestSon"])
 
-    print(f"ρ_moist = {np.nanmedian(rho_avg):.3g} kg/m³  "
+    log.info(f"ρ_moist = {np.nanmedian(rho_avg):.3g} kg/m³  "
           f"ρ_dry = {np.nanmedian(rho_d_avg):.3g} kg/m³  "
           f"T_virt_ref = {np.nanmedian(T_virt_ref_K_avg) - 273.15:.3g} °C  "
           f"zRef = {z_ref:.2f} m")

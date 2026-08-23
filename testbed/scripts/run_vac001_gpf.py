@@ -1,14 +1,9 @@
 """Run the UTESpac pipeline on data/VAC001 with the global planar fit,
-driving find_global_pf's prompts from a script instead of stdin.
+non-interactively through a ScriptedPFSelection.
 
-Answers fed to find_global_pf (single sector, whole record, no date
-barriers) reproduce the EddyPro setup for this IOP (one 0-360 sector):
-
-    Skip 10.85 m?                 -> 1 (process)
-    Bin boundary ...              -> <Enter>  (no bins => single sector)
-    Date barrier ...              -> <Enter>
-    Use all data in range (1)?    -> 1
-    Is this correct? / Okay?      -> 1, 1
+The default selection reproduces the EddyPro setup for this IOP: one
+0–360 sector, whole record, no date barriers, use all data — the same
+answers the old input()-driven run gave ("1", Enter, Enter, "1", "1", "1").
 
 Requires LPF averaged output already present (run_vac001.py), which
 find_global_pf reads through get_data(qualifier="LPF").
@@ -17,36 +12,18 @@ Usage (repo root, UTESpac_Plus env)::
 
     python testbed/scripts/run_vac001_gpf.py [--detrend constant|linear]
                                              [--dates 1 2 ...] [--compat]
+                                             [--reuse-pf] [--bins 90 270]
 """
 
 import argparse
-import builtins
+import logging
 import os
 import sys
-from collections import deque
-
-import matplotlib
-matplotlib.use("Agg")
-matplotlib.use = lambda *a, **k: None   # find_global_pf calls use("TkAgg")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 
-import utespac_main as um  # noqa: E402
-
-
-class ScriptedInput:
-    """Replace input() with a queue of answers; fall back to '' (Enter)."""
-
-    def __init__(self, answers):
-        self.q = deque(answers)
-        self.log = []
-
-    def __call__(self, prompt=""):
-        ans = self.q.popleft() if self.q else ""
-        self.log.append((prompt.strip(), ans))
-        print(f"{prompt}{ans}  [scripted]")
-        return ans
+from utespac import RunConfig, run_utespac, ScriptedPFSelection  # noqa: E402
 
 
 def main():
@@ -55,30 +32,28 @@ def main():
     ap.add_argument("--site", default="VAC001")
     ap.add_argument("--detrend", choices=["linear", "constant"], default="constant")
     ap.add_argument("--compat", action="store_true",
-                    help="matlabCompat=True: legacy coefficient indexing, no b0 removal")
+                    help="matlabCompat=True: legacy coefficient indexing, no b0 removal, "
+                         "0.61 sonic coefficient, buoyancy-flux WPL driver")
     ap.add_argument("--reuse-pf", action="store_true",
                     help="reuse existing PFinfo.pkl instead of recomputing")
+    ap.add_argument("--bins", type=float, nargs="*", default=[],
+                    help="direction-bin boundaries [deg] for every height (default: none)")
     args = ap.parse_args()
 
-    info = um.info
-    info["rootFolder"] = os.path.join(ROOT, "data")
-    info["PF"]["globalCalculation"] = "global"
-    info["PF"]["recalculateGlobalCoefficients"] = not args.reuse_pf
-    info["detrendingFormat"] = args.detrend
-    info["saveNetCDF"] = False
-    info["saveCSV"] = True
-    info["saveRawConditionedData"] = True
-    info["matlabCompat"] = args.compat
-
-    # skip prompt -> "1"; bins -> Enter; barriers -> Enter; use-all -> "1";
-    # confirm -> "1"; begin -> "1". Reuse path only asks the two confirms.
-    answers = ["1", "1"] if args.reuse_pf else ["1", "", "", "1", "1", "1"]
-    scripted = ScriptedInput(answers)
-    builtins.input = scripted
-
-    dates = args.dates if args.dates else "all"
-    um.run_utespac(info, um.template, site=args.site, dates=dates)
+    logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
+    config = RunConfig.from_config(
+        rootFolder=os.path.join(ROOT, "data"),
+        saveNetCDF=False, saveCSV=True, saveRawConditionedData=True,
+        matlabCompat=args.compat,
+        pf={"globalCalculation": "global",
+            "recalculateGlobalCoefficients": not args.reuse_pf},
+        flux={"detrendingFormat": args.detrend},
+    )
+    selection = ScriptedPFSelection(default_bins=list(args.bins))
+    result = run_utespac(config, site=args.site, dates=args.dates or "all",
+                         prompter=selection)
+    return 0 if result.ok else 1
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

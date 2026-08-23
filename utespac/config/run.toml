@@ -1,0 +1,49 @@
+# UTESpac run-level settings -- mirrors utespac.run_config.RunConfig
+#
+# The dataclass is the schema and holds these same defaults; values here
+# override it when present, a config/run.toml in the working directory
+# overrides this packaged file, and RunConfig.from_config(**kw) overrides
+# both for one call. Keys omitted fall back to the dataclass. rootFolder
+# (machine-specific) is deliberately absent: pass it to from_config or
+# RunConfig(...).
+#
+# Site facts (sonics, heights, bearings, slope geometry, elevation,
+# latitude, table names and scan rates) live in <site>/siteInfo.toml, not
+# here.
+
+[run]
+UTESpacVersion = "5.0-Python"
+avgPer = 30            # [min] averaging period; must divide 60
+matlabCompat = false   # reproduce the MATLAB port's legacy behaviours for
+#                        parity runs (planar-fit coefficient indexing, 0.61
+#                        sonic-humidity coefficient, buoyancy flux in the WPL
+#                        terms, whole-file NaN blocks in get_data)
+
+[output]
+saveRawConditionedData = true   # QC'd raw tables as pickle (*_raw_*.pkl)
+saveNetCDF = true               # needs the netCDF4 extra
+saveCSV = true
+
+# Sensor-name templates: '*' stands for the height in the header name.
+[template]
+u = "Ux_*"
+v = "Uy_*"
+w = "Uz_*"
+Tson = "T_Sonic_*"
+sonDiagnostic = "diagnostic_*"
+fw = "FW_*"
+RH = "RH_*"
+T = "Temp_*"
+P = "Pressure_*"
+irgaH2O = "H2O_*"
+irgaH2OsigStrength = "H2Osig_*"
+irgaCO2 = "CO2_*"
+irgaCO2sigStrength = "CO2sig_*"
+irgaGasDiag = "gas_diag_*"
+LiH2O = "LiH2O_*"
+LiCO2 = "LiCO2_*"
+LiGasDiag = "Li_gas_diag_*"
+KH2O = "KH2O_H2O_*"
+cup = "cup_*"
+birdSpd = "wbSpd_*"
+birdDir = "wbDir_*"

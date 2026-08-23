@@ -12,12 +12,23 @@ pip3 install netCDF4   # optional — only needed when saveNetCDF=True
 
 ## Running the pipeline
 
-`raw_processing` provides sample code for generating formatted input for UTESpac package. Site folders includes sample `siteinfo` files. After generating formatted input and creating corresponding site folder, edit the `info` dict at the top of `utespac_main.py` to set paths, averaging period, QC settings, and output options, then run:
+`raw_processing` provides sample code for generating formatted input for UTESpac package. Each site lives under `data/<SITE>/` with its `siteInfo.toml` (site facts: sonics, heights, bearings, slope geometry, elevation, latitude) and the 48-h inputs in `data/<SITE>/utespac/` (see `data/README.md`). Processing settings are packaged TOMLs in `utespac/config/` (`run.toml`, `qc.toml`, `pf.toml`, `flux.toml`); a `config/<stage>.toml` in the working directory overrides them, and the command-line flags override both.
 
 ```bash
-python3 utespac_main.py
+python utespac_main.py                                  # prompts for site and dates, GPF with the planar-fit prompts
+python utespac_main.py --site VAC001 --pf local --dates all --detrend constant
+python utespac_main.py --site VAC001 --pf global --reuse-pf --no-prompts
 ```
-Note that `python utespac_main.py --globalCalculation local` needs to be run first before running `python utespac_main.py` (default GPF).
+
+The local planar fit (`--pf local`) has to be run before the global one for a site: `find_global_pf` reads the LPF products. From Python:
+
+```python
+from utespac import RunConfig, run_utespac, ScriptedPFSelection
+config = RunConfig.from_config(rootFolder="data", pf={"globalCalculation": "global"},
+                               flux={"detrendingFormat": "constant"})
+result = run_utespac(config, site="VAC001", dates="all", prompter=ScriptedPFSelection())
+result.ok, [d.paths for d in result.dates]
+```
 
 ---
 

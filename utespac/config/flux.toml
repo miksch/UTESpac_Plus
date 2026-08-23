@@ -1,0 +1,8 @@
+# Flux-stage settings -- mirrors utespac.run_config.FluxConfig. Values
+# mirror the dataclass defaults; a partial file is fine.
+
+[flux]
+detrendingFormat = "linear"   # "linear" or "constant" (block average) per period
+calcDissipation = false       # TKE dissipation rate from the compensated structure function (slow)
+storeExtraStats = true        # R, eta, delta_flux/delta_time, turbtr, epsilon, skew, H_SNSP
+qRef = 12                     # [g/kg] reference specific humidity when no humidity sensor exists

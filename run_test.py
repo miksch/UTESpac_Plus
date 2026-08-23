@@ -98,7 +98,8 @@ def convert_pfinfo_mat_to_pkl():
 
 def build_info(pf_mode="local"):
     """Return info dict configured for siteFire1."""
-    from utespac_main import template
+    from utespac.run_config import RunConfig
+    template = RunConfig().template
     info = {
         "rootFolder":             MATLAB_DIR,
         "UTESpacVersion":         "5.0-Python",
@@ -390,7 +391,8 @@ def convert_pfinfo2_mat_to_pkl():
 
 
 def build_info2(pf_mode="local"):
-    from utespac_main import template
+    from utespac.run_config import RunConfig
+    template = RunConfig().template
     info = {
         "rootFolder":             MATLAB_DIR,
         "UTESpacVersion":         "5.0-Python",
