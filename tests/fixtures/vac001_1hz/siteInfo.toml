@@ -1,0 +1,30 @@
+# VAC001_1Hz -- regression fixture carved from data/VAC001 (2023-07-08):
+# the 20 Hz IRGASON + fine-wire table decimated to 1 Hz, real samples
+# 08:00-16:00, NaN rows for the rest of the day. Site facts as in
+# data/VAC001/siteInfo.toml. Built by tests/fixtures/vac001_1hz/build_fixture.py.
+tower = 180
+siteElevation = 18.2
+latitude = 38.300056
+longitude = -121.9105
+angle = 0.0
+
+tableNames = ["VAC001_1Hz", "VAC001_30min"]
+tableScanFrequency = [1, 0.000555555555556]
+tableNumberOfColumns = [16, 6]
+
+useTrefHMP = true
+avgSlowFreq = 30
+shiftzRef = false
+zRefLowestSon = 10.85
+ascending = false
+
+SSITC_subAvgMin = 5
+displacementHeight = 0
+canopyHeight = 6.0
+useCanopyITC = true
+
+[[sonics]]
+height = 10.85
+orientation = 215
+manufacturer = 1
+hmp_height = 10.72

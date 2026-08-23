@@ -37,9 +37,11 @@ Rationale, measurements and rulings live in the linked docs, not here.
 ## validation
 
 - [PENDING 2026-08-22] Assemble parity set: MATLAB .mat + PFinfo + run
-  settings for all three sites (both PF modes); commit one pinned clean
-  30-min fixture per site class. -- EFFORT S, RISK low. Detail: audit doc
-  "Validation data to assemble".
+  settings for all three sites (both PF modes). The committed pinned
+  fixture landed 2026-08-22 as `tests/fixtures/vac001_1hz/` (one VAC001
+  day at 1 Hz, LPF and GPF expected outputs, `tests/test_pinned_fixture.py`);
+  what remains is the MATLAB side for `test_regression.py`. -- EFFORT S,
+  RISK low. Detail: audit doc "Validation data to assemble".
 - [ACTIVE 2026-08-22] 3D planar-fit validation figure: landed for VAC001
   (single sector, whole IOP) in `testbed/scripts/pf_vac001_eddypro.py`;
   still to do per height/sector/date-bin on the multi-sonic sites once

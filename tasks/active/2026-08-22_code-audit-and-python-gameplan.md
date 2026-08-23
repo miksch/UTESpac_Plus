@@ -296,6 +296,23 @@ regenerated goldens.
    assembly as separate testable functions, which is also where the stride
    arithmetic and header reconstruction die. Consolidation (B.5) falls out
    here.
+
+   Pinned fixture (landed 2026-08-22): `tests/fixtures/vac001_1hz/` is a
+   one-day mini site carved from VAC001 2023-07-08 — the IRGASON/fine-wire
+   table decimated 20 Hz → 1 Hz, real samples 08:00–16:00 (16 periods),
+   NaN rows for the rest of the day so the file is the complete day the
+   stages' day-span windowing expects, gzipped to 1.4 MB; the day's 30-min
+   T/RH table; `siteInfo.toml`; `PFinfo.json`. `build_fixture.py build`
+   carves it (needs `data/VAC001`), `pin` runs LPF LinDet and GPF ConstDet
+   through `run_utespac` and stores every 2-D averaged field with its
+   header plus the raw output strided by 50 in `expected/`;
+   `tests/test_pinned_fixture.py` re-runs both (6 s) and requires the same
+   field set, identical headers and NaN patterns, values to rtol 1e-6. A
+   re-pin is deliberate: only with a ledger row for the change. The 1 Hz
+   decimation is a regression choice, not a science one — it keeps the
+   fixture committable; ec_coherent's closure tests take their 20 Hz
+   window from `data/` locally. A multi-sonic fixture waits on the
+   French Meadows inputs (board: parity set).
 5. Retire parity (B.8): drop the compat flag, the gap columns, the duplicate
    R column and the `skew_Theata_v` typo in one commit; re-baseline testkit
    to clean output.
