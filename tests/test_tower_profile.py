@@ -1,14 +1,40 @@
 """Tests for the tower-profile SiteInfo (sonics) and its consumers."""
 
-import os
-
 import pytest
 
 from utespac.site_config import load_site_info, sonic_for, SonicLevel
 from utespac.find_instruments import find_instruments
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-IRGA_DIR = os.path.join(REPO_ROOT, "data", "IRGA")
+
+# Profiles of the two French Meadows deployments (formerly the repo's
+# siteGill/siteIRGA folders), kept here as fixtures.
+GILL_SITEINFO = (
+    "sonics = [{'height': 51.5, 'orientation': 36, 'manufacturer': 2}]\n"
+    "tower = 210\nsiteElevation = 1980\nangle = 8.2\n"
+    "downslopeAspect = 30\nslopeAxis = 'v'\n"
+)
+IRGA_SITEINFO = (
+    "sonics = [\n"
+    "    {'height': 32.18, 'orientation': 243, 'manufacturer': 1, 'hmp_height': 30},\n"
+    "    {'height': 13.94, 'orientation': 128, 'manufacturer': 1, 'hmp_height': 15},\n"
+    "    {'height': 6.35,  'orientation': 134, 'manufacturer': 1},\n"
+    "    {'height': 4.42,  'orientation': 139, 'manufacturer': 1},\n"
+    "]\n"
+    "tower = 210\nsiteElevation = 1980\nangle = 8.2\n"
+    "downslopeAspect = 30\nslopeAxis = 'v'\n"
+)
+
+
+@pytest.fixture
+def gill_dir(tmp_path):
+    (tmp_path / "siteInfo.py").write_text(GILL_SITEINFO)
+    return tmp_path
+
+
+@pytest.fixture
+def irga_dir(tmp_path):
+    (tmp_path / "siteInfo.py").write_text(IRGA_SITEINFO)
+    return tmp_path
 
 
 # ── sonic_for lookup ─────────────────────────────────────────────────────────
@@ -49,10 +75,9 @@ def test_sonics_dicts_become_soniclevel(tmp_path):
     assert site.sonics[1].hmp_height is None
 
 
-def test_repo_gill_loads_as_profile():
-    site = load_site_info(os.path.join(REPO_ROOT, "data", "Gill"))
+def test_single_sonic_profile(gill_dir):
+    site = load_site_info(gill_dir)
     assert site.sonics is not None and len(site.sonics) == 1
-    # migrated off the legacy parallel lists
     assert site.sonicOrientation is None
     assert site.sonicManufact is None
     level = sonic_for(site.sonics, 51.5)
@@ -61,10 +86,9 @@ def test_repo_gill_loads_as_profile():
     assert level.hmp_height is None
 
 
-def test_repo_irga_loads_as_profile():
-    site = load_site_info(IRGA_DIR)
+def test_four_sonic_profile(irga_dir):
+    site = load_site_info(irga_dir)
     assert site.sonics is not None and len(site.sonics) == 4
-    # migrated off the legacy parallel lists
     assert site.sonicOrientation is None
     assert site.shiftsSonHeight is None
     heights = {s.height for s in site.sonics}
@@ -76,11 +100,11 @@ def test_repo_irga_loads_as_profile():
 
 # ── find_instruments consumes the profile ────────────────────────────────────
 
-def test_find_instruments_maps_by_height_order_independent():
+def test_find_instruments_maps_by_height_order_independent(irga_dir):
     """Header columns in a different order than the profile must still map
     each sonic to its own orientation/manufacturer (the old code was positional)."""
     info = {}
-    load_site_info(IRGA_DIR).apply_to(info)
+    load_site_info(irga_dir).apply_to(info)
     names = ["Ux_4.42", "Ux_32.18", "Ux_6.35", "Ux_13.94"]  # shuffled vs profile
     si = find_instruments([[names]], {"u": "Ux*"}, info)
     by_h = {round(r[2], 2): (r[3], r[4]) for r in si["u"]}

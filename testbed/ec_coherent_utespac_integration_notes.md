@@ -156,8 +156,8 @@ hmp_height), `tableNames`, `tableScanFrequency`, `canopyHeight`, `displacementHe
 `siteElevation`, `tower`, `angle`, `ascending`, SSITC settings. Loaded from
 `siteInfo.toml` (preferred) or `siteInfo.py`.
 
-**Sites on hand**: `data/Gill` (formerly `siteGill20250723_20250828`; 10 Hz, Gill @ 51.5 m, canopy 19.3 m,
-Li-7500 gas), `data/IRGA` (formerly `siteIRGA20250723_20250828`; 20 Hz, 4 IRGASONs @ 4.42–32.18 m),
+**Sites on hand**: Gill (formerly `siteGill20250723_20250828`, no longer in the repo; 10 Hz, Gill @ 51.5 m, canopy 19.3 m,
+Li-7500 gas), IRGA (formerly `siteIRGA20250723_20250828`, no longer in the repo; 20 Hz, 4 IRGASONs @ 4.42–32.18 m),
 `siteVAC001_20230706_20230720` (20 Hz).
 
 ---

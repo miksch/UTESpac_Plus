@@ -13,8 +13,8 @@ difference from MATLAB, with the expected magnitude). Landed so far: the
 rotation fix, VAC001 processed end to end with five validation scripts in
 `testbed/scripts/`, label-aligned `get_data`, the new dissipation
 estimator, slope geometry in `SiteInfo`, the finding-7 fixes, the
-Schotanus/WPL temperature flux, the sourced ITC σw/u* reference, and the
-Gill/IRGA folders under `data/`. Suite: 105 passed, 1 skipped.
+Schotanus/WPL temperature flux, and the sourced ITC σw/u* reference.
+Suite: 105 passed, 1 skipped.
 
 How to run anything here: repo root, `conda run -n UTESpac_Plus python
 testbed/scripts/<script>.py` (conda at
@@ -80,21 +80,20 @@ that header fix; the 16-day LPF ConstDet load is 768 rows with 53 all-NaN
 rows (genuine gaps) where the old path gave 341. `tests/test_get_data.py`
 pins the behaviour.
 
-## 3. Bring the other sites into `data/` and regenerate their GPF products — moved; regen pending inputs
+## 3. Bring the other sites into `data/` and regenerate their GPF products — closed 2026-08-22
 
-The folders are moved (2026-08-22, after the user asked for it): headers
-to `data/Gill/utespac/` and `data/IRGA/utespac/`, `siteInfo.py` (and
-Gill's `siteInfo.m`) at the site root, the IRGA 1-min header renamed to
-`FMDOL_1min_header.dat`; `tests/test_tower_profile.py` and the
-`test_site_config` site sweep use the new paths. The folders held only
-headers and siteInfo — no 48-h input files, no outputs, no PFinfo — so
+The legacy `siteGill…`/`siteIRGA…` folders held only headers and
+`siteInfo` (no 48-h inputs, outputs or PFinfo). They were moved to
+`data/Gill` / `data/IRGA` and then, at the user's request, removed from
+the repo altogether; `tests/test_tower_profile.py` keeps both tower
+profiles as inline fixtures. What remains of the item is off-repo work:
 the GPF regeneration with the fixed rotation (every earlier GPF product
 off at the order the VAC001 before/after showed, u* +18 %, LE +20 %) and
-the per-height/sector 3D planar-fit figure run wherever the
-`data/<SITE>/utespac/` inputs live; both stay on the board (rotation
-line, 3D-figure line). Earlier in the session the user's "don't reprocess
-siteGill and such" was recorded here as deferring the whole item; the
-user clarified that only the reprocessing was meant.
+the per-height/sector 3D planar-fit figure, wherever those sites'
+`siteInfo` and inputs live (board: rotation line, 3D-figure line). Earlier
+in the session the user's "don't reprocess siteGill and such" was recorded
+here as deferring the whole item; the user clarified that only the
+reprocessing was meant.
 
 ## 4. The remaining audit fixes — DONE 2026-08-22
 

@@ -9,10 +9,10 @@ Rationale, measurements and rulings live in the linked docs, not here.
   `utespac/sonic_rotation.py` (legacy behaviour behind `info["matlabCompat"]`),
   pinned by `tests/test_planar_fit.py`, verified on VAC001 against EddyPro's
   planar fit. Remaining: regenerate GPF outputs/raw pickles for the
-  French Meadows sites (`data/Gill`, `data/IRGA`) -- their 48-h input
-  files are not on this machine (only headers + siteInfo are in the repo),
-  so this runs wherever `data/<SITE>/utespac/` holds them, reusing each
-  site's PFinfo.pkl; and add `matlabCompat` to the testkit parity runs. --
+  French Meadows sites (Gill, IRGA) -- nothing of theirs is in the repo
+  any more (user removed the Gill/IRGA folders 2026-08-22), so this runs
+  wherever their `siteInfo` and 48-h inputs live, reusing each site's
+  PFinfo.pkl; and add `matlabCompat` to the testkit parity runs. --
   EFFORT M (reprocessing), RISK low. Source: findings 1-2 in
   [active/2026-08-22_code-audit-and-python-gameplan.md](active/2026-08-22_code-audit-and-python-gameplan.md).
 ## migration
@@ -51,9 +51,9 @@ Rationale, measurements and rulings live in the linked docs, not here.
 ## meta
 
 - [ACTIVE 2026-08-22] Next-chat handoff: items 1 (Schotanus/WPL), 2
-  (`get_data`) and 4 (audit fixes) landed 2026-08-22; item 3 folders moved
-  to `data/Gill`, `data/IRGA` (GPF regen pending the inputs); item 5
-  (migration steps 2-5, ec_coherent) is the next pick-up. Detail:
+  (`get_data`) and 4 (audit fixes) landed 2026-08-22; item 3 closed by the
+  user removing the Gill/IRGA folders (GPF regen for them runs off-repo);
+  item 5 (migration steps 2-5, ec_coherent) picked up 2026-08-22, step 2. Detail:
   [active/2026-08-22_next-chat-handoff.md](active/2026-08-22_next-chat-handoff.md).
 
 ## ec-coherent
