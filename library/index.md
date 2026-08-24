@@ -17,12 +17,14 @@ gitignored; project entries are curated into `references.bib`.
 | Atta - 1977 - Effect of coherent structures... | Atta1977 | title (scan with OCR layer) |
 | Balakumar and Adrian - 2007 - Large- and very-large... | Balakumar2007 | title |
 | Blackwelder and Kaplan - 1976 - On the wall structure... | Blackwelder1976 | title |
+| Castellví and Snyder - 2009 - On the performance of surface renewal... | Castellvi2009 | title (2026-08-23) |
 | Chen et al. - 1997 - Coherent eddies... | Chen1997 | title |
 | Collineau and Brunet - 1993 - ...part I Wavelet analysis | Collineau1993 | title |
 | De Bruin et al. - 1993 - A verification of some methods... | DeBruin1993 | title (2026-08-22) |
 | Collineau and Brunet - 1993 - ...part II Time-scales... | Collineau1993a | title |
 | Desjardins' et al. - AN EVALUATION OF AIRCRAFT FLUX... | Desjardins1989 | title |
 | Foken and Wichura - 1996 - Tools for quality assessment... | Foken1996 | title |
+| French et al. - 2012 - Estimation of surface energy fluxes using surface renewal... | French2012 | title (2026-08-23) |
 | foken_micrometeorology.pdf (Foken 2008, Micrometeorology) | Foken2008 | title (2026-08-22) |
 | Gao et al. - 1989 - Observation of organized structure... | Gao1989 | title |
 | Howell and Mahrt - 1997 - Multiresolution flux decomposition | Howell1997 | title |
@@ -83,3 +85,8 @@ gitignored; project entries are curated into `references.bib`.
   on extraction).
 - `writeups/ec_spectra.md` -- spectra, cospectra, ogives (Kaimal1972 eq. 1
   and 21a-g, Stull1988 §8.6, Foken1996 eq. 10, Desjardins1989 pp. 61-62).
+- `writeups/ec_ramps.md` -- ramp detection: wavelet path (Collineau1993/a,
+  Gao1989, Thomas2007), structure functions (Atta1977, KyawThaPawU1995,
+  Spano1997, PawU2005, Chen1997 read-not-adopted), TKE trigger + IQA
+  (Mangan2022, Torrence1998). Van Atta's printed eq. 2.11 higher-order
+  coefficients refuted on extraction (derivation + brute force).

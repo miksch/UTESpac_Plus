@@ -37,7 +37,7 @@ class SpectraConfig:
 @dataclass(frozen=True)
 class RampsConfig:
     """Ramp detection, wavelet path (``[ramps]``; library/writeups/ec_ramps.md)."""
-    signals: Tuple[str, ...] = ("Ts", "u")   # "e" (TKE) waits on Mangan et al. 2022
+    signals: Tuple[str, ...] = ("Ts", "u", "e")   # wavelet detector: Ts, u; "e" runs the TKE trigger (Mangan 2022)
     wavelet: str = "mhat"                    # [CITED] CB 1993 zero-crossing method
     peak: str = "smallest_scale"             # smallest_scale (Thomas & Foken 2007) | global (CB 1993)
     D_min_s: float = 6.2                     # variance-peak search from this event duration up  [CITED] Thomas & Foken 2007 §3.1 (their site)
@@ -49,6 +49,17 @@ class RampsConfig:
     edge_scales: float = 3.0                 # drop detections within edge_scales*a0 of the ends  [ASSUMED]
     refine: str = "none"                     # none | ramp | haar: re-time at the first-derivative wavelet extremum (DECIDE, task doc)
     max_events: int = 300                    # padding of the event axis
+    # structure-function (surface renewal) detector
+    sr_signals: Tuple[str, ...] = ("Ts", "u")  # series the Van Atta cubic runs on; flux for Ts only
+    sr_lags_s: Tuple[float, ...] = (0.25, 0.5, 0.75, 1.0)  # time lags r [CITED] Spano 1997 p. 261
+    sr_min_period_lags: float = 10.0         # drop lags with l+s < this * r  [CITED] Spano 1997 p. 261
+    sr_alpha: float = 1.0                    # weighting factor, 1 well above the canopy [CITED] Spano 1997 eq. 2
+    sr_alpha_mode: str = "fixed"             # fixed (sr_alpha) | castellvi (similarity, per record) | fit ([SITE-TUNED] vs w'Ts')
+    sr_d: float = 0.0                        # zero-plane displacement [m] for castellvi mode  [ASSUMED]
+    # TKE trigger (Mangan et al. 2022)
+    tke_lp_s: float = 10.0                   # centred moving-mean window on u_TKE [CITED] Mangan 2022 eq. 5 (their sites)
+    tke_a_s: float = 10.0                    # fixed MHAT scale, ~40 s period [CITED] Mangan 2022 p. 52 (their sites)
+    tke_thresh: float = 1.25                 # trigger when wave amplitude > thresh * record mean [CITED] Mangan 2022 p. 54
 
 
 @dataclass(frozen=True)
@@ -76,7 +87,7 @@ class ECConfig:
             _check_unknown(klass, d, sect)
             if "nperseg" in d and d["nperseg"] in (0, "none", "None"):
                 d["nperseg"] = None
-            for key in ("scalars", "signals"):
+            for key in ("scalars", "signals", "sr_signals", "sr_lags_s"):
                 if key in d:
                     d[key] = tuple(d[key])
             vals[sect] = klass(**d)

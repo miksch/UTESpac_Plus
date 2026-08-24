@@ -114,6 +114,108 @@ def test_slope_auto_follows_the_heat_flux_sign():
     assert ramps._slope_for("Ts", "both", 0.1) == "both"
 
 
+def sr_train(fs=20.0, a=1.2, d=20.0, s=10.0, n_periods=200, sign=-1.0, noise=0.0, seed=0):
+    """Van Atta Fig. 1 geometry: ramps of amplitude *a* and duration *d*, quiet gaps *s*.
+    sign=-1: gradual rise, instantaneous drop (unstable); sign=+1 the stable mirror."""
+    rng = np.random.default_rng(seed)
+    P = d + s
+    n = int(P * fs * n_periods)
+    t = np.arange(n) / fs
+    phase = t % P
+    x = np.where(phase < d, a * phase / d, 0.0)
+    x = -sign * x + noise * rng.normal(size=n)
+    return x - x.mean()
+
+
+def test_structure_function_moments_match_the_derived_ramp_polynomials():
+    # Paw U et al. 2005 eqs. 2a-c (re-derived in ec_ramps.md; Van Atta's printed 2.11
+    # coefficients beyond the linear term disagree -- the derivation wins on brute force)
+    fs, a, d, s = 20.0, 1.5, 20.0, 10.0
+    x = sr_train(fs, a, d, s)
+    for r in (0.5, 1.0, 2.0):
+        S = ramps.structure_function(x, int(r * fs))
+        v = r / d
+        P2 = 1 - v**2 / 3
+        P3 = 1 - 1.5 * v + 0.5 * v**3
+        P5 = 1 - 2.5 * v + (10 / 3) * v**2 - 2.5 * v**3 + (2 / 3) * v**5
+        assert S[2] == pytest.approx(a**2 * r / (d + s) * P2, rel=0.02)
+        assert S[3] == pytest.approx(-(a**3) * r / (d + s) * P3, rel=0.02)
+        assert S[5] == pytest.approx(-(a**5) * r / (d + s) * P5, rel=0.02)
+        # Van Atta's printed n=3 polynomial (-1 + 5/2 v - 2 v^2 + v^3/2) does not fit
+        va = -(a**3) * r / (d + s) * (1 - 2.5 * v + 2 * v**2 - 0.5 * v**3)
+        if v >= 0.05:
+            assert abs(S[3] - va) > 5 * abs(S[3] - (-(a**3) * r / (d + s) * P3))
+    with pytest.raises(ValueError):
+        ramps.structure_function(x, 0)
+
+
+def test_vanatta_recovers_amplitude_period_and_the_two_lag_d_s_split():
+    fs, a, d, s = 20.0, 1.2, 20.0, 10.0
+    x = sr_train(fs, a, d, s)
+    sm = ramps.vanatta(x, fs, 0.5)
+    assert sm.a == pytest.approx(a, rel=0.05)             # linearized, v = 0.025
+    assert sm.period == pytest.approx(d + s, rel=0.05)
+    assert sm.S3_rate == pytest.approx(ramps.structure_function(x, 10)[3] / 0.5)
+    # two-lag split (Paw U et al. 2005): d and s separately, P-corrected amplitude
+    assert sm.d == pytest.approx(d, rel=0.1)
+    assert sm.s == pytest.approx(s, rel=0.3)
+    assert sm.a2 == pytest.approx(a, rel=0.05)
+    # stable mirror image: the amplitude changes sign, the period does not
+    xi = sr_train(fs, a, d, s, sign=+1.0)
+    si = ramps.vanatta(xi, fs, 0.5)
+    assert si.a == pytest.approx(-a, rel=0.05) and si.period == pytest.approx(d + s, rel=0.05)
+    # a no-ramp signal fails the l+s >= 10 r constraint or the cubic -> NaN
+    rng = np.random.default_rng(3)
+    flat = ramps.vanatta(rng.normal(size=36000), fs, 0.5)
+    assert np.isnan(flat.a) or flat.period >= 5.0
+
+
+def test_sr_flux_is_alpha_a_z_over_period():
+    assert ramps.sr_flux(1.2, 30.0, 10.85) == pytest.approx(1.2 * 10.85 / 30.0)
+    assert ramps.sr_flux(-0.8, 20.0, 3.0, alpha=0.5) == pytest.approx(-0.5 * 0.8 * 3.0 / 20.0)
+
+
+def test_phi_h_and_alpha_castellvi():
+    # Hogstrom's function via Castellvi & Snyder 2009 eq. 5 ("116" misprint read as 11.6)
+    assert ramps.phi_h(0.0) == pytest.approx(0.95)
+    assert ramps.phi_h(0.5) == pytest.approx(0.95 + 7.8 * 0.5)
+    assert ramps.phi_h(-1.0) == pytest.approx(0.95 / np.sqrt(12.6))
+    assert np.isnan(ramps.phi_h(1.5)) and np.isnan(ramps.phi_h(-3.0))
+    # eq. 3, inertial branch: alpha = sqrt(k/pi * (z-d)/z^2 * tau * u* / phi_h)
+    a = ramps.alpha_castellvi(29.0, 1.0, 0.0, 10.85)
+    assert a == pytest.approx(np.sqrt(0.4 / np.pi * (1 / 10.85) * 29.0 / 0.95))
+    assert ramps.alpha_castellvi(29.0, 1.0, 0.0, 10.85, d=2.0) < a
+    assert np.isnan(ramps.alpha_castellvi(29.0, 1.0, 2.0, 10.85))   # zeta out of range
+
+
+def test_tke_trigger_finds_synthetic_bursts_and_iqa_is_the_cumulative_path():
+    fs, T = 20.0, 1800.0
+    n = int(fs * T)
+    t = np.arange(n) / fs
+    rng = np.random.default_rng(4)
+    centers = np.arange(150.0, T - 100.0, 200.0)          # 8 bursts, well inside the edges
+    env = 0.15 + sum(2.0 * np.exp(-0.5 * ((t - c) / 8.0) ** 2) for c in centers)
+    u, v, w = (env * rng.normal(size=n) for _ in range(3))
+    ev = ramps.detect_tke(u, v, w, fs, a_s=10.0, lp_s=10.0, thresh=1.25)
+    assert ev.n == len(centers)
+    # the trigger is the coefficient minimum preceding the burst (weak ejection phase)
+    for c in centers:
+        dt_c = ev.times - c
+        assert np.any((dt_c > -40.0) & (dt_c < 10.0))
+    assert np.all((ev.sweep_frac >= 0) & (ev.sweep_frac <= 1))
+    assert ev.A_mean > 0 and ev.mean_spacing == pytest.approx(200.0, rel=0.1)
+    # u_TKE and IQA definitions
+    assert ramps.utke(np.array([3.0]), np.array([0.0]), np.array([4.0]))[0] == pytest.approx(5.0)
+    X, Y, Z = ramps.iqa(np.ones(4), -np.ones(4), np.array([1.0, -2.0, 1.0, 1.0]), 2.0)
+    assert X.tolist() == [0.5, 1.0, 1.5, 2.0]
+    assert Z.tolist() == [0.5, -0.5, 0.0, 0.5]
+    # the threshold is relative, so homogeneous noise still triggers (Mangan 2022 p. 54:
+    # "may not work well under low u_TKE periods"); triggers stay inside the edge margin
+    quiet = ramps.detect_tke(*(0.01 * rng.normal(size=(3, n))), fs)
+    if quiet.n:
+        assert quiet.times.min() >= 30.0 and quiet.times.max() <= T - 30.0
+
+
 def test_module_run_writes_the_ramps_group(tmp_path):
     path, truth = make_hf(tmp_path / "SYN_hf_GPF_ConstDet_2023_07_06.nc")
     cfg = ECConfig.from_config(modules=("ramps",), ramps={"a_max_s": 100.0, "D_min_s": 0.0})
@@ -129,3 +231,44 @@ def test_module_run_writes_the_ramps_group(tmp_path):
     assert np.all(np.diff(times[:n]) > 0)
     assert ds["W_Ts"].dims == ("record", "height", "scale")
     assert set(np.unique(ds["slope_u"].values)) == {1.0}
+    # structure-function outputs on the sr_lag axis
+    assert ds.attrs["sr_signals"] == "Ts,u" and ds.attrs["sr_alpha"] == 1.0
+    assert ds["sr_a_Ts"].dims == ("record", "height", "sr_lag")
+    assert list(ds["sr_lag"].values) == [0.25, 0.5, 0.75, 1.0]
+    fin = np.isfinite(ds["sr_period_Ts"].values)
+    assert np.all(ds["sr_period_Ts"].values[fin] >= 10.0 * np.broadcast_to(
+        ds["sr_lag"].values, fin.shape)[fin])             # Spano's l+s >= 10 r constraint
+    assert np.isfinite(ds["sr_S3_rate_u"]).any()
+    # TKE trigger outputs
+    assert ds["n_events_e"].dims == ("record", "height")
+    ne0 = int(ds["n_events_e"][0, 0])
+    te = ds["event_time_e"][0, 0].values
+    assert np.isfinite(te[:ne0]).all() and np.isnan(te[ne0:]).all()
+    sf = ds["sweep_frac_e"].values
+    sfin = sf[np.isfinite(sf)]
+    assert np.all((sfin >= 0) & (sfin <= 1))
+    assert ds.attrs["tke_a_s"] == 10.0 and ds.attrs["tke_thresh"] == 1.25
+    # sr_alpha modes (ruling 2026-08-23): fixed is the default, castellvi and fit selectable
+    assert ds.attrs["sr_alpha_mode"] == "fixed"
+    al = ds["sr_alpha_Ts"].values
+    assert np.all(al[np.isfinite(al)] == 1.0) and np.isfinite(al).all()
+    hgt = ds.height.values
+    F0 = ds["sr_a_Ts"].values * hgt[None, :, None] / ds["sr_period_Ts"].values
+    assert np.allclose(ds["sr_flux_Ts"].values, F0, equal_nan=True)
+    dsc = ecio.read_group(run_file(path, ECConfig.from_config(
+        modules=("ramps",), ramps={"a_max_s": 100.0, "D_min_s": 0.0,
+                                   "sr_alpha_mode": "castellvi"})), "ramps")
+    ac = dsc["sr_alpha_Ts"].values
+    fin = np.isfinite(dsc["sr_period_Ts"].values)
+    assert np.isfinite(ac[fin]).all() and np.all(ac[fin] > 0)
+    assert not np.allclose(ac[fin], ac[fin].flat[0])      # per record/height, not constant
+    dsf = ecio.read_group(run_file(path, ECConfig.from_config(
+        modules=("ramps",), ramps={"a_max_s": 100.0, "D_min_s": 0.0, "sr_alpha_mode": "fit"})), "ramps")
+    af = dsf["sr_alpha_Ts"].values
+    for il in range(af.shape[2]):                         # one fitted scalar per lag
+        vals = af[:, :, il][np.isfinite(af[:, :, il])]
+        if vals.size:
+            assert np.allclose(vals, vals[0])
+    with pytest.raises(ValueError):
+        run_file(path, ECConfig.from_config(modules=("ramps",),
+                                            ramps={"a_max_s": 100.0, "sr_alpha_mode": "bogus"}))

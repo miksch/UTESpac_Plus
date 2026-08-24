@@ -24,8 +24,8 @@ n_bins_per_decade = 10         # log-binning density  [ASSUMED]
 scalars = ["Ts", "rhov", "rhoCO2"]
 
 [ramps]
-# Wavelet (zero-crossing) ramp detector, library/writeups/ec_ramps.md
-signals = ["Ts", "u"]          # "e" (TKE, Mangan et al. 2022) not yet implemented
+# Ramp detectors, library/writeups/ec_ramps.md
+signals = ["Ts", "u", "e"]     # wavelet detector on Ts, u; "e" runs the TKE trigger (Mangan et al. 2022)
 wavelet = "mhat"               # MHAT zero-crossing method  [CITED] Collineau & Brunet 1993 I §4.3.3
 peak = "smallest_scale"        # smallest-scale variance maximum (Thomas & Foken 2007 §3.1) | "global" (CB 1993)
 D_min_s = 6.2                  # [s] peak search over event durations D >= this  [CITED] Thomas & Foken 2007 §3.1 (low-pass <6.2 s; their spruce site)
@@ -38,3 +38,19 @@ edge_scales = 3.0              # detections within edge_scales * a0 of the windo
 refine = "none"                # none | ramp | haar -- re-time each event at the RAMP/HAAR transform extremum within +-a0
 #                                (the MHAT zero-crossing lands ~0.35 a0 after an ideal microfront; DECIDE slot in the task doc)
 max_events = 300
+
+# Structure-function (surface renewal) detector -- Van Atta 1977 cubic, Spano et al. 1997
+# lags/flux, Paw U et al. 2005 two-lag d/s split
+sr_signals = ["Ts", "u"]       # series the cubic runs on; the kinematic SR flux is emitted for Ts only
+sr_lags_s = [0.25, 0.5, 0.75, 1.0]  # [s] time lags r  [CITED] Spano 1997 p. 261 (8 Hz crops; transferability [ASSUMED])
+sr_min_period_lags = 10.0      # lags with l+s < this * r are NaN  [CITED] Spano 1997 p. 261
+sr_alpha = 1.0                 # weighting factor alpha; 1 well above the canopy  [CITED] Spano 1997 eq. 2
+sr_alpha_mode = "fixed"        # fixed (use sr_alpha; ruled default, user 2026-08-23) | castellvi (similarity alpha
+#                                per record from ustar/L, Castellvi & Snyder 2009 eq. 3) | fit ([SITE-TUNED]
+#                                least-squares alpha against the measured w'Ts', per lag and file)
+sr_d = 0.0                     # [m] zero-plane displacement for castellvi mode  [ASSUMED]
+
+# TKE trigger -- Mangan et al. 2022 (u_TKE = sqrt(u'^2+v'^2+w'^2), MHAT at one scale)
+tke_lp_s = 10.0                # [s] centred moving-mean window on u_TKE  [CITED] Mangan 2022 eq. 5 (their sites)
+tke_a_s = 10.0                 # [s] fixed MHAT scale (~40 s period)  [CITED] Mangan 2022 p. 52 (their sites)
+tke_thresh = 1.25              # trigger when a wave's min-to-max amplitude > thresh * record mean  [CITED] Mangan 2022 p. 54

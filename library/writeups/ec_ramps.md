@@ -1,13 +1,12 @@
-# ec_coherent ramp detection -- wavelet path
+# ec_coherent ramp detection
 
-Step 4 of the gameplan ("Ramp detection on T, u, and TKE"), wavelet
-detector first because the coherent-flux module reuses its event set.
-Written 2026-08-23 from fresh `pdftotext` extractions (Collineau & Brunet
-Table I read off the rendered page). Code in
-[ec_coherent/ramps.py](../../ec_coherent/ramps.py). The structure-function
-(Van Atta) detector and the TKE extension (Mangan et al. 2022) are not
-covered here: their sources have not been read yet, and no code for them
-exists.
+Step 4 of the gameplan ("Ramp detection on T, u, and TKE"): the wavelet
+detector (Collineau & Brunet zero-crossing method), the structure-function
+detector (Van Atta / Spano / Paw U), and the TKE trigger (Mangan et al.
+2022). Written 2026-08-23 from fresh `pdftotext` extractions; equations of
+the scanned or garbled pages (Van Atta pp. 167-168, Spano pp. 260-261,
+Paw U et al. 2005 pp. 460-461) read off the rendered pages. Code in
+[ec_coherent/ramps.py](../../ec_coherent/ramps.py).
 
 ## What a ramp is -- Gao, Shaw & Paw U (1989) §3.1 p. 353, §3.2 pp. 355-356 [@Gao1989]
 
@@ -144,8 +143,9 @@ extremum of $|T_1(a_0, b)|$ of the RAMP or HAAR wavelet within $\pm a_0$
 puts it on the microfront to one sample. `refine_times` implements that
 re-timing behind `refine = "ramp" | "haar"`, default `"none"`: the paper
 uses the first derivative-like wavelets with a threshold for detection,
-not as a re-timing step after a threshold-free detection, so the
-combination is a deviation awaiting the user's ruling (task doc).
+not as a re-timing step after a threshold-free detection. Ruled (user,
+2026-08-23): `"none"` stays the default for cross-site repeatability;
+the option remains for per-site use.
 
 On real data the ideal-train lag does not survive (measured 2026-08-23 on
 all events of VAC001 GPF ConstDet 2023-07-06,
@@ -161,14 +161,288 @@ on the visible sharp drops, a median +0.4 s after the refined times. The
 $+0.35\,a_0$ lag is a property of the ideal isolated-ramp geometry, not of
 these data; it supports keeping `refine = "none"` as the default.
 
+## The structure-function detector -- Van Atta (1977) [@Atta1977]
+
+Decomposition (eq. 2.5, p. 166): $\theta = \theta_T + \theta_R$, a random
+turbulent part plus a coherent organized part, assumed statistically
+independent; with local isotropy of the turbulent part
+($\langle(\Delta\theta_T)^n\rangle = 0$ for odd $n$), eq. 2.9 (p. 166)
+gives
+
+$$ \langle(\Delta\theta)^2\rangle = \langle(\Delta\theta_T)^2\rangle + \langle(\Delta\theta_R)^2\rangle,\quad
+   \langle(\Delta\theta)^3\rangle = \langle(\Delta\theta_R)^3\rangle,\quad
+   \langle(\Delta\theta)^5\rangle = 10\langle(\Delta\theta_T)^2\rangle\langle(\Delta\theta_R)^3\rangle + \langle(\Delta\theta_R)^5\rangle. $$
+
+Uniform ramp model (p. 167): ramps of amplitude $a$ and length $l$
+separated by quiet periods $s$. For $r \ll l$ "the linear term in $r$
+dominates the behavior of all the ramp structure functions, and as a good
+approximation" (eq. 2.12, p. 167, rendered)
+$\langle(\Delta\theta_R)^n\rangle = (-1)^n a^n r/(l+s)$. Combining with
+eq. 2.9 yields the cubic for the ramp amplitude (eq. 2.13, p. 167):
+
+$$ a^3 + \left(10\langle(\Delta\theta)^2\rangle - \frac{\langle(\Delta\theta)^5\rangle}{\langle(\Delta\theta)^3\rangle}\right) a + 10\langle(\Delta\theta)^3\rangle = 0, $$
+
+"Each calculation yielded only one positive real root for $a$, so that no
+ambiguity was encountered" (p. 168); and the ramp period (eq. 2.15,
+p. 168, rendered): $(l+s) = -a^3 r / \langle(\Delta\theta)^3\rangle$.
+Taylor's hypothesis is used "in the form $r = -U\tau$" (§3.1, p. 168).
+
+Extraction finding: Van Atta's printed full-polynomial moments (eq. 2.11,
+p. 167) disagree with a direct integration of his own Fig. 1 model beyond
+the leading term -- the derivation gives, with $x = r/l$,
+$n{=}3$: $a^3r[-1 + \tfrac32 x - \tfrac12 x^3]/(l+s)$ (VA prints
+$-1 + \tfrac52 x - 2x^2 + \tfrac12 x^3$), $n{=}4$: last coefficient
+$\tfrac35$ (VA $\tfrac45$), $n{=}5$: last coefficient $\tfrac23$ (VA
+$\tfrac56$). Paw U et al. (2005) eqs. [2a-c] match the direct derivation,
+which was repeated independently here (`[DERIVED]`, and asserted in
+`tests/test_ec_ramps.py` against brute-force moments of a synthetic ramp
+train). The leading linear terms -- all the linearized method uses --
+agree in every source.
+
+## Practical form and flux -- Spano et al. (1997) [@Spano1997]
+
+Structure function (eq. 3, p. 261, rendered):
+
+$$ S^n(r) = \frac{1}{m-j}\sum_{i=1+j}^{m}(T_i - T_{i-j})^n, $$
+
+$m$ samples per interval, $j$ the sample lag, time lag $r = j/f$. The
+cubic (eqs. 4-6): $a^3 + pa + q = 0$ with
+$p = 10S^2(r) - S^5(r)/S^3(r)$, $q = 10S^3(r)$, solved "for the real
+roots"; the inverse ramp frequency (eq. 7): $l+s = -a^3 r/S^3(r)$. In the
+time-lag form the signs are self-consistent: unstable ramps give
+$S^3 < 0$, hence $a > 0$ and $l+s > 0$; stable (mirror-image) ramps give
+$S^3 > 0$ and $a < 0$ -- the sign of $a$ carries the flux direction, no
+prior stability information needed.
+
+Flux (eq. 2, p. 260, rendered): $H = \rho c_p \frac{a}{l+s} z$ "when
+measurements are taken well above the canopy top (i.e. no $\alpha$ factor
+is needed)", $z$ the measurement height; at canopy height eq. 1 inserts a
+weighting factor $\alpha$ ($\alpha = 0.5$ for tall canopies, from the
+assumed linear heating profile, p. 260). Constraints and choices: "the
+time lag ($r$) must be much less than $l+s$"; records were dropped "when
+the length of $l+s$ was less than 10 times $r$" (p. 261); lags 0.25,
+0.50, 0.75, 1.00 s were used at 8 Hz, with $r = 0.5$ s at intermediate
+heights giving slopes closest to 1 (Tables 1-3); the fitted $\alpha$
+increases with lag and decreases with measurement height (Figs. 4, 6, 8).
+Implemented as `structure_function`, `vanatta`, `sr_flux` in kinematic
+form $\alpha\, a\, z/(l+s)$ (K m s$^{-1}$; multiply by $\rho c_p$ for
+W m$^{-2}$), $\alpha = 1$ by default for this tower `[CITED]` Spano
+eq. 2.
+
+## Two-lag solution for d and s -- Paw U et al. (2005) [@PawU2005]
+
+The chapter's full moment equations (eqs. [2a-c], p. 460, rendered; $v =
+r/d$, $d$ the ramp duration, $s$ the quiet gap):
+
+$$ S^2 = \frac{a^2 r}{d+s}P_2,\quad S^3 = -\frac{a^3 r}{d+s}P_3,\quad S^5 = -\frac{a^5 r}{d+s}P_5, $$
+$$ P_2 = 1 - \tfrac13 v^2,\quad P_3 = 1 - \tfrac32 v + \tfrac12 v^3,\quad
+   P_5 = 1 - \tfrac52 v + \tfrac{10}{3}v^2 - \tfrac52 v^3 + \tfrac23 v^5. $$
+
+"One can determine the ramp dimensions $d$ and $s$ without the linear
+assumptions of Van Atta (1977) by using more than one lag" (p. 460): with
+$R \equiv S^3(br)/S^3(r)$ and $b = 2$ (eq. [3a], p. 460, verified here by
+substituting eq. [2b]):
+
+$$ v^3 - \frac{12-3R}{16-R}\,v + \frac{4-2R}{16-R} = 0, $$
+
+whose root in $(0, 1)$ gives $d = r/v$; the corrected amplitude cubic
+(eq. [4]) is the Van Atta cubic with $p \to p\,P_3/P_5$ and $q \to
+q\,P_2/P_5$; and $s = -\frac{a^3 r}{S^3(r)}P_3 - d$ (eq. [5], p. 461).
+All five equations re-derived here from the ramp geometry and confirmed
+(`[DERIVED]` + `[CITED]`). Flux: eq. [15] (p. 465) is Spano's form with
+$F(z)$ the height-dependent calibration factor. Lag guidance against the
+microfront time: "when $r > 2t_f$ for tall and $r > 4t_f$ for short
+canopies, the complete Van Atta (1977) formulations are adequate"
+(p. 462). Implemented as `two_lag` (lag pair $r$, $2r$).
+
+## Finite microfront time -- Chen et al. (1997) [@Chen1997], read, not adopted
+
+Chen et al. replace the instantaneous drop with a finite microfront time
+$t_f$ (their Fig. 4, $s = 0$) and fit their eqs. (14)-(15) for $n = 3$ to
+$\overline{(\Delta T)^3}/\Delta t$ over all lags (Marquardt-Levenberg,
+$r^2$ 0.72-0.99). Findings carried here: (1) measured
+$\overline{(\Delta T)^3}/\Delta t$ versus $\Delta t$ "generally reaches a
+well-defined maximum at some $\Delta t = t_m$" and the decline below
+$t_m$ "is a signature of the finite microfront time" (pp. 104, 118) --
+so lags well below $t_m$ underestimate $|S^3|$; (2) against the
+finite-microfront fit, the VA linearized method "overestimated $M$ by
+10-30%" and $\tau$ "by a factor of 2-4" (p. 111, Table I: $M$ ratios
+1.08-1.43, $\tau$ ratios 2.27-3.68), so the SR flux factor $M/\tau$ comes
+out 0.39-0.48 of the finite-microfront value -- a bias the empirical
+$\alpha$ calibration absorbs; (3) their microfront times: $t_f \approx$
+0.02-0.04 s (bare soil), 0.06-0.11 s (mulch), 0.18-0.3 s (forest)
+(p. 462 of the Paw U 2005 restatement). The nonlinear fit is not
+implemented (ruled not adopted, user 2026-08-23); the code reports
+$S^3(r)/r$ over the configured lags so $t_m$ is visible per record.
+
+## SR under regional advection -- Castellví & Snyder (2009) [@Castellvi2009]
+
+Full-season test over two rice fields (Sacramento Valley; "no rainfall,
+light winds, high temperatures, clear skies, and regional advection of
+sensible heat flux are the typical weather conditions", p. 549; stable
+daytime cases outnumber unstable ones, "a typical climate feature in
+Sacramento Valley due to regional advection", p. 551). The flux is
+Spano's form, $H = \rho c_p (\alpha z) A_T/\tau$ (eq. 2, p. 547), but
+$\alpha$ is not a fitted constant: from the Castellví (2004)
+SR-similarity combination (eq. 3, p. 547, rendered), for measurements in
+the inertial sub-layer ($z > z^*$)
+
+$$ \alpha = \left[\frac{k}{\pi}\,\frac{z-d}{z^2}\,\tau\,u_*\,\phi_h^{-1}(\zeta)\right]^{1/2}, $$
+
+with the $z \le z^*$ branch replacing $z-d$ by $z^*-d$; $\zeta =
+(z-d)/L$, and $\phi_h$ from Högström (1988)/Foken (2006) (eq. 5, p. 547):
+$\phi_h = 0.95 + 7.8\zeta$ for $0 \le \zeta \le 1$,
+$\phi_h = 0.95(1-11.6\zeta)^{-1/2}$ for $-2 \le \zeta \le 0$. Misprint
+recorded: eq. 5 prints "116$\zeta$"; the Högström coefficient is 11.6,
+confirmed against Foken (2008) Table (on hand) [@Foken2008] -- 11.6 is
+implemented. With this $\alpha$, "regardless of the stability conditions
+and measurement height above the canopy, sensible heat flux estimates
+using SR analysis gave results that were similar to those measured with
+the eddy covariance method" (abstract): slopes 0.89-1.10, $R^2 \ge$
+0.86, Rmse $\le$ 13 W m$^{-2}$ (Table 1, p. 551), without calibration
+against a sonic.
+
+Lag selection (p. 550): the shortest usable lag "is one that produces
+the first global maximum of $S^3(r)/r$" ($r_{1G}$, the Chen $t_m$;
+$S^3$ from the step-drop model "is unrealistic for $r < r_{1G}$"), and
+they linearize $S^3(r) = -A^3 r/\tau$ over lags from
+$r_{ini} = r_{1G} + 1/f$ up to $\approx 0.01 L_r$. Ramps not well formed
+(H near 0) and amplitude-sign/flux-sign disagreements were the main
+error contributors but "fall within the measurement error" (p. 551).
+
+Implemented as `phi_h` and `alpha_castellvi` (inertial-sublayer branch;
+the $z \le z^*$ branch and the roughness-sublayer-depth machinery of
+their eqs. 6-14 are not implemented -- our sonic sits at 10.85 m, far
+above any local canopy). VAC001 sanity check (advective site, same
+regime): see the validation script and task doc -- the similarity
+$\alpha$ computed from the measured $u_*$, $\zeta$ and the SR $\tau$ is
+compared against the empirical $\alpha \approx 0.45$ that the fixed
+$\alpha = 1$ run implied.
+
+## SR under strong local advection -- French et al. (2012) [@French2012]
+
+BEAREX08 (Texas High Plains, irrigated cotton amid dryland; "strongly
+advective events were those when mid-day H fluxes become dominantly
+negative, leading to LE fluxes exceeding net radiation", p. 92 -- the
+VAC001 regime). Their SR is exactly the configuration landed here: the
+sample-lag Van Atta cubic (their eqs. 1-5) with "$\alpha$ was set to 1.0
+and $z$ to measurement height" (Snyder's interpretation, p. 94), 20 Hz
+thermocouples at 2.25 m, tested against 9 EC stations. Findings carried
+as checks:
+
+- Lag selection dominates: "selection of lags that were too short or too
+  long significantly affected estimation accuracy" -- RMSE minimum near
+  the 1.0 s lag, ~20 W m$^{-2}$ better than shorter/longer lags; "the
+  best linear agreement at 1 s also closely corresponded to the ideal
+  slope of 1, indicating that calibration of SR fluxes based on lag is a
+  more important consideration than the $\alpha$ height-dependent term"
+  (pp. 95-96). Too-short lags distort the ramp *duration* under strong
+  advection (0.5 s gave >15 s vs 10 s at 1 s on their strongly advective
+  day, Fig. 5); amplitude is stable for lags > 0.25 s.
+- Sign fidelity is SR's advantage under advection: "ramp amplitude
+  changes sign in agreement with the sign of H" (p. 94; their Fig. 9
+  uses the sign of $S^3$ alone to flag $H < 0$); "the SR approach was
+  likely to correctly identify the direction of H flux" even when the
+  magnitude is off (p. 97).
+- The cubic is $q$-dominated: "the p coefficient generally was close to
+  zero and thus usually unimportant ... 2nd and 5th order structure
+  functions played a minor role in SR analysis, while the 3rd order
+  function was crucial"; "computation using only the third order
+  structure function would be sufficient" (pp. 98, 103). Three-real-root
+  ambiguity "did not arise"; amplitudes are "highly uncertain" near
+  dawn/dusk when $q \to 0$ (p. 99).
+- Performance: weakly advective mid-day H to $\sim$35 W m$^{-2}$;
+  strongly advective $\sim$60 W m$^{-2}$, mid-day R$^2$ collapsing at
+  the wettest site (their Table 5) while transition/night times favour
+  SR over flux variance.
+
+No new code from this source; it validates the landed formulation and
+supplies the diagnostics run in `testbed/scripts/ec_sr_vac001.py`
+(per-lag ratio, sign-agreement fraction, $q$-only amplitude check).
+
+## TKE detection and IQA -- Mangan et al. (2022) [@Mangan2022]
+
+Motivation: "large-eddy-simulation studies suggest that the cross-stream
+velocity component is important for maintaining a microfront ...
+therefore all three velocity components are crucial to coherent
+structures" (§4, p. 52); "The temperature signal cannot indicate the
+presence of a coherent structure when the temperature vertical gradient
+is weak whereas the $u_{TKE}$ method is not limited by the temperature
+gradient" (p. 66) -- directly the VAC001 situation (visible-but-
+undetectable Ts ramps, task doc).
+
+Detection signal: $u_{TKE} = \sqrt{u'^2 + v'^2 + w'^2}$ ("the square
+root of the sum of the high-frequency velocity variances, which is also
+twice the square root of turbulence kinetic energy", §4 p. 52 --
+i.e. $\sqrt{2e}$). Low-pass: "integrating the signal over a moving time
+window" of $\Delta t = 10$ s, "analogous to a moving average multiplied
+by the window time interval"; "a 10-s integration time appears
+appropriate" for both their sites (eq. 5, p. 52). Printed inconsistency
+recorded: eq. 5's integrand is $u'^2+v'^2+w'^2$ (unrooted) while the text
+and Fig. 3 filter $u_{TKE}$; implemented as the centred moving mean of
+$u_{TKE}$ -- the constant factor $\Delta t$ and the choice do not affect
+the threshold test, which is relative.
+
+Trigger: continuous MHAT (Torrence & Compo 1998 [@Torrence1998]) applied
+to $u_{TKE,LP}$ at one fixed scale -- "the selected scale of the wavelet
+was 10. This corresponds to a wave with a period of approximately 40 s"
+(p. 52; 30 s for their grass site). Wave amplitudes "from minimum to
+maximum" are averaged per 30-min period to $\bar A_i$, corrected for
+height and mean $u_{TKE}$ by dataset-specific regressions (eqs. 6-11,
+Table 1); "the amplitude of the wavelet must surpass $1.25\bar A_i$"
+(p. 54), and the event starts "at the minimum of the wavelet
+coefficient's wave" (p. 55), i.e. in the weak ejection phase before the
+microfront. Caveat: "this method may not work well under low $u_{TKE}$
+periods" ($< 0.3$ m s$^{-1}$, p. 54). One sonic here, so the multi-height
+regression collapses: $\bar A$ is the per-record mean wave amplitude
+(deviation register).
+
+IQA (eqs. 2-4, p. 49): cumulative $X_i = X_{i-1} + u_i'\Delta t$ (same
+for $Y, Z$), integration constant reset to zero at each trigger; "bulk
+sweeps are defined as periods when $Z_i < 0$, and bulk ejections ... $Z_i
+> 0$" (p. 50); an event runs trigger to trigger. Implemented as `utke`,
+`utke_lp`, `detect_tke`, `iqa`; the `/ramps` group stores the TKE event
+set and per-event bulk-sweep time fraction, the trajectories themselves
+are recomputable from the events.
+
+The surface-renewal concept itself is Paw U et al. (1995)
+[@KyawThaPawU1995]: $H = \rho c_p \frac{dT}{dt}\frac{V}{A}$ (their eq. 1,
+p. 121) with the parcel volume-to-area ratio the sensing height; that
+paper estimates $dT/dt$ from the band-pass-filtered trace with a
+regression factor $\alpha$ (their eq. 3) and points to structure
+functions as future work (p. 135); the structure-function realisation is
+Spano's, above.
+
 ## Outputs (`/ramps` group)
 
-Per record, height and signal (`Ts`, `u`; TKE waits on Mangan 2022): `a0_*`
-(s), `D_*` (s, eq. 22), `n_events_*`, `mean_spacing_*` (s, mean interval
+Wavelet detector, per record, height and signal (`Ts`, `u`): `a0_*` (s),
+`D_*` (s, eq. 22), `n_events_*`, `mean_spacing_*` (s, mean interval
 between consecutive detections), `event_time_*` (s from window start,
 `(record, height, event)` padded with NaN), the wavelet variance `W_*` on
 the `scale` axis, and attributes `wavelet = "mhat"`, `D_g`, `peak`,
 `slope_*`, `edge_scales`.
+
+Structure-function detector, per record, height, signal and `sr_lag` (s):
+`sr_a_*` and `sr_period_*` (linearized Van Atta $a$ and $l+s$),
+`sr_d_*`, `sr_s_*`, `sr_a2_*` (two-lag $d$, $s$ and P-corrected $a$,
+lags $r$ and $2r$), `sr_S3_rate_*` ($S^3(r)/r$, the Chen $t_m$
+diagnostic), and for `Ts` the kinematic SR flux `sr_flux_Ts`
+$= \alpha\,a\,z/(l+s)$ (K m s$^{-1}$, linearized $a$, $l+s$) with the
+applied factor stored as `sr_alpha_Ts`. `sr_alpha_mode` (ruled, user
+2026-08-23) selects $\alpha$: `fixed` (the `sr_alpha` value, default 1,
+`[CITED]` Spano eq. 2), `castellvi` (per record from the ancillary
+$u_*$ and $L$ via `alpha_castellvi`, `[CITED]` Castellví & Snyder 2009
+eq. 3, with `sr_d` the displacement, `[ASSUMED]` 0), or `fit`
+(`[SITE-TUNED]`: one least-squares factor per lag and file against the
+measured $\overline{w'T_s'}$). Lags with $l+s < 10r$ are NaN (Spano's
+constraint), as is $l+s$ longer than the window itself (`[ASSUMED]` cap;
+near-neutral records with $S^3 \approx 0$ otherwise return periods of
+10^4-10^5 s).
+
+TKE trigger, per record and height: `n_events_e`, `mean_spacing_e`,
+`event_time_e`, `sweep_frac_e` (per-event bulk-sweep time fraction from
+IQA, on the `event` axis), `A_mean_e` (mean MHAT wave amplitude of
+$u_{TKE,LP}$), and attributes `tke_lp_s`, `tke_a_s`, `tke_thresh`.
 
 ## Deviation register
 
@@ -177,6 +451,11 @@ the `scale` axis, and attributes `wavelet = "mhat"`, `D_g`, `peak`,
 | Collineau & Brunet: scalogram peak $a_0$ (one peak for velocities, a secondary trend peak for $T$); Thomas & Foken: highest-frequency peak after a 6.2 s low-pass, Morlet variance | smallest-scale local maximum of the MHAT variance above `a_min_s` (default), global maximum optional; no Morlet | keeps one wavelet for variance and detection; the low-pass is replaced by `a_min_s` | synthetic ramp train recovers its period (`tests/test_ec_ramps.py`); VAC001 figure |
 | continuous $b$ over the record | detections within $3a_0$ of the edges dropped | zero-padded convolution | `[ASSUMED]` |
 | Thomas & Foken: low-pass (<6.2 s) before the variance | `D_min_s` bounds the peak search instead; scalogram itself unfiltered | one transform for variance and detection | VAC001 numbers above; `[CITED]` value, site-specific |
-| MHAT zero-crossing time as the event time | optional `refine` to the RAMP/HAAR extremum, default off | 0.35 $a_0$ lag measured on ideal ramps | DECIDE slot, task doc |
+| MHAT zero-crossing time as the event time | optional `refine` to the RAMP/HAAR extremum, default off | 0.35 $a_0$ lag measured on ideal ramps | ruled: `none` default for repeatability, option per site (user 2026-08-23) |
 | slope sign chosen by the analyst per signal | `slope="auto"` from the sign of $\overline{w'T'}$ | VAC001 runs through both stabilities unattended | `[DERIVED]`, recorded per record |
 | -- | scale grid, `a_min_s`, `a_max_s` | -- | `[ASSUMED]`, config |
+| Spano: 8 Hz thermocouples over crops, lags 0.25-1.0 s | same lag set at 20 Hz sonic Ts at 10.85 m | lag sensitivity is stored per record on the `sr_lag` axis | VAC001 validation script; `[ASSUMED]` transferability |
+| Spano/Paw U: $\alpha$ fit against eddy covariance per site; Castellví: similarity $\alpha$ with $z^*$ machinery | `sr_alpha_mode`: `fixed` (default 1), `castellvi` (inertial branch only, `sr_d` displacement), `fit` (per lag and file) | ruled (user 2026-08-23): fixed default, other modes selectable; EC flux is the flux of record here | VAC001: fixed gives ratio 2.23, castellvi 1.39 at r 0.99 (task doc) |
+| Chen: nonlinear fit of the finite-microfront model | linearized + two-lag only; $S^3(r)/r$ reported so $t_m$ is visible | fit not adopted (DECIDE, task doc); their Table I quantifies the bias | -- |
+| Mangan: $\bar A_i$ from multi-height + $u_{TKE}$ regressions (eqs. 6-11) | $\bar A$ = per-record mean wave amplitude, threshold $1.25\bar A$ | one sonic, no reference height; the threshold factor is theirs | `[SITE-TUNED]` at their sites; VAC001 event counts vs u-wavelet detector |
+| Mangan: eq. 5 integrand printed as $u'^2{+}v'^2{+}w'^2$ | centred moving mean of $u_{TKE} = \sqrt{u'^2{+}v'^2{+}w'^2}$ | text and Fig. 3 filter $u_{TKE}$; constant factors cancel in the relative threshold | note, TKE section |
