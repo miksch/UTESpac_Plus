@@ -30,7 +30,7 @@ Ancillaries on `record`: `ustar`, `L`, `wdir`, `wind_flag`, `spike_flag`,
 | 4 | `ramps` (wavelet first) | complete 2026-08-23: wavelet detector (Ts, u), structure-function detector (Van Atta/Spano linearized + Paw U 2005 two-lag), TKE trigger + IQA (Mangan 2022); Chen 1997 read, finite-microfront fit not adopted (DECIDE below) |
 | 5 | `ampmod`, `scales` | complete 2026-08-23: Mathis 2009 decoupling (single-point, u_l and w_l modulators per Salesky & Anderson 2018), band fractions at the Balakumar & Adrian 0.1&pi;&delta;/&pi;&delta; cuts; all 8 sources read, notes ec_ampmod + ec_scales |
 | 6 | `coherent_flux` | complete 2026-08-23: wavelet estimator (TF2007 eqs. 3-7 triple decomposition on the ramp-module event sets, u' default + Ts' alongside per ruling) and quadrant estimator (ejection+sweep above the hole, TF2007 §3.3); EC flux error eq. 12b; Thomas2007 + Turner1994 (rendered scan) read, CB93b re-read; note ec_coherent_flux; Turner K-rms estimator added as option 2026-08-24 (ruling, addendum below) |
-| 7 | `cli` + full-file regression | `cli` runs the landed modules over one file; extend per module |
+| 7 | `cli` + full-file regression | complete 2026-08-24: CLI pipeline test (`tests/test_ec_cli.py`), all 24 VAC001 HF files processed, closure checker green over the full set (section below) |
 
 ## Findings on extraction (2026-08-23)
 
@@ -381,6 +381,27 @@ matches a correlated Gaussian pair (~0.09), so by the K-rms criterion
 this record set has almost no coefficients outside the Gaussian bulk and
 their K = 4 default passes nothing; validation script prints the sweep
 and draws the K = 4 medians in panel c.
+
+## Step 7, cli + full-file regression (2026-08-24)
+
+- Landed: `tests/test_ec_cli.py` -- the full default pipeline through
+  `cli.main()` on the synthetic file (all 8 groups written, provenance
+  attrs, and the cross-group closure identities: spectra band sum = var,
+  MRD sum = cov, quadrant/octant H=0 fractions sum to 1, scale bands sum
+  to 1, F_ej + F_sw = F_cs), plus the `--records`/`--modules`/`--out`
+  argv paths (`--records` keeps the full record axis, unselected records
+  NaN). Suite 242 green.
+- Full-file run: all 24 VAC001 HF files (8 dates x 3 PF/detrend variants)
+  processed with the packaged defaults, ~70 s/file; 24 coherent files, 8
+  groups each. `testbed/scripts/ec_full_regression_vac001.py` checks
+  every output (groups, provenance attrs, 7 closure identities) and
+  prints one row per file: PASS over all 24, worst error 2.9e-6 (f4
+  storage). Valid coherent-flux records 89-96 per full day; 42 on the
+  half-day 2023-07-20 files.
+- Checker finding: the 07-20 files' absent half-day is all-NaN in every
+  group (correct behaviour); xarray's default `skipna=True` turns those
+  all-NaN closure sums into 0, so the checker sums with `skipna=False`
+  -- absent records read NaN and are excluded rather than failing.
 
 ## Open decisions
 
