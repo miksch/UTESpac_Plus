@@ -104,3 +104,13 @@ gitignored; project entries are curated into `references.bib`.
   history, Lu1973 RMS hole confirmed, Raupach1981 S/T/DeltaS, Li2011
   efficiencies, Li2019 octants; hole origin is Willmarth1972 -- bib entry
   added, PDF not held).
+- `writeups/ec_coherent_flux.md` -- coherent-structure flux fractions
+  (Thomas2007 eqs. 1-12 triple decomposition and quadrant estimator,
+  Collineau1993a eqs. 3-7 conditional averages, Turner1994 K-rms
+  conditional sampling read via rendered scan, adopted as the optional
+  turner estimator 2026-08-24).
+
+PDF extraction now goes through `testbed/scripts/extract_paper.py` (ported
+from dopli 2026-08-23): text to `library/extracted/<bibkey>.txt`
+(gitignored), `--render` for the image-only scans, `--check-index` for
+directory-vs-index drift.

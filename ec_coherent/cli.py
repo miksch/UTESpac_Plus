@@ -9,7 +9,7 @@ import logging
 import sys
 from typing import Dict, List, Optional, Sequence
 
-from . import ampmod, mrd, quadrant, ramps, scales, spectra
+from . import ampmod, coherent_flux, mrd, quadrant, ramps, scales, spectra
 from .config import ECConfig
 from .io import init_output, open_hf, output_path, write_group
 
@@ -19,7 +19,8 @@ MODULES = {"spectra": (spectra.GROUP, spectra.run), "mrd": (mrd.GROUP, mrd.run),
            "quadrant": (quadrant.GROUP, quadrant.run),
            "octant": (quadrant.OCTANT_GROUP, quadrant.run_octant),
            "ramps": (ramps.GROUP, ramps.run),
-           "ampmod": (ampmod.GROUP, ampmod.run), "scales": (scales.GROUP, scales.run)}
+           "ampmod": (ampmod.GROUP, ampmod.run), "scales": (scales.GROUP, scales.run),
+           "coherent_flux": (coherent_flux.GROUP, coherent_flux.run)}
 
 
 def _parse_records(s: Optional[str]) -> Optional[List[int]]:

@@ -7,7 +7,7 @@
 # Provenance labels follow LLM_PRACTICE (dopli): [CITED] [DERIVED] [ASSUMED].
 
 [run]
-modules = ["spectra", "mrd", "quadrant", "octant", "ramps", "ampmod", "scales"]  # analyses to run, in order
+modules = ["spectra", "mrd", "quadrant", "octant", "ramps", "ampmod", "scales", "coherent_flux"]  # analyses to run, in order
 output_suffix = "coherent"     # <Site>_coherent_<PF>_<Det>_<date>.nc next to the HF file
 
 [preprocess]
@@ -74,6 +74,21 @@ sr_d = 0.0                     # [m] zero-plane displacement for castellvi mode 
 tke_lp_s = 10.0                # [s] centred moving-mean window on u_TKE  [CITED] Mangan 2022 eq. 5 (their sites)
 tke_a_s = 10.0                 # [s] fixed MHAT scale (~40 s period)  [CITED] Mangan 2022 p. 52 (their sites)
 tke_thresh = 1.25              # trigger when a wave's min-to-max amplitude > thresh * record mean  [CITED] Mangan 2022 p. 54
+
+[coherent_flux]
+# Coherent-structure flux fractions, library/writeups/ec_coherent_flux.md
+# (Thomas & Foken 2007 eqs. 3-7 triple decomposition; quadrant estimator their §3.3)
+event_signals = ["u", "Ts"]    # ramp event sets conditioned on; u default with Ts alongside (VAC001 ruling,
+#                                user 2026-08-23; Thomas & Foken condition on Ts at their site)
+pairs = ["uw", "wTs", "wrhov"] # flux pairs (quadrant-plane keys); F_cs/F_tot per pair and event set
+window = "duration"            # duration (half-width D_e of the event signal, [CITED] TF 2007 eq. 5) |
+#                                fixed (window_s, [CITED] CB 1993 II p. 62: 30 s ~ period between events)
+window_s = 30.0                # [s] full width of the 'fixed' window
+hole_sizes = [0.0, 0.5, 1.0]   # quadrant-estimator hole grid L  [CITED] TF 2007 figs. 3-5
+turner = false                 # third estimator: Turner & Leclerc 1994 coefficient-threshold split; the
+#                                strong-strong covariance fraction is [NOVEL] (user sign-off 2026-08-24;
+#                                option, not default -- ruling same day)
+turner_K = 4.0                 # threshold K x rms of the coefficients per scale  [CITED] TL 1994 p. 208
 
 [ampmod]
 # Amplitude modulation, library/writeups/ec_ampmod.md (Mathis et al. 2009 decoupling,

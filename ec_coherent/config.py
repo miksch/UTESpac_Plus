@@ -108,6 +108,18 @@ class ScalesConfig:
 
 
 @dataclass(frozen=True)
+class CoherentFluxConfig:
+    """Coherent-structure flux fractions (``[coherent_flux]``; library/writeups/ec_coherent_flux.md)."""
+    event_signals: Tuple[str, ...] = ("u", "Ts")   # ramp event sets conditioned on; u default, Ts alongside (ruling 2026-08-23)
+    pairs: Tuple[str, ...] = ("uw", "wTs", "wrhov")  # flux pairs, keys of quadrant.PAIRS
+    window: str = "duration"        # duration (half-width D_e, Thomas & Foken 2007 eq. 5) | fixed (window_s)
+    window_s: float = 30.0          # [s] full width of the 'fixed' window [CITED] Collineau & Brunet 1993 II p. 62
+    hole_sizes: Tuple[float, ...] = (0.0, 0.5, 1.0)  # quadrant-estimator holes [CITED] Thomas & Foken 2007 figs. 3-5
+    turner: bool = False            # third estimator: Turner & Leclerc 1994 K-rms split (option, ruling 2026-08-24)
+    turner_K: float = 4.0           # coefficient threshold K [CITED] Turner & Leclerc 1994 p. 208 (their default)
+
+
+@dataclass(frozen=True)
 class ECConfig:
     """Run-level configuration for ec_coherent."""
     modules: Tuple[str, ...] = ("spectra",)
@@ -119,6 +131,7 @@ class ECConfig:
     ramps: RampsConfig = field(default_factory=RampsConfig)
     ampmod: AmpmodConfig = field(default_factory=AmpmodConfig)
     scales: ScalesConfig = field(default_factory=ScalesConfig)
+    coherent_flux: CoherentFluxConfig = field(default_factory=CoherentFluxConfig)
 
     @classmethod
     def from_config(cls, config=None, **overrides) -> "ECConfig":
@@ -132,14 +145,14 @@ class ECConfig:
         for sect, klass in (("preprocess", PreprocessConfig), ("spectra", SpectraConfig),
                             ("mrd", MrdConfig), ("quadrant", QuadrantConfig),
                             ("ramps", RampsConfig), ("ampmod", AmpmodConfig),
-                            ("scales", ScalesConfig)):
+                            ("scales", ScalesConfig), ("coherent_flux", CoherentFluxConfig)):
             d = dict(raw.pop(sect, {}) or {})
             d.update(overrides.pop(sect, {}) or {})
             _check_unknown(klass, d, sect)
             if "nperseg" in d and d["nperseg"] in (0, "none", "None"):
                 d["nperseg"] = None
             for key in ("scalars", "signals", "sr_signals", "sr_lags_s", "modulators", "fluxes",
-                        "pairs", "hole_sizes"):
+                        "pairs", "hole_sizes", "event_signals"):
                 if key in d:
                     d[key] = tuple(d[key])
             if "octant_triplets" in d:

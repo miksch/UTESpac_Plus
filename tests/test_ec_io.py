@@ -73,7 +73,8 @@ def test_init_output_and_write_group_roundtrip(hf_path, tmp_path):
 
 def test_config_resolution_and_unknown_keys(tmp_path):
     cfg = ECConfig.from_config()
-    assert cfg.modules == ("spectra", "mrd", "quadrant", "octant", "ramps", "ampmod", "scales") \
+    assert cfg.modules == ("spectra", "mrd", "quadrant", "octant", "ramps", "ampmod", "scales",
+                           "coherent_flux") \
         and cfg.spectra.taper == "boxcar"
     assert cfg.mrd.grid == "trim" and cfg.quadrant.hole_norm == "rms"
     assert cfg.ramps.wavelet == "mhat" and cfg.ramps.signals == ("Ts", "u", "e")
