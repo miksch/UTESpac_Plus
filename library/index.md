@@ -10,8 +10,10 @@ gitignored; project entries are curated into `references.bib`.
 
 | File (abbreviated) | Bibkey | Check |
 |---|---|---|
+| Anctil et al. - 1994 - Eddy-Correlation Measurements of Air-Sea Fluxes from a Discus Buoy | Anctil1994 | visual (scan; no text layer -- render pages for extraction; 2026-08-24) |
 | 1-4020-2265-4.pdf (Lee, Massman & Law eds. 2004, Handbook of Micrometeorology, whole book; ch. 9 = Foken2004, ch. 2 = Moncrieff2004) | Foken2004, Moncrieff2004 | title (2026-08-22; ch. 2 2026-08-23) |
 | A_1018909000098.pdf (Pahlow, Parlange & Porté-Agel 2001, On Monin–Obukhov similarity in the stable ABL) | Pahlow2001 | title (2026-08-22) |
+| atot-jtech-d-15-0109_1.pdf (Flügge et al. 2016, Comparison of direct covariance flux measurements from an offshore tower and a buoy) | Flugge2016 | title (2026-08-24) |
 | Antonia et al. - 1979 - Temperature Ramps... | Antonia1979 | visual (scan; no text layer -- render pages for extraction) |
 | Aubinet et al. - 2012 - Eddy Covariance A Practical Guide... (whole book; ch. 4 = Foken2012, ch. 3 = Rebmann2012) | Foken2012, Rebmann2012 | title (2026-08-22; ch. 3 2026-08-23) |
 | Atta - 1977 - Effect of coherent structures... | Atta1977 | title (scan with OCR layer) |
@@ -23,6 +25,7 @@ gitignored; project entries are curated into `references.bib`.
 | De Bruin et al. - 1993 - A verification of some methods... | DeBruin1993 | title (2026-08-22) |
 | Collineau and Brunet - 1993 - ...part II Time-scales... | Collineau1993a | title |
 | Desjardins' et al. - AN EVALUATION OF AIRCRAFT FLUX... | Desjardins1989 | title |
+| Edson et al. - 1998 - Direct Covariance Flux Estimates from Mobile Platforms... | Edson1998 | title (2026-08-24) |
 | Foken and Wichura - 1996 - Tools for quality assessment... | Foken1996 | title |
 | French et al. - 2012 - Estimation of surface energy fluxes using surface renewal... | French2012 | title (2026-08-23) |
 | foken_micrometeorology.pdf (Foken 2008, Micrometeorology) | Foken2008 | title (2026-08-22) |
@@ -34,6 +37,7 @@ gitignored; project entries are curated into `references.bib`.
 | Kaimal et al. - 1972 - Spectral characteristics... | Kaimal1972 | title |
 | Kim and Adrian - 1999 - Very large-scale motion... | Kim1999 | title |
 | Kyaw Tha Paw U et al. - 1995 - Surface renewal analysis... | KyawThaPawU1995 | title |
+| Landwehr et al. - 2015 - Direct Flux Measurements from Mobile Platforms at Sea... | Landwehr2015 | title (2026-08-24) |
 | Liu et al. - 2001 - New Equations For Sonic Temperature Variance... | Liu2001 | title (2026-08-22) |
 | Li and Bo - 2019 - An application of quadrant and octant... | Li2019 | title |
 | Li and Bou-Zeid - 2011 - Coherent structures and the dissim... | Li2011 | title |
@@ -41,8 +45,10 @@ gitignored; project entries are curated into `references.bib`.
 | Mangan et al. - 2022 - Integrated Quadrant Analysis... | Mangan2022 | title |
 | Marusic et al. - 2010 - Predictive Model for Wall-Bounded... | Marusic2010 | title |
 | Mathis et al. - 2009 - Large-scale amplitude modulation... | Mathis2009 | title |
+| Miller et al. - 2008 - Platform Motion Effects on Measurements of Turbulence... | Miller2008 | title (2026-08-24) |
 | Nieuwstadt - 1984 - The Turbulent Structure of the Stable, Nocturnal... | Nieuwstadt1984 | visual (scan; no text layer -- render pages for extraction; 2026-08-22) |
 | Paw U et al. - 2005 - Surface Renewal Estimates... | PawU2005 | title |
+| Prytherch et al. - 2015 - Motion-correlated flow distortion and wave-induced biases... | Prytherch2015 | title (2026-08-24) |
 | Raupach - 1981 - Conditional statistics of Reynolds stress... | Raupach1981 | title |
 | Schotanus et al. - 1983 - Temperature measurement with a sonic anemometer... | Schotanus1983 | title (2026-08-22; OCR layer, equations partly garbled -- render pp. 82-83 for eqs. 3-8) |
 | Salesky and Anderson - 2018 - Buoyancy effects... | Salesky2018 | title |
@@ -76,6 +82,12 @@ gitignored; project entries are curated into `references.bib`.
 - σw/u* for z/L > 0.4: Pahlow2001 (with DeBruin1993, Nieuwstadt1984,
   Sorbjan1986) received 2026-08-22 -- rows above; note in
   `writeups/itc_sigmaw.md`. No open ITC source gap remains.
+
+## Floating-platform motion correction (received 2026-08-24)
+
+- Anctil1994, Edson1998, Miller2008, Landwehr2015, Prytherch2015,
+  Flugge2016 -- rows above; gameplan in
+  `tasks/active/2026-08-24_floating-platform-imu-motion-correction.md`.
 
 ## ec_coherent notes (as of 2026-08-23)
 

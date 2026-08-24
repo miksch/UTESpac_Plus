@@ -1,7 +1,7 @@
 """The processing stages on the labeled run model (:mod:`utespac.model`).
 
-``load_run`` → ``condition`` → ``average`` → ``wind`` → ``rotate`` →
-``flux``; each takes a :class:`~utespac.model.Run`, reads the Datasets it
+``load_run`` → ``condition`` → ``motion`` → ``average`` → ``wind`` →
+``rotate`` → ``flux``; each takes a :class:`~utespac.model.Run`, reads the Datasets it
 needs, calls the numpy kernels and writes its Dataset back. The pipeline
 (:mod:`utespac.pipeline`) calls these in order and writes the products
 through the legacy adapters of :mod:`utespac.model`.
@@ -59,6 +59,131 @@ def condition(run: Run, template: Dict[str, str]) -> Run:
         t_end, _ = block_average(mat[:, 0], mat[:, :1], info["avgPer"])
         run.flags[name] = xr.Dataset({"spike": ((TIME, COLUMN), spike), "nan": ((TIME, COLUMN), nan)},
                                      coords={TIME: to_datetime64(t_end), COLUMN: list(labels)})
+    return run
+
+
+_IMU_ACC = ("imuAx", "imuAy", "imuAz")
+_IMU_GYRO = ("imuGx", "imuGy", "imuGz")
+_IMU_ATT = ("imuRoll", "imuPitch", "imuYaw")
+
+
+def motion(run: Run) -> Run:
+    """Motion-correct every sonic's u/v/w in place in ``run.tables`` from the
+    colocated IMU (floating-platform sites: ``info["imu"]`` + IMU columns);
+    a no-op without both. Attitude and platform velocity -> ``run.motion``
+    on ``time_hf`` for the validation diagnostics."""
+    from .motion import G, MotionParams, correct_wind, euler_T, euler_from_T
+    from .site_config import IMUInfo, sonic_for
+
+    info = run.site
+    imu_cfg = info.get("imu")
+    sonics = run.sensors.by_field("u")
+    if imu_cfg is None or not sonics:
+        return run
+    if isinstance(imu_cfg, dict):
+        imu_cfg = IMUInfo(**imu_cfg)
+
+    def _triad(fields):
+        found = [run.sensors.by_field(f) for f in fields]
+        if all(found):
+            return [f[0] for f in found]
+        if any(found):
+            missing = [name for name, f in zip(fields, found) if not f]
+            msg = f"IMU triad incomplete (missing {', '.join(missing)}); ignored"
+            warnings.warn(msg)
+            run.warnings.append(msg)
+        return None
+
+    acc_s, gyro_s, att_s = _triad(_IMU_ACC), _triad(_IMU_GYRO), _triad(_IMU_ATT)
+    if not imu_cfg.useVendorAttitude and acc_s and gyro_s:
+        att_s = None
+    if att_s is None and not (acc_s and gyro_s):
+        msg = ("imu configured but the IMU columns give neither a fused attitude "
+               "nor accel + gyro; motion correction skipped")
+        warnings.warn(msg)
+        run.warnings.append(msg)
+        return run
+
+    ref_table = sonics[0].table
+    n = run.tables[ref_table].sizes[TIME_HF]
+    fs = float(run.tables[ref_table].attrs.get("scan_hz", 20))
+
+    def _stack(triple, signs, convert):
+        cols = []
+        for s, sign in zip(triple, signs):
+            x = np.asarray(run.hf(s), dtype=float)
+            if len(x) != n:
+                raise ValueError(f"IMU column {s.column} has {len(x)} samples, "
+                                 f"sonic table {ref_table} has {n}")
+            cols.append(float(sign) * convert(x))
+        return np.column_stack(cols)
+
+    ident = lambda x: x
+    try:
+        acc = _stack(acc_s, imu_cfg.accelSigns,
+                     (lambda x: x * G) if imu_cfg.accelUnits == "g" else ident) \
+            if acc_s else None
+        gyro = _stack(gyro_s, imu_cfg.gyroSigns,
+                      np.deg2rad if imu_cfg.gyroUnits == "deg/s" else ident) \
+            if gyro_s else None
+        att = _stack(att_s, imu_cfg.attitudeSigns,
+                     np.deg2rad if imu_cfg.attitudeUnits == "deg" else ident) \
+            if att_s else None
+
+        # residual IMU-to-platform mounting rotation
+        if imu_cfg.mountRoll or imu_cfg.mountPitch or imu_cfg.mountYaw:
+            Rm = euler_T(*np.deg2rad([imu_cfg.mountRoll, imu_cfg.mountPitch,
+                                      imu_cfg.mountYaw]))
+            if acc is not None:
+                acc = acc @ Rm.T
+            if gyro is not None:
+                gyro = gyro @ Rm.T
+            if att is not None:
+                T_p = euler_T(att[:, 0], att[:, 1], att[:, 2]) @ Rm.T
+                att = np.column_stack(euler_from_T(T_p))
+
+        res = None
+        for s in sonics:
+            sv, sw = run.sensors.at("v", s.height), run.sensors.at("w", s.height)
+            ds = run.tables[s.table]
+            if sv is None or sw is None or ds.sizes[TIME_HF] != n:
+                msg = f"motion correction skipped at {s.height}m: no aligned u/v/w"
+                warnings.warn(msg)
+                run.warnings.append(msg)
+                continue
+            level = sonic_for(info.get("sonics"), s.height)
+            r = (level.leverArm if level is not None and level.leverArm is not None
+                 else imu_cfg.leverArm)
+            params = MotionParams(fs=fs, lever_arm=tuple(float(v) for v in r),
+                                  Tcf=imu_cfg.Tcf, Ta=imu_cfg.Ta,
+                                  yaw_handling=imu_cfg.yawHandling)
+            uvw = np.column_stack([run.hf(s), run.hf(sv), run.hf(sw)])
+            res = correct_wind(uvw, params, acc=acc, gyro=gyro, attitude=att)
+            ds[s.column].values[:] = res.uvw[:, 0]
+            ds[sv.column].values[:] = res.uvw[:, 1]
+            ds[sw.column].values[:] = res.uvw[:, 2]
+            log.info(f"  Motion-corrected sonic @ {s.height}m "
+                     f"(roll std {np.degrees(np.nanstd(res.roll)):.2f} deg, "
+                     f"w_plat std {np.nanstd(res.v_platform[:, 2]):.3f} m/s)")
+    except ValueError as exc:
+        msg = f"motion correction skipped: {exc}"
+        warnings.warn(msg)
+        run.warnings.append(msg)
+        return run
+
+    if res is not None:
+        run.motion = xr.Dataset(
+            {"roll": (TIME_HF, np.degrees(res.roll)),
+             "pitch": (TIME_HF, np.degrees(res.pitch)),
+             "yaw": (TIME_HF, np.degrees(res.yaw)),
+             "u_platform": (TIME_HF, res.v_platform[:, 0]),
+             "v_platform": (TIME_HF, res.v_platform[:, 1]),
+             "w_platform": (TIME_HF, res.v_platform[:, 2])},
+            coords={TIME_HF: run.tables[ref_table][TIME_HF].values},
+            attrs={"Tcf_s": imu_cfg.Tcf, "Ta_s": imu_cfg.Ta,
+                   "yaw_handling": imu_cfg.yawHandling,
+                   "attitude_source": "vendor" if att is not None else "complementary",
+                   **{f"imu_nan_frac_{k}": v for k, v in res.imu_nan_frac.items()}})
     return run
 
 

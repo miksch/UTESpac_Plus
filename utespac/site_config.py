@@ -29,6 +29,49 @@ class SonicLevel:
     orientation: float                     # boom azimuth [deg]
     manufacturer: int                      # 0 RMYoung, 1 CSAT/IRGASON, 2 Gill
     hmp_height: Optional[float] = None      # paired physical HMP height [m], if any
+    leverArm: Optional[list] = None         # [m] sonic head rel. to the IMU (x, y, z),
+    #                                         platform frame; overrides IMUInfo.leverArm
+
+
+@dataclass
+class IMUInfo:
+    """The colocated IMU of a floating-platform site (``[imu]`` in
+    siteInfo.toml). Consumed by :func:`utespac.stages.motion`; the sign
+    lists map the IMU hardware axes into the sonic's right-handed z-up
+    platform frame, and the mount angles rotate a residual IMU-to-platform
+    mounting offset out (applied exactly to accel/gyro vectors and to the
+    vendor attitude via its rotation matrix)."""
+
+    leverArm: list                          # [m] sonic head rel. to IMU (x, y, z), platform frame
+    accelUnits: str = "m/s2"                # "m/s2" | "g"
+    gyroUnits: str = "deg/s"                # "deg/s" | "rad/s"
+    attitudeUnits: str = "deg"              # "deg" | "rad"
+    accelSigns: list = None                 # per-axis +-1 into the platform frame (default [1,1,1])
+    gyroSigns: list = None
+    attitudeSigns: list = None
+    mountRoll: float = 0.0                  # [deg] IMU-to-platform mounting rotation
+    mountPitch: float = 0.0
+    mountYaw: float = 0.0
+    Tcf: float = 20.0                       # [s] complementary-filter cutoff period
+    Ta: float = 20.0                        # [s] accel-integration high-pass cutoff period
+    yawHandling: str = "demean"             # "demean" | "full" | "zero"
+    useVendorAttitude: bool = True          # prefer fused roll/pitch/yaw channels when logged
+
+    def __post_init__(self):
+        if len(self.leverArm) != 3:
+            raise ValueError("imu.leverArm must have three components (x, y, z)")
+        for name, val, allowed in (("accelUnits", self.accelUnits, ("m/s2", "g")),
+                                   ("gyroUnits", self.gyroUnits, ("deg/s", "rad/s")),
+                                   ("attitudeUnits", self.attitudeUnits, ("deg", "rad")),
+                                   ("yawHandling", self.yawHandling, ("demean", "full", "zero"))):
+            if val not in allowed:
+                raise ValueError(f"imu.{name} must be one of {allowed}, got {val!r}")
+        for name in ("accelSigns", "gyroSigns", "attitudeSigns"):
+            val = getattr(self, name)
+            if val is None:
+                object.__setattr__(self, name, [1.0, 1.0, 1.0])
+            elif len(val) != 3 or any(abs(v) != 1 for v in val):
+                raise ValueError(f"imu.{name} must be three values of +-1")
 
 
 def sonic_for(sonics, height, tol=0.01):
@@ -45,6 +88,7 @@ class SiteInfo:
     pipeline defaults already present in the info dict."""
 
     sonics: Optional[list] = _UNSET               # tower profile: list of SonicLevel
+    imu: Optional[IMUInfo] = _UNSET               # floating platform: colocated IMU ([imu] table)
     sonicOrientation: Optional[list] = _UNSET     # legacy: sonic azimuths [deg]
     sonicManufact: Optional[list] = _UNSET        # legacy: 0 RMYoung, 1 CSAT/IRGASON, 2 Gill
     tower: Union[float, str, None] = _UNSET       # tower bearing [deg]
@@ -91,6 +135,14 @@ class SiteInfo:
         if isinstance(values.get("sonics"), list):
             values["sonics"] = [s if isinstance(s, SonicLevel) else SonicLevel(**s)
                                  for s in values["sonics"]]
+        if isinstance(values.get("imu"), dict):
+            known_imu = {f.name for f in fields(IMUInfo)}
+            unknown_imu = sorted(set(values["imu"]) - known_imu)
+            if unknown_imu:
+                warnings.warn(f"{source}: unrecognized imu key(s) ignored: "
+                              f"{', '.join(unknown_imu)}")
+            values["imu"] = IMUInfo(**{k: v for k, v in values["imu"].items()
+                                       if k in known_imu})
         return cls(**values)
 
     def apply_to(self, info):

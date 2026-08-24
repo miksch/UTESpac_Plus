@@ -36,6 +36,8 @@ class SpikeTestConfig:
     spikeDef: Dict[str, float] = field(default_factory=lambda: {
         "u": 3.5, "v": 3.5, "w": 5.0, "Tson": 3.5, "fw": 3.5, "irgaCO2": 3.5,
         "irgaH2O": 3.5, "KH2O": 3.5, "cup": 3.5, "birdSpd": 3.5,
+        "imuAx": 5.0, "imuAy": 5.0, "imuAz": 5.0, "imuGx": 5.0, "imuGy": 5.0,
+        "imuGz": 5.0, "imuRoll": 5.0, "imuPitch": 5.0, "imuYaw": 5.0,
         "otherInstrument": 5.0})
 
 
@@ -56,7 +58,10 @@ class QCConfig:
     absoluteLimitsTest: Dict[str, List[float]] = field(default_factory=lambda: {
         "u": [-50, 50], "v": [-50, 50], "w": [-10, 10], "Tson": [-20, 80],
         "fw": [-20, 80], "irgaCO2": [0, 1500], "irgaH2O": [0, 50],
-        "KH2O": [0, 50], "cup": [0, 50], "birdSpd": [0, 50]})
+        "KH2O": [0, 50], "cup": [0, 50], "birdSpd": [0, 50],
+        "imuAx": [-50, 50], "imuAy": [-50, 50], "imuAz": [-50, 50],
+        "imuGx": [-500, 500], "imuGy": [-500, 500], "imuGz": [-500, 500],
+        "imuRoll": [-180, 180], "imuPitch": [-180, 180], "imuYaw": [-360, 360]})
     windDirectionEnvelope: float = 20      # [deg] (legacy windDirectionTest.envelopeSize)
     nanMaxPercent: float = 55              # [%]   (legacy nanTest.maxPercent)
     diagnosticTest: DiagnosticTestConfig = field(default_factory=DiagnosticTestConfig)
@@ -157,6 +162,9 @@ _DEFAULT_TEMPLATE = {
     "irgaCO2": "CO2_*", "irgaCO2sigStrength": "CO2sig_*", "irgaGasDiag": "gas_diag_*",
     "LiH2O": "LiH2O_*", "LiCO2": "LiCO2_*", "LiGasDiag": "Li_gas_diag_*",
     "KH2O": "KH2O_H2O_*", "cup": "cup_*", "birdSpd": "wbSpd_*", "birdDir": "wbDir_*",
+    "imuAx": "IMU_Ax*", "imuAy": "IMU_Ay*", "imuAz": "IMU_Az*",
+    "imuGx": "IMU_Gx*", "imuGy": "IMU_Gy*", "imuGz": "IMU_Gz*",
+    "imuRoll": "IMU_Roll*", "imuPitch": "IMU_Pitch*", "imuYaw": "IMU_Yaw*",
 }
 
 

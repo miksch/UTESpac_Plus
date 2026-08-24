@@ -46,3 +46,15 @@ KH2O = "KH2O_H2O_*"
 cup = "cup_*"
 birdSpd = "wbSpd_*"
 birdDir = "wbDir_*"
+# Floating-platform IMU (stages.motion): accel [m/s2 or g], angular rate
+# [deg/s or rad/s], fused attitude [deg or rad] -- units and axis signs
+# declared in the site's [imu] block (siteInfo.toml).
+imuAx = "IMU_Ax*"
+imuAy = "IMU_Ay*"
+imuAz = "IMU_Az*"
+imuGx = "IMU_Gx*"
+imuGy = "IMU_Gy*"
+imuGz = "IMU_Gz*"
+imuRoll = "IMU_Roll*"
+imuPitch = "IMU_Pitch*"
+imuYaw = "IMU_Yaw*"

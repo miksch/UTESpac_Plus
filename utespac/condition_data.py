@@ -57,6 +57,12 @@ def qc_table(tbl: np.ndarray, header_names: Sequence[str], info: Dict, template:
         for c in strfndw(list(header_names), template["sonDiagnostic"]):
             spike_def[c] = np.nan
 
+    # IMU yaw wraps through 0/360 -- the jumps are real, not spikes (its
+    # absolute limits above still apply)
+    if template.get("imuYaw"):
+        for c in strfndw(list(header_names), template["imuYaw"]):
+            spike_def[c] = np.nan
+
     # 1. Absolute limits
     for c in range(n_cols):
         if not np.isnan(min_max[0, c]):

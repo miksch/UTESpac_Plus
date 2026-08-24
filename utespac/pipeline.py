@@ -3,8 +3,8 @@
 ``run_utespac(config, site, dates)`` drives find_files → find_instruments →
 (find_global_pf) → per date: load_data → find_serial_date → the stages of
 :mod:`utespac.stages` on a labeled :class:`~utespac.model.Run`
-(``load_run`` → ``condition`` → ``average`` → ``wind`` → ``rotate`` →
-``flux`` → ``save_data``: the run netCDF, the HF netCDF, CSV), and returns a
+(``load_run`` → ``condition`` → ``motion`` → ``average`` → ``wind`` →
+``rotate`` → ``flux`` → ``save_data``: the run netCDF, the HF netCDF, CSV), and returns a
 :class:`RunResult` instead of printing. Interaction for the global planar
 fit goes through a prompter (:mod:`utespac.prompts`); with none given the
 selection is scripted (single sector, all dates).
@@ -117,6 +117,7 @@ def run_utespac(config: Optional[RunConfig] = None, *, site: str, dates="all",
             run = stages.load_run(info, data, headers, table_names, sensor_info, data_info,
                                   pf_table=PFTable.from_legacy(pf_info) if pf_info else None)
             stages.condition(run, template)
+            stages.motion(run)
             stages.average(run)
             stages.wind(run)
             stages.rotate(run)

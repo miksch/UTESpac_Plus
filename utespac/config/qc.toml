@@ -24,6 +24,15 @@ irgaH2O = 3.5
 KH2O = 3.5
 cup = 3.5
 birdSpd = 3.5
+imuAx = 5.0                  # IMU channels: wave motion is periodic, spike
+imuAy = 5.0                  # only at 5 sigma; imuYaw is excluded from the
+imuAz = 5.0                  # spike test entirely (0/360 wraps are jumps,
+imuGx = 5.0                  # not spikes) but listed so its limits apply
+imuGy = 5.0
+imuGz = 5.0
+imuRoll = 5.0
+imuPitch = 5.0
+imuYaw = 5.0
 otherInstrument = 5.0
 
 [absoluteLimitsTest]         # [lo, hi] physical plausibility per sensor class
@@ -37,6 +46,15 @@ irgaH2O = [0, 50]
 KH2O = [0, 50]
 cup = [0, 50]
 birdSpd = [0, 50]
+imuAx = [-50, 50]            # [m/s2] (also covers g units)
+imuAy = [-50, 50]
+imuAz = [-50, 50]
+imuGx = [-500, 500]          # [deg/s] (also covers rad/s)
+imuGy = [-500, 500]
+imuGz = [-500, 500]
+imuRoll = [-180, 180]        # [deg] (also covers rad)
+imuPitch = [-180, 180]
+imuYaw = [-360, 360]
 
 [windDirectionTest]
 envelopeSize = 20            # [deg] half-width of the tower-shadow sector

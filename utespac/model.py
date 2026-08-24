@@ -105,6 +105,7 @@ class Run:
     flags: Dict[str, xr.Dataset] = field(default_factory=dict)      # per period, dims (time, column)
     periods: Dict[str, xr.Dataset] = field(default_factory=dict)    # per period, dim time
     wind: Optional[xr.Dataset] = None                                # (time, height)
+    motion: Optional[xr.Dataset] = None                              # (time_hf) platform attitude/velocity
     rotation: Optional[xr.Dataset] = None                            # (time_hf, height, component) + means
     products: Dict[str, xr.Dataset] = field(default_factory=dict)   # (time, height) per flux table
     raw: Optional[xr.Dataset] = None                                 # (time_hf, height) products
