@@ -63,6 +63,29 @@ class RampsConfig:
 
 
 @dataclass(frozen=True)
+class MrdConfig:
+    """Multiresolution decomposition (``[mrd]``; library/writeups/ec_mrd.md)."""
+    signals: Tuple[str, ...] = ("u", "w", "Ts")    # MR variance spectra D_xx
+    fluxes: Tuple[str, ...] = ("uw", "vw", "wTs")  # MR cospectra D_xy; vw feeds the momentum gap scan
+    grid: str = "trim"              # trim | interp -- map the window onto 2^M samples (DECIDE, task doc);
+                                    # both sources interpolate (Howell 1997 eq. 8 up, Vickers 2003 eq. 8 down)
+    gap_level_frac: float = 0.01    # leveling-off rule: |accumulative flux change| <= this fraction [CITED] Vickers 2003 §4
+
+
+@dataclass(frozen=True)
+class QuadrantConfig:
+    """Quadrant/octant analysis (``[quadrant]``; library/writeups/ec_quadrant.md)."""
+    pairs: Tuple[str, ...] = ("uw", "wTs", "wrhov")   # quadrant planes; uw on (u',w'), scalars on (w',c')
+    hole_sizes: Tuple[float, ...] = (0.0, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0,
+                                     5.0, 6.0, 8.0, 10.0, 15.0, 20.0)  # range [CITED] Raupach 1981 figs. 6-7; spacing [ASSUMED]
+    hole_norm: str = "rms"          # rms (H*sigma_x*sigma_w, Lu & Willmarth 1973; Li & Bo 2019) |
+                                    # flux (H*|mean flux|, Willmarth & Lu 1972; Raupach 1981)
+    octant_triplets: Tuple[Tuple[str, ...], ...] = (("u", "w", "Ts"), ("w", "Ts", "rhov"))
+    # (u, w, Ts) [CITED] Li & Bo 2019 eq. 11; (w, Ts, rhov) scalar-dissimilarity [ASSUMED]
+    # (ruled in 2026-08-23); any signal names accepted (v, rhoCO2, ...)
+
+
+@dataclass(frozen=True)
 class AmpmodConfig:
     """Amplitude modulation (``[ampmod]``; library/writeups/ec_ampmod.md)."""
     modulators: Tuple[str, ...] = ("u", "w")       # large-scale signals b_l [CITED] Salesky & Anderson 2018 §1.3
@@ -91,6 +114,8 @@ class ECConfig:
     output_suffix: str = "coherent"       # <Site>_coherent_<PF>_<Det>_<date>.nc
     preprocess: PreprocessConfig = field(default_factory=PreprocessConfig)
     spectra: SpectraConfig = field(default_factory=SpectraConfig)
+    mrd: MrdConfig = field(default_factory=MrdConfig)
+    quadrant: QuadrantConfig = field(default_factory=QuadrantConfig)
     ramps: RampsConfig = field(default_factory=RampsConfig)
     ampmod: AmpmodConfig = field(default_factory=AmpmodConfig)
     scales: ScalesConfig = field(default_factory=ScalesConfig)
@@ -105,6 +130,7 @@ class ECConfig:
         raw = _resolve(config)
         vals: Dict[str, Any] = {}
         for sect, klass in (("preprocess", PreprocessConfig), ("spectra", SpectraConfig),
+                            ("mrd", MrdConfig), ("quadrant", QuadrantConfig),
                             ("ramps", RampsConfig), ("ampmod", AmpmodConfig),
                             ("scales", ScalesConfig)):
             d = dict(raw.pop(sect, {}) or {})
@@ -112,9 +138,12 @@ class ECConfig:
             _check_unknown(klass, d, sect)
             if "nperseg" in d and d["nperseg"] in (0, "none", "None"):
                 d["nperseg"] = None
-            for key in ("scalars", "signals", "sr_signals", "sr_lags_s", "modulators", "fluxes"):
+            for key in ("scalars", "signals", "sr_signals", "sr_lags_s", "modulators", "fluxes",
+                        "pairs", "hole_sizes"):
                 if key in d:
                     d[key] = tuple(d[key])
+            if "octant_triplets" in d:
+                d["octant_triplets"] = tuple(tuple(t) for t in d["octant_triplets"])
             vals[sect] = klass(**d)
         top = dict(raw.get("run", {}) or {})
         top.update({k: v for k, v in raw.items() if k != "run"})

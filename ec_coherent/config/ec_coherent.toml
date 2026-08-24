@@ -7,7 +7,7 @@
 # Provenance labels follow LLM_PRACTICE (dopli): [CITED] [DERIVED] [ASSUMED].
 
 [run]
-modules = ["spectra", "ramps", "ampmod", "scales"]  # analyses to run, in order
+modules = ["spectra", "mrd", "quadrant", "octant", "ramps", "ampmod", "scales"]  # analyses to run, in order
 output_suffix = "coherent"     # <Site>_coherent_<PF>_<Det>_<date>.nc next to the HF file
 
 [preprocess]
@@ -22,6 +22,26 @@ taper = "boxcar"               # boxcar | hann; boxcar closes Parseval exactly (
 nperseg = 0                    # 0 = full-record periodogram; N = Welch segments of N samples
 n_bins_per_decade = 10         # log-binning density  [ASSUMED]
 scalars = ["Ts", "rhov", "rhoCO2"]
+
+[mrd]
+# Multiresolution decomposition, library/writeups/ec_mrd.md
+signals = ["u", "w", "Ts"]     # MR variance spectra D_xx
+fluxes = ["uw", "vw", "wTs"]   # MR cospectra D_xy; vw feeds the momentum gap scan (Vickers 2003: stress-vector magnitude)
+grid = "trim"                  # trim | interp -- window onto 2^M samples (DECIDE, task doc); trim per gameplan [ASSUMED],
+#                                interp is the Vickers & Mahrt 2003 eq. 8 down-grid (both sources interpolate)  [CITED]
+gap_level_frac = 0.01          # gap "leveling off": accumulative-flux change <= 1% per scale step  [CITED] Vickers 2003 §4
+
+[quadrant]
+# Quadrant/octant analysis, library/writeups/ec_quadrant.md
+pairs = ["uw", "wTs", "wrhov"] # uw on the (u',w') plane (Wallace et al. 1972 layout), scalars on (w',c') (Li & Bo 2019 eq. 10)
+hole_sizes = [0.0, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 15.0, 20.0]
+#                                H grid; range [CITED] Raupach 1981 figs. 6-7 (0..20), spacing [ASSUMED]
+hole_norm = "rms"              # rms (H*sigma_x*sigma_w, Lu & Willmarth 1973 §4.3; Li & Bo 2019 eq. 9) |
+#                                flux (H*|mean flux|, Willmarth & Lu 1972; Raupach 1981 eq. 2); H_flux = |rho|*H_rms
+octant_triplets = [["u", "w", "Ts"], ["w", "Ts", "rhov"]]
+#                                (u,w,Ts) [CITED] Li & Bo 2019 eq. 11 (all read octant sources: velocity pair + one
+#                                scalar); (w,Ts,rhov) scalar-dissimilarity triplet [ASSUMED], ruled in (user
+#                                2026-08-23); any signals accepted (v, rhoCO2, ...)
 
 [ramps]
 # Ramp detectors, library/writeups/ec_ramps.md

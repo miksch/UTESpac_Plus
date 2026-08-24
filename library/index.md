@@ -97,3 +97,10 @@ gitignored; project entries are curated into `references.bib`.
 - `writeups/ec_scales.md` -- LSM/VLSM separation (Kim1999 premultiplied
   peak, Balakumar2007 band boundaries k_x delta = 20/2, Wang2016b ASL
   cutoffs 0.3/3 delta, Hutchins2012 ASL-lab equivalence).
+- `writeups/ec_mrd.md` -- multiresolution decomposition (Howell1997
+  recursion, FHT, sampling error; Vickers2003 worked example confirmed,
+  gap algorithm -- the fifth-order-polynomial recollection refuted).
+- `writeups/ec_quadrant.md` -- quadrant/octant analysis (Wallace2016
+  history, Lu1973 RMS hole confirmed, Raupach1981 S/T/DeltaS, Li2011
+  efficiencies, Li2019 octants; hole origin is Willmarth1972 -- bib entry
+  added, PDF not held).
