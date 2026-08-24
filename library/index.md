@@ -90,3 +90,10 @@ gitignored; project entries are curated into `references.bib`.
   Spano1997, PawU2005, Chen1997 read-not-adopted), TKE trigger + IQA
   (Mangan2022, Torrence1998). Van Atta's printed eq. 2.11 higher-order
   coefficients refuted on extraction (derivation + brute force).
+- `writeups/ec_ampmod.md` -- amplitude modulation (Mathis2009 decoupling
+  eq. 5.1, Talluru2014 eq. 3.4, Salesky2018 eq. 1.6, Salesky2020 AHATS
+  cutoff practice); the missing-z_i cutoff deviation registered here,
+  shared with ec_scales.
+- `writeups/ec_scales.md` -- LSM/VLSM separation (Kim1999 premultiplied
+  peak, Balakumar2007 band boundaries k_x delta = 20/2, Wang2016b ASL
+  cutoffs 0.3/3 delta, Hutchins2012 ASL-lab equivalence).

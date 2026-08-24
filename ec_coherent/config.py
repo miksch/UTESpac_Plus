@@ -63,6 +63,28 @@ class RampsConfig:
 
 
 @dataclass(frozen=True)
+class AmpmodConfig:
+    """Amplitude modulation (``[ampmod]``; library/writeups/ec_ampmod.md)."""
+    modulators: Tuple[str, ...] = ("u", "w")       # large-scale signals b_l [CITED] Salesky & Anderson 2018 §1.3
+    signals: Tuple[str, ...] = ("u", "w", "Ts")    # small-scale signals a_s
+    fluxes: Tuple[str, ...] = ("uw", "wTs")        # instantaneous-flux series decomposed like signals [CITED] SA18
+    cutoff_mode: str = "spectral_gap"   # spectral_gap | delta | scaled (locked decision 3; ec_ampmod.md register)
+    delta_m: float = 1000.0             # [m] assumed outer scale for 'delta' and the gap fallback [ASSUMED] (Salesky 2020 AHATS)
+    z_mult: float = 100.0               # 'scaled': lambda_c = z_mult * z [ASSUMED]
+
+
+@dataclass(frozen=True)
+class ScalesConfig:
+    """LSM/VLSM separation (``[scales]``; library/writeups/ec_scales.md)."""
+    signals: Tuple[str, ...] = ("u", "w", "Ts")    # per-band variance fractions
+    fluxes: Tuple[str, ...] = ("uw", "wTs")        # per-band covariance fractions
+    cutoff_mode: str = "spectral_gap"   # spectral_gap | delta | scaled (shared register entry, ec_ampmod.md)
+    delta_m: float = 1000.0             # [m] 'delta': cuts at 0.1*pi*delta and pi*delta [CITED ratios] Balakumar 2007
+    z_mult_small: float = 10.0          # 'scaled': small|LSM cut at z_mult_small * z [ASSUMED]
+    z_mult_vlsm: float = 100.0          # 'scaled': LSM|VLSM cut at z_mult_vlsm * z [ASSUMED]
+
+
+@dataclass(frozen=True)
 class ECConfig:
     """Run-level configuration for ec_coherent."""
     modules: Tuple[str, ...] = ("spectra",)
@@ -70,6 +92,8 @@ class ECConfig:
     preprocess: PreprocessConfig = field(default_factory=PreprocessConfig)
     spectra: SpectraConfig = field(default_factory=SpectraConfig)
     ramps: RampsConfig = field(default_factory=RampsConfig)
+    ampmod: AmpmodConfig = field(default_factory=AmpmodConfig)
+    scales: ScalesConfig = field(default_factory=ScalesConfig)
 
     @classmethod
     def from_config(cls, config=None, **overrides) -> "ECConfig":
@@ -81,13 +105,14 @@ class ECConfig:
         raw = _resolve(config)
         vals: Dict[str, Any] = {}
         for sect, klass in (("preprocess", PreprocessConfig), ("spectra", SpectraConfig),
-                            ("ramps", RampsConfig)):
+                            ("ramps", RampsConfig), ("ampmod", AmpmodConfig),
+                            ("scales", ScalesConfig)):
             d = dict(raw.pop(sect, {}) or {})
             d.update(overrides.pop(sect, {}) or {})
             _check_unknown(klass, d, sect)
             if "nperseg" in d and d["nperseg"] in (0, "none", "None"):
                 d["nperseg"] = None
-            for key in ("scalars", "signals", "sr_signals", "sr_lags_s"):
+            for key in ("scalars", "signals", "sr_signals", "sr_lags_s", "modulators", "fluxes"):
                 if key in d:
                     d[key] = tuple(d[key])
             vals[sect] = klass(**d)

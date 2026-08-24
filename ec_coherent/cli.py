@@ -9,13 +9,14 @@ import logging
 import sys
 from typing import Dict, List, Optional, Sequence
 
-from . import ramps, spectra
+from . import ampmod, ramps, scales, spectra
 from .config import ECConfig
 from .io import init_output, open_hf, output_path, write_group
 
 log = logging.getLogger("ec_coherent")
 
-MODULES = {"spectra": (spectra.GROUP, spectra.run), "ramps": (ramps.GROUP, ramps.run)}
+MODULES = {"spectra": (spectra.GROUP, spectra.run), "ramps": (ramps.GROUP, ramps.run),
+           "ampmod": (ampmod.GROUP, ampmod.run), "scales": (scales.GROUP, scales.run)}
 
 
 def _parse_records(s: Optional[str]) -> Optional[List[int]]:

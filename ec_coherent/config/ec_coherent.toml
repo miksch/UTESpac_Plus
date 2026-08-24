@@ -7,7 +7,7 @@
 # Provenance labels follow LLM_PRACTICE (dopli): [CITED] [DERIVED] [ASSUMED].
 
 [run]
-modules = ["spectra", "ramps"]  # analyses to run, in order
+modules = ["spectra", "ramps", "ampmod", "scales"]  # analyses to run, in order
 output_suffix = "coherent"     # <Site>_coherent_<PF>_<Det>_<date>.nc next to the HF file
 
 [preprocess]
@@ -54,3 +54,25 @@ sr_d = 0.0                     # [m] zero-plane displacement for castellvi mode 
 tke_lp_s = 10.0                # [s] centred moving-mean window on u_TKE  [CITED] Mangan 2022 eq. 5 (their sites)
 tke_a_s = 10.0                 # [s] fixed MHAT scale (~40 s period)  [CITED] Mangan 2022 p. 52 (their sites)
 tke_thresh = 1.25              # trigger when a wave's min-to-max amplitude > thresh * record mean  [CITED] Mangan 2022 p. 54
+
+[ampmod]
+# Amplitude modulation, library/writeups/ec_ampmod.md (Mathis et al. 2009 decoupling,
+# single-point form; Salesky & Anderson 2018 generalisation R_{b_l, a_s})
+modulators = ["u", "w"]        # large-scale signals b_l; w_l is the "buoyancy proof" modulator  [CITED] SA18 p. 158
+signals = ["u", "w", "Ts"]     # small-scale signals a_s
+fluxes = ["uw", "wTs"]         # instantaneous-flux series u'w', w'Ts' decomposed like signals  [CITED] SA18 §1.3
+cutoff_mode = "spectral_gap"   # spectral_gap | delta | scaled -- large/small cutoff (locked decision 3;
+#                                sources use lambda = delta or z_i, absent here: deviation register, ec_ampmod.md)
+delta_m = 1000.0               # [m] assumed outer scale, 'delta' mode and the gap fallback  [ASSUMED] (Salesky &
+#                                Anderson 2020 assumed delta = 1000 m on AHATS; "not significantly sensitive")
+z_mult = 100.0                 # 'scaled' mode: lambda_c = z_mult * z  [ASSUMED]
+
+[scales]
+# LSM/VLSM separation, library/writeups/ec_scales.md (bands small | lsm | vlsm)
+signals = ["u", "w", "Ts"]     # per-band variance fractions
+fluxes = ["uw", "wTs"]         # per-band covariance fractions
+cutoff_mode = "spectral_gap"   # spectral_gap | delta | scaled (shared deviation entry, ec_ampmod.md)
+delta_m = 1000.0               # [m] 'delta' mode: cuts at 0.1*pi*delta and pi*delta -- the ratios are
+#                                [CITED] Balakumar & Adrian 2007 pp. 666, 671 (k_x delta = 20, 2); delta [ASSUMED]
+z_mult_small = 10.0            # 'scaled' mode: small|LSM cut at z_mult_small * z  [ASSUMED]
+z_mult_vlsm = 100.0            # 'scaled' mode: LSM|VLSM cut at z_mult_vlsm * z  [ASSUMED]
