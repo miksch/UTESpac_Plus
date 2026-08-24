@@ -3,6 +3,14 @@
 Rolling log of roughly the last 15 closures; older records live only in
 archive/. Format: `- [DONE|DROPPED YYYY-MM-DD] <one line> -- <link>`.
 
+- [DONE 2026-08-24] ec_coherent build-out (steps 0-7 of the gameplan):
+  the `ec_coherent` package (io, preprocess, spectra, mrd, quadrant/octant,
+  ramps, ampmod, scales, coherent_flux, config, cli), 8 library notes with
+  sources extracted, every DECIDE slot ruled, validation figure + script per
+  module, and the step-7 close-out -- CLI pipeline test, all 24 VAC001 HF
+  files processed, closure checker green over the set (worst error 2.9e-6),
+  suite 242 green -- record in
+  [archive/ec-coherent/2026-08-23_ec-coherent-buildout.md](archive/ec-coherent/2026-08-23_ec-coherent-buildout.md).
 - [DONE 2026-08-23] `run_io` readers open each run file once:
   `read_run` and `load_products` take one `netCDF4.Dataset` handle and read
   every group through an `xr.backends.NetCDF4DataStore` on it, `run_files`

@@ -1,9 +1,9 @@
 # ec_coherent build-out -- working doc
 
 Opened 2026-08-23 on the board's ec-coherent line. Plan of record:
-[../../testbed/2026-08-12_ec_coherent_gameplan.md](../../testbed/2026-08-12_ec_coherent_gameplan.md)
+[../../../testbed/2026-08-12_ec_coherent_gameplan.md](../../../testbed/2026-08-12_ec_coherent_gameplan.md)
 with the companion
-[../../testbed/ec_coherent_utespac_integration_notes.md](../../testbed/ec_coherent_utespac_integration_notes.md).
+[../../../testbed/ec_coherent_utespac_integration_notes.md](../../../testbed/ec_coherent_utespac_integration_notes.md).
 This doc tracks what has landed against the gameplan's build order, the
 rulings still open, and what each session found when the sources were
 read. Science lives in the library notes, not here.

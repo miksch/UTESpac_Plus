@@ -25,17 +25,4 @@ Rationale, measurements and rulings live in the linked docs, not here.
   "VAC001 test dataset".
 ## ec-coherent
 
-- [ACTIVE 2026-08-23] ec_coherent build-out per
-  [../testbed/2026-08-12_ec_coherent_gameplan.md](../testbed/2026-08-12_ec_coherent_gameplan.md);
-  working doc [active/2026-08-23_ec-coherent-buildout.md](active/2026-08-23_ec-coherent-buildout.md)
-  (steps 1-2 landed: io/preprocess/spectra; step 4 wavelet detector landed,
-  structure-function and TKE detectors open; steps 3, 5-7 open).
-  Unblocked 2026-08-22: the GPF coefficient fix landed and every VAC001
-  product (LPF and GPF, raw and averaged) has been regenerated with it;
-  the A.2 HF netCDF is written by the pipeline (`utespac.export_hf.write_hf`,
-  `saveRawConditionedData`); VAC001 is the only site (user ruling
-  2026-08-22). The labeled inter-stage model it builds on landed 2026-08-22
-  (history.md): products are the `utespac-run-2` run files, read with
-  `utespac.run_io.load_products`; the VAC001 run and HF files were
-  regenerated from the 48-h inputs 2026-08-23 (history.md), so the input is
-  on disk. -- EFFORT L, RISK med.
+(build-out closed 2026-08-24, see history.md; no open ec-coherent tasks)
