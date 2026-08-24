@@ -3,6 +3,11 @@
 One line per open task; format and lifecycle in [README.md](README.md).
 Rationale, measurements and rulings live in the linked docs, not here.
 
+## utespac-core
+
+(T*/q* scaling task closed 2026-08-24, see history.md; no open
+utespac-core tasks)
+
 ## validation
 
 - [BLOCKED 2026-08-22] 3D planar-fit validation figure per

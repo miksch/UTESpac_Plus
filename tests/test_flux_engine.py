@@ -104,6 +104,30 @@ def test_flags_blank_the_right_columns():
     assert np.isnan(r3.values["LHflux"]["E_wPF"]) and not np.isnan(r3.values["LHflux"]["Lv"])
 
 
+def test_surface_layer_scales():
+    r = _run(_level())
+    ustar = np.sqrt(r.values["tau"]["tau_PF"])
+    # theta*_SL = -w'theta_v'/u*, q*_SL = -(E_wPF/rho_moist)/u* (Stull 1988)
+    assert r.values["scaling"]["theta_star_SL"] == pytest.approx(
+        -r.values["H"]["Thv_wPF"] / ustar)
+    assert r.values["scaling"]["q_star_SL"] == pytest.approx(
+        -(r.values["LHflux"]["E_wPF"] / (1.18 + 0.0095)) / ustar)
+    assert r.values["scaling"]["theta_star_SL"] < 0        # upward heat flux
+    assert r.values["scaling"]["q_star_SL"] < 0            # upward moisture flux
+    lev_rot = _level()
+    lev_rot.rot_flag[:] = True
+    r_rot = _run(lev_rot)
+    assert np.isnan(r_rot.values["scaling"]["theta_star_SL"])
+    assert np.isnan(r_rot.values["scaling"]["q_star_SL"])
+    lev_h2o = _level()
+    lev_h2o.h2o_flag[:] = True
+    r_h2o = _run(lev_h2o)
+    assert np.isnan(r_h2o.values["scaling"]["q_star_SL"])
+    assert not np.isnan(r_h2o.values["scaling"]["theta_star_SL"])
+    r_dry = _run(_level(with_h2o=False, with_co2=False, with_fw=False))
+    assert "q_star_SL" not in r_dry.values["scaling"]
+
+
 def test_without_hygrometer_no_h2o_or_co2_tables():
     r = _run(_level(with_h2o=False, with_co2=False, with_fw=False))
     assert "LHflux" not in r.values and "CO2flux" not in r.values

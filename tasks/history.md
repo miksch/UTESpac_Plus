@@ -3,6 +3,19 @@
 Rolling log of roughly the last 15 closures; older records live only in
 archive/. Format: `- [DONE|DROPPED YYYY-MM-DD] <one line> -- <link>`.
 
+- [DONE 2026-08-24] Surface-layer scales theta*_SL and q*_SL as run-file
+  products: new non-extra `scaling` table (`flux/tables.py`) with
+  theta*_SL = -Thv_wPF/u* [K] and q*_SL = -(E_wPF/rho_moist)/u* [g/kg]
+  per sonic (`flux/engine.py`; Stull 1988 pp. 356-357, definitions read
+  from the library extraction), masked like the parent covariances;
+  SSITC now reuses the same u*. Fixture re-pinned for the added field
+  with a KNOWN_DIVERGENCES row, engine test added, suite 245 green.
+  Fixture-day values sit inside Stull's stated orders (|theta*|
+  0.06-0.18 K, |q*| 0.05-0.15 g/kg). The 24 VAC001 run files (LPF
+  LinDet/ConstDet, GPF ConstDet, 8 dates each) regenerated with the
+  table and read back through `get_data`: 715/768 periods valid,
+  median theta* +0.02 K (H often downward at this advective site),
+  median q* -0.05 g/kg.
 - [DONE 2026-08-24] Code audit and Python gameplan closed: findings 1-7
   fixed or dispositioned with ledger rows, migration steps 1-5 landed,
   EddyPro external-reference validation complete (GPF H bias −0.03 W/m²,

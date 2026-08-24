@@ -204,6 +204,12 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
         L_val = np.nan
     r.put("L", "L", L_val)
 
+    # ---- surface-layer scales (Stull 1988 pp. 356-357) ----
+    # theta*_SL = -w'theta_v'/u* [K]; q*_SL below once E_wPF exists.
+    ustar = np.sqrt(tau_pf) if (not np.isnan(tau_pf) and tau_pf > 0) else np.nan
+    r.put("scaling", "theta_star_SL",
+          np.nan if (rot or tsf or np.isnan(ustar)) else -Thv_wPF / ustar)
+
     # ---- H: T_air'w', T_air'wPF' (mean-humidity rescale; replaced below
     #      by the Schotanus form where high-frequency humidity exists) ----
     r.put("H", "Tair_w", np.nan if (unrot or tsf) else np.nanmean(wP * TairP))
@@ -311,6 +317,12 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
         LE_wPF = 1000.0 * Lv * wpl * (EPF / 1000.0 + rho_v_j / T_ref_j * kin_sen_flux)
         r.put("LHflux", "LE_WPL_w", np.nan if (unrot or h2of) else LE_w)
         r.put("LHflux", "LE_WPL_wPF", np.nan if (unrot or h2of) else LE_wPF)
+
+        # q*_SL = -w'q'/u* [g/kg] with w'q' = E_wPF / rho_moist (specific
+        # humidity from the raw wPF'' covariance; Stull 1988 pp. 356-357)
+        r.put("scaling", "q_star_SL",
+              np.nan if (rot or h2of or np.isnan(ustar)) else
+              -(EPF / (rho_d_j + rho_v_j)) / ustar)
 
         # KH2O O2 correction (Tanner et al. 1993)
         if lev.h2o_is_kh2o:
@@ -423,13 +435,12 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
             r.samples["rhoCO2extenalPrime"] = rhoc_ext * 1e6
 
     # ---- SSITC + SS-only quality flags (ForestComplexTerrain) ----
-    ustar_jj = np.sqrt(tau_pf) if (not np.isnan(tau_pf) and tau_pf >= 0) else np.nan
     has_co2 = lev.h2o is not None and lev.co2 is not None
     (tau_ssitc, tau_ss, H_ssitc, H_ss, LE_ssitc, LE_ss, FC_ssitc, FC_ss) = calc_ssitc_flags(
         wPF_P, uPF_P, vPF_P, ThvP,
         H2Op, rhov_ext,
         rho_CO2p if has_co2 else None, rhoc_ext if has_co2 else None,
-        ustar_jj, L_val,
+        ustar, L_val,
         rot, tsf, h2of, co2f,
         opts.n_sub, lev.height, opts.displacement_height,
         canopy_height=opts.canopy_height,

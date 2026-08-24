@@ -89,6 +89,10 @@ TABLE_SPECS: Dict[str, TableSpec] = {s.name: s for s in [
     ], extra=True),
     TableSpec("L", "Lheader", [("L", "{hn}m L:sqrt(uPF'*wPF'+vPF'*wPF')^3/2*Th_v/(k*g*wThv_vert)")],
               extra=True),
+    TableSpec("scaling", "scalingHeader", [
+        ("theta_star_SL", "{hn}m :theta_star_SL(K)"),
+        ("q_star_SL", "{hn}m :q_star_SL(g/kg)"),
+    ]),
     TableSpec("eta", "etaHeader", [
         ("eta_wPFuPF", "{hn}m :eta_wPFuPF"), ("eta_wPFThetav", "{hn}m :eta_wPFThetav"),
         ("eta_wPFH2O", "{hn}m :eta_wPFH2O"), ("eta_wPFH2O_WPL", "{hn}m :eta_wPFH2O_WPL"),
@@ -149,7 +153,7 @@ TABLE_SPECS: Dict[str, TableSpec] = {s.name: s for s in [
 ]}
 
 # storage order of the legacy output dict
-STORE_ORDER = ["H", "Hlat", "tau", "tke", "sigma", "R", "L", "eta", "delta_flux_ctrb",
+STORE_ORDER = ["H", "Hlat", "tau", "tke", "sigma", "R", "L", "scaling", "eta", "delta_flux_ctrb",
                "delta_time_ctrb", "turbtr", "epsilon", "skew", "H_SNSP", "Flux_lat", "LHflux",
                "fluxQC", "CO2flux"]
 
