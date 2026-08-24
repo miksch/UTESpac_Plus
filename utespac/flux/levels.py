@@ -253,53 +253,50 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
         Vtheta_fw = theta_fw * (1.0 + 0.61 * q_fast_local)      # MATLAB fluxes.m:566
 
     # ---- H2O at this height ----
+    # Resolved per height, not per run: a tower may carry an EC150-style
+    # IRGA on one level and a LI-7500 (LiH2O, mmol/m³) on another.
     h2o = None
     h2o_flag = np.zeros(N, dtype=bool)
     h2o_is_kh2o = False
     h2o_si = 0
-    if run.sensors.has("irgaH2O"):
-        s = run.sensors.at("irgaH2O", height)
-        if s is not None:
-            h2o = run.hf(s).copy()
-            h2o_flag = (_flags(run, s, N)
-                        | _threshold_flag(run, run.sensors.at("irgaH2OsigStrength", height), N,
-                                          diag_cfg.get("H2OminSignal"), np.less_equal)
-                        | _threshold_flag(run, run.sensors.at("irgaGasDiag", height), N,
-                                          diag_cfg.get("meanGasDiagnosticLimit"), np.greater_equal))
-            h2o_si = run.sensors.heights("irgaH2O").index(height)
-    elif run.sensors.has("LiH2O"):
-        s = run.sensors.at("LiH2O", height)
-        if s is not None:
-            h2o = run.hf(s) * 0.018          # mmol/m³ -> g/m³
-            h2o_flag = (_flags(run, s, N)
-                        | _threshold_flag(run, run.sensors.at("LiGasDiag", height), N,
-                                          diag_cfg.get("meanLiGasDiagnosticLimit"), np.greater))
-    elif run.sensors.has("KH2O"):
-        s = run.sensors.at("KH2O", height)
-        if s is not None:
-            h2o = run.hf(s).copy()           # already g/m³
-            h2o_flag = _flags(run, s, N)
-            h2o_is_kh2o = True
+    if (s := run.sensors.at("irgaH2O", height)) is not None:
+        h2o = run.hf(s).copy()
+        h2o_flag = (_flags(run, s, N)
+                    | _threshold_flag(run, run.sensors.at("irgaH2OsigStrength", height), N,
+                                      diag_cfg.get("H2OminSignal"), np.less_equal)
+                    | _threshold_flag(run, run.sensors.at("irgaGasDiag", height), N,
+                                      diag_cfg.get("meanGasDiagnosticLimit"), np.greater_equal))
+        h2o_si = run.sensors.heights("irgaH2O").index(height)
+    elif (s := run.sensors.at("LiH2O", height)) is not None:
+        h2o = run.hf(s) * 0.018          # mmol/m³ -> g/m³
+        # LI-7500 diagnostic decreases with problems: full strength is 255,
+        # ≤ meanLiGasDiagnosticLimit is bad (MATLAB fluxes.m:610 zeroes the
+        # flag where diag > limit).
+        h2o_flag = (_flags(run, s, N)
+                    | _threshold_flag(run, run.sensors.at("LiGasDiag", height), N,
+                                      diag_cfg.get("meanLiGasDiagnosticLimit"), np.less_equal))
+    elif (s := run.sensors.at("KH2O", height)) is not None:
+        h2o = run.hf(s).copy()           # already g/m³
+        h2o_flag = _flags(run, s, N)
+        h2o_is_kh2o = True
 
     # ---- CO2 at this height (needs the hygrometer for the WPL terms) ----
     co2 = None
     co2_flag = np.zeros(N, dtype=bool)
     co2_si = 0
-    if run.sensors.has("irgaCO2") and h2o is not None:
-        s = run.sensors.at("irgaCO2", height)
-        if s is not None:
-            co2 = run.hf(s).copy()           # mg/m³
-            co2_flag = (_flags(run, s, N)
-                        | _threshold_flag(run, run.sensors.at("irgaCO2sigStrength", height), N,
-                                          diag_cfg.get("CO2minSignal"), np.less_equal)
-                        | _threshold_flag(run, run.sensors.at("irgaGasDiag", height), N,
-                                          diag_cfg.get("meanGasDiagnosticLimit"), np.greater_equal))
-            co2_si = run.sensors.heights("irgaCO2").index(height)
-    elif run.sensors.has("LiCO2") and h2o is not None:
-        s = run.sensors.at("LiCO2", height)
-        if s is not None:
-            co2 = run.hf(s) * 44.0           # mmol/m³ -> mg/m³
-            co2_flag = _flags(run, s, N)
+    if h2o is not None and (s := run.sensors.at("irgaCO2", height)) is not None:
+        co2 = run.hf(s).copy()           # mg/m³
+        co2_flag = (_flags(run, s, N)
+                    | _threshold_flag(run, run.sensors.at("irgaCO2sigStrength", height), N,
+                                      diag_cfg.get("CO2minSignal"), np.less_equal)
+                    | _threshold_flag(run, run.sensors.at("irgaGasDiag", height), N,
+                                      diag_cfg.get("meanGasDiagnosticLimit"), np.greater_equal))
+        co2_si = run.sensors.heights("irgaCO2").index(height)
+    elif h2o is not None and (s := run.sensors.at("LiCO2", height)) is not None:
+        co2 = run.hf(s) * 44.0           # mmol/m³ -> mg/m³
+        co2_flag = (_flags(run, s, N)
+                    | _threshold_flag(run, run.sensors.at("LiGasDiag", height), N,
+                                      diag_cfg.get("meanLiGasDiagnosticLimit"), np.less_equal))
 
     # ---- derivedT: block-averaged derived temperatures ----
     def _avg(series):
