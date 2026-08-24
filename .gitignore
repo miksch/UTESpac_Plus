@@ -12,6 +12,10 @@ site*/**/*.toa5
 UTESpac_MATLAB/site*/*.txt
 UTESpac_MATLAB/site*/*.dat
 
+# ── Campbell Scientific card-convert binaries (copied from grapex-advection) ──
+raw_processing/utils/csidft_convert.exe
+raw_processing/utils/csidft.dll
+
 # ── Processed output ──────────────────────────────────────────────────────────
 *.pkl
 *.mat

@@ -70,20 +70,23 @@ def load_daqm_files(paths):
     return pd.concat(dfs, axis=0)
 
 
-def load_cr_files(paths):
+def load_cr_files(paths, **read_kwargs):
     """Load, concatenate, and de-duplicate CR1000X TOA5 files.
 
     Parameters
     ----------
     paths : iterable of str
         Candidate .dat files; non-existent paths are skipped.
+    **read_kwargs
+        Passed to :func:`read_toa5` (e.g. ``skiprows=[]`` for logger
+        exports with a single names row instead of the 4-line TOA5 header).
 
     Returns
     -------
     pandas.DataFrame
         De-duplicated data with a parsed DatetimeIndex.
     """
-    dfs = [read_toa5(f) for f in paths if os.path.exists(f)]
+    dfs = [read_toa5(f, **read_kwargs) for f in paths if os.path.exists(f)]
     df = pd.concat(dfs, axis=0)
     df = df[~df.index.duplicated(keep="first")]
     df.index = pd.to_datetime(df.index, format="mixed")

@@ -34,13 +34,15 @@ except ImportError:  # allow running from repo root or elsewhere
                         build_48h_index, timestamp_columns)
 
 
-def index_toa5_files(pattern):
+def index_toa5_files(pattern, read_kwargs=None):
     """Index TOA5 files by their first record timestamp.
 
     Parameters
     ----------
     pattern : str
         Glob pattern for candidate .dat files.
+    read_kwargs : dict, optional
+        Extra options for :func:`read_toa5` (header-variant files).
 
     Returns
     -------
@@ -51,7 +53,8 @@ def index_toa5_files(pattern):
     entries = []
     for path in sorted(glob.glob(pattern)):
         try:
-            peek = read_toa5(path, nrows=1, parse_dates=False)
+            peek = read_toa5(path, nrows=1, parse_dates=False,
+                             **(read_kwargs or {}))
             ts = pd.to_datetime(peek.index[0], format="mixed")
         except Exception as exc:
             print(f"  Warning: cannot index {os.path.basename(path)}: {exc} — skipped.")
@@ -184,6 +187,10 @@ def process_table(cfg):
             (default 0 = off).
         validate : bool, optional
             Run fast-data validation (default: hz >= 1).
+        read_kwargs : dict, optional
+            Extra ``read_toa5`` options applied when indexing and loading
+            (e.g. ``{"skiprows": []}`` for files with a single names row
+            instead of the 4-line TOA5 header).
         loader : callable, optional
             ``loader(paths) -> DataFrame`` with a DatetimeIndex, replacing
             the TOA5 reader for non-TOA5 sources (e.g. a logger CSV with a
@@ -204,10 +211,11 @@ def process_table(cfg):
     interp   = cfg.get("interpolate_limit", 0)
     validate = cfg.get("validate", hz >= 1)
     loader   = cfg.get("loader")
+    read_kw  = cfg.get("read_kwargs", {})
 
     os.makedirs(cfg["out_dir"], exist_ok=True)
     if loader is None:
-        entries = index_toa5_files(cfg["raw_pattern"])
+        entries = index_toa5_files(cfg["raw_pattern"], read_kwargs=read_kw)
     else:
         entries = [(None, p) for p in sorted(glob.glob(cfg["raw_pattern"]))]
     if not entries:
@@ -237,7 +245,7 @@ def process_table(cfg):
             curr += timedelta(days=2)
             continue
 
-        raw = load_cr_files(paths) if loader is None else loader(paths)
+        raw = load_cr_files(paths, **read_kw) if loader is None else loader(paths)
         raw = raw[(raw.index >= w0) & (raw.index <= w1)]
         if validate:
             if not validate_fast(raw, curr, round(hz), label):
