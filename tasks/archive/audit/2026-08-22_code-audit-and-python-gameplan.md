@@ -2,7 +2,7 @@
 
 Requested before starting the ec_coherent gameplan: audit the current code for
 theoretical mistakes, weigh the de-MATLAB roadmap in
-[ec_coherent_utespac_integration_notes.md](../../testbed/ec_coherent_utespac_integration_notes.md)
+[ec_coherent_utespac_integration_notes.md](../../../testbed/ec_coherent_utespac_integration_notes.md)
 Part B, plan the migration, and name the validation data to assemble. Method:
 full read of `fluxes.py`, `sonic_rotation.py`, `find_global_pf.py`,
 `pf_coefficients.py`, and every science helper (`calc_dissipation_rate`,
@@ -23,7 +23,7 @@ need the source-extraction pass the ec_coherent gameplan already mandates.
 `PF_coefficients` solves the Wilczak normal equations and returns
 `[b0, b1, b2]` — MATLAB `PF_coefficients.m` (`g = [sw suw svw]'`,
 `linsolve(H,g)`) and Python
-[pf_coefficients.py:60-66](../../utespac/pf_coefficients.py#L60-L66)
+[pf_coefficients.py:60-66](../../../utespac/pf_coefficients.py#L60-L66)
 agree, and `findGlobalPF.m:378-380` displays the stored vector with exactly
 that layout. But when the stored coefficients are applied,
 `sonicRotation.m:68-69` reads
@@ -34,7 +34,7 @@ b2 = localCoef(2);   % actually b1
 ```
 
 and the Python port reproduces this deliberately at
-[sonic_rotation.py:129-131](../../utespac/sonic_rotation.py#L129-L131), with a
+[sonic_rotation.py:129-131](../../../utespac/sonic_rotation.py#L129-L131), with a
 comment noting it matches MATLAB. So every globally planar-fit dataset — in
 both languages — is rotated using the intercept b0 as the pitch slope and b1
 as the roll slope. b0 is a w offset of order 0.01–0.1 m/s being used as a
@@ -43,7 +43,7 @@ pitch lands in the roll slot. Errors of degrees in tilt propagate to u*, w-based
 fluxes, L, and everything downstream, with wind-direction-dependent sign.
 
 Three aggravating details. The local-PF path is indexed correctly
-([sonic_rotation.py:179](../../utespac/sonic_rotation.py#L179)), so LPF
+([sonic_rotation.py:179](../../../utespac/sonic_rotation.py#L179)), so LPF
 outputs are fine. The interactive pitch/roll display in `find_global_pf` uses
 the correct indices, so the numbers the user approves on screen are not the
 numbers applied. And the MATLAB-parity regression suite cannot catch it,
@@ -59,7 +59,7 @@ GPF runs must be regenerated before the ec_coherent converter consumes them.
 
 Wilczak's method subtracts the instrument offset b0 from measured w before
 rotating; neither `sonicRotation.m` nor
-[sonic_rotation.py:133](../../utespac/sonic_rotation.py#L133) does (the plane
+[sonic_rotation.py:133](../../../utespac/sonic_rotation.py#L133) does (the plane
 coefficients are applied as a pure rotation). Detrended covariances are
 unaffected, but mean(wPF) retains a bias of order b0, which matters for the
 ec_coherent preprocessing step whose stated verification is "mean(w) per
@@ -70,7 +70,7 @@ rotation time.
 ### 3. Sonic-temperature humidity conversion uses 0.61 where sonic physics gives 0.51, and the Schotanus covariance term is missing
 
 `theta_son_air = (T_son + 273.15)/(1 + 0.61 q) − 273.15`
-([fluxes.py:475](../../utespac/fluxes.py#L475)). The speed-of-sound derivation
+([fluxes.py:475](../../../utespac/fluxes.py#L475)). The speed-of-sound derivation
 gives Ts ≈ T(1 + 0.51 q), and the MATLAB history shows the original had 0.51:
 `fluxes.m:575` carries the 0.51 version commented out with the active line
 "modified by Diane" to 0.61. 0.61 is the virtual-temperature coefficient;
@@ -89,19 +89,19 @@ the latent heat flux; largest for midday moist-surface periods.
 
 The WPL terms for LE (W/m² outputs), the KH2O oxygen correction, and the CO2
 flux all use `kinSenFlux` = mean(wPF′·θv′)
-([fluxes.py:981,996-1001,1009,1127-1130](../../utespac/fluxes.py#L981)),
+([fluxes.py:981,996-1001,1009,1127-1130](../../../utespac/fluxes.py#L981)),
 matching `fluxes.m:1073`. Webb-Pearman-Leuning requires the actual temperature
 flux w'T'. Using the sonic virtual flux overstates the temperature term by the
 embedded humidity contribution — the same missing Schotanus term as finding 3,
 now leaking into LE and Fc. The code is also internally inconsistent: the
 kinematic WPL column at
-[fluxes.py:992-993](../../utespac/fluxes.py#L992-L993) uses `TairP` while the
+[fluxes.py:992-993](../../../utespac/fluxes.py#L992-L993) uses `TairP` while the
 W/m² columns two lines later use `kinSenFlux`. Fixing finding 3 (a proper
 w'T' from Schotanus) and feeding it to every WPL term resolves both.
 
 ### 5. The dissipation-rate estimator is not a fit
 
-[calc_dissipation_rate.py:63-72](../../utespac/calc_dissipation_rate.py#L63-L72)
+[calc_dissipation_rate.py:63-72](../../../utespac/calc_dissipation_rate.py#L63-L72)
 locates the single lag (among the first 20) where D_LL(r) numerically equals
 r^(2/3) — the minimum of |log D_LL − log r^(2/3)| — and evaluates ε there.
 That crossing point depends on the units of r and on ε itself; it is not an
@@ -116,13 +116,13 @@ against a synthetic Kolmogorov signal and against σw/u* similarity.
 
 `calc_snsp_angle` computes `kesi = phi − 30.0` with the comment "French
 Meadows downslope direction is 30° from north"
-([calc_snsp_angle.py:19](../../utespac/calc_snsp_angle.py#L19), same in
+([calc_snsp_angle.py:19](../../../utespac/calc_snsp_angle.py#L19), same in
 MATLAB), and `fluxes.py` swaps the tilt axes on assignment
-([fluxes.py:336-337](../../utespac/fluxes.py#L336-L337)) because at that site
+([fluxes.py:336-337](../../../utespac/fluxes.py#L336-L337)) because at that site
 the PF v-axis points downslope (MATLAB `fluxes.m:736-737` comments confirm the
 swap is deliberate). The slope-normal heat flux `wTHv_vert` — and through it
 the Obukhov length
-([fluxes.py:857-859](../../utespac/fluxes.py#L857-L859)) and every SSITC
+([fluxes.py:857-859](../../../utespac/fluxes.py#L857-L859)) and every SSITC
 stability input — silently assumes French Meadows geometry. With slope angle 0
 the expression degenerates safely to w′θv′, so flat sites are unaffected; any
 other sloped site gets wrong numbers with no warning. The downslope aspect and
@@ -132,34 +132,34 @@ the axis identification belong in `SiteInfo` next to the existing `angle`.
 
 - `Vtheta_fw` uses the tower-reference humidity `q_ref_fast` where MATLAB
   (`fluxes.m:566`) uses the level-local `qRefFastLocal`
-  ([fluxes.py:496](../../utespac/fluxes.py#L496)) — a port deviation, and the
+  ([fluxes.py:496](../../../utespac/fluxes.py#L496)) — a port deviation, and the
   only parity break found in this audit.
 - Two saturation-vapor-pressure formulas coexist: a constant-Lv
   Clausius-Clapeyron in
-  [rh_to_spec_hum.py:32](../../utespac/rh_to_spec_hum.py#L32) and a different
+  [rh_to_spec_hum.py:32](../../../utespac/rh_to_spec_hum.py#L32) and a different
   closed form in
-  [get_virtual_pot_temp.py:52](../../utespac/get_virtual_pot_temp.py#L52), so
+  [get_virtual_pot_temp.py:52](../../../utespac/get_virtual_pot_temp.py#L52), so
   q_ref and virtual-theta paths disagree at the ~1 % level. `rh_to_spec_hum`
   also drops the (P − 0.378e) denominator. Pick one formula with a citation.
 - The IRGA-derived reference humidity divides by air density computed from
   total pressure with Rd
-  ([fluxes.py:183-184](../../utespac/fluxes.py#L183-L184)) — labeled dry-air
+  ([fluxes.py:183-184](../../../utespac/fluxes.py#L183-L184)) — labeled dry-air
   density but computed from moist P, biasing q_ref by ~0.5 %.
-- CO2 ppm ([fluxes.py:1047-1049](../../utespac/fluxes.py#L1047-L1049)) is a
+- CO2 ppm ([fluxes.py:1047-1049](../../../utespac/fluxes.py#L1047-L1049)) is a
   moist-air molar ratio; AmeriFlux expects dry mole fraction. Fine internally,
   worth a header note or a conversion at export.
 - `find_delta_time` divides ejection/sweep counts by the full window length
   including NaN samples
-  ([find_delta_time.py:25-26](../../utespac/find_delta_time.py#L25-L26)),
+  ([find_delta_time.py:25-26](../../../utespac/find_delta_time.py#L25-L26)),
   deflating both fractions in gappy windows.
 - `nandetrend` fits the line on NaN-compressed indices
-  ([nandetrend.py:29-39](../../utespac/nandetrend.py#L29-L39)), distorting the
+  ([nandetrend.py:29-39](../../../utespac/nandetrend.py#L29-L39)), distorting the
   abscissa across interior gaps. Mostly moot because despiking interpolates
   first, but fitting on the true index is the correct replacement (same
   MATLAB-inherited behavior).
 - The above-canopy ITC reference applies 2.0|ζ|^{1/8} on the stable side as
   well as the unstable
-  ([calc_ssitc_flags.py:173-183](../../utespac/calc_ssitc_flags.py#L173-L183));
+  ([calc_ssitc_flags.py:173-183](../../../utespac/calc_ssitc_flags.py#L173-L183));
   Foken's table treats the stable side differently. Mark `[ASSUMED]` and
   confirm against Foken & Wichura on extraction.
 - `sigma` columns use `np.nanstd` with ddof=0 where MATLAB `std` uses N−1 —
@@ -174,7 +174,7 @@ the axis identification belong in `SiteInfo` next to the existing `angle`.
 
 The planar-fit rotation matrix construction is algebraically correct
 (verified: P maps the fitted plane normal to (0,0,1);
-[sonic_rotation.py:252-270](../../utespac/sonic_rotation.py#L252-L270)). The
+[sonic_rotation.py:252-270](../../../utespac/sonic_rotation.py#L252-L270)). The
 WPL "external fluctuation" algebra for both H2O and CO2 reduces exactly to the
 Webb form given a temperature-flux input (the input is the problem, finding
 4). The Obukhov length formula, yaw rotation, TKE (rotation-invariant),
@@ -200,7 +200,7 @@ spot-checked accurate. Three amendments:
    divergence with magnitude and reason) replaces "max_rel < 0.01 everywhere"
    as the acceptance statement. `testkit` already supports per-field
    tolerance overrides
-   ([test_regression.py:28-30](../../tests/test_regression.py#L28-L30));
+   ([test_regression.py:28-30](../../../tests/test_regression.py#L28-L30));
    the ledger is its documentation.
 2. "Rotation is already done" is no longer true for GPF data (finding 1).
    The A.2 converter and everything in ec_coherent that consumes
@@ -728,3 +728,26 @@ What previous processing is *not* useful for: validating the science fixes
 against old MATLAB outputs — both sides carry the same physics, so agreement
 is expected and meaningless. Old outputs validate the port; external
 references validate the corrections. Keep the two piles separate.
+
+## Close-out (2026-08-24)
+
+Every finding is fixed or dispositioned and every gameplan step has landed:
+findings 1–2 in `utespac/rotation.py` (`tests/test_planar_fit.py`, ledger
+rows), findings 3–4 in `utespac/sonic_temperature.py` and `utespac/flux/`
+(H bias vs EddyPro +11.1 → −0.03 W/m²), finding 5 in
+`calc_dissipation_rate.py`, finding 6 as the `SiteInfo` slope keys, finding
+7 as the minor-fixes batch plus the sourced ITC reference; migration steps
+1–5 closed 2026-08-22 (history.md), MATLAB parity retired on the user
+ruling, ec_coherent built on the corrected products and closed 2026-08-24.
+The ambient-CO2 plausibility check from "Validation data to assemble" — the
+one item of that list not yet standing — is now
+`tests/test_pinned_fixture.py::test_pinned_co2_ppm_is_ambient` (pinned ppm
+402–407 against a 350–500 band, guarding a bad re-pin). Suite at closure:
+244 passed.
+
+Still on the board under validation, both waiting on user-supplied inputs:
+the per-height planar-fit figure (other VAC001 levels) and the
+energy-balance closure re-run (final Rn/G). On-disk leftovers for the user:
+`data/VAC001/PFinfo.pkl` (superseded by `PFinfo.json`; nothing reads it)
+and the 3.9 GB `siteVAC001_20230706_20230720/` folder (its `card_convert/`
+is byte-identical to `data/VAC001/raw/`).

@@ -11,18 +11,14 @@ Rationale, measurements and rulings live in the linked docs, not here.
   per-height form waits on the other VAC001 levels, which the user has
   not supplied yet (the French Meadows sites will not be processed --
   user ruling 2026-08-22). -- EFFORT S, RISK low. Source: findings 1-2 in
-  [active/2026-08-22_code-audit-and-python-gameplan.md](active/2026-08-22_code-audit-and-python-gameplan.md).
-- [ACTIVE 2026-08-22] External-reference validation against EddyPro (ruled
-  2026-08-22: EddyPro, not previous UTESpac runs; caveat -- EddyPro q'
-  variances have shown unexplained issues, anchor on H/u*/L/momentum).
-  VAC001 2023 IOP is the dataset (`data/VAC001/`, runner + comparison in
-  `testbed/scripts/`). Done: LPF (linear/block) and corrected-GPF flux
-  comparison, planar-fit coefficients, q-variance units, legacy-indexing
-  before/after, energy-balance closure (Rn/G provisional), post-Schotanus
-  re-comparison (H bias −0.03 W/m², Fc slope 0.975). Remaining: re-run
-  closure if Rn/G are revised. -- GAIN decisive check that
-  corrections improve the data, EFFORT S, RISK low. Detail: audit doc
-  "VAC001 test dataset".
+  [archive/audit/2026-08-22_code-audit-and-python-gameplan.md](archive/audit/2026-08-22_code-audit-and-python-gameplan.md).
+- [BLOCKED 2026-08-24] Energy-balance closure re-run
+  (`testbed/scripts/closure_vac001.py`): waits on the user finalizing
+  Rn (`NETRAD`, assembled off-repo) and the ground heat flux in the
+  `_soil_corr` slow table; the 2026-08-22 numbers are indicative only.
+  Nothing in the flux ranking depends on their level. -- EFFORT S, RISK
+  low. Source: audit doc "VAC001 test dataset" in
+  [archive/audit/2026-08-22_code-audit-and-python-gameplan.md](archive/audit/2026-08-22_code-audit-and-python-gameplan.md).
 ## ec-coherent
 
 (build-out closed 2026-08-24, see history.md; no open ec-coherent tasks)

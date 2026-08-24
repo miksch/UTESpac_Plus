@@ -88,5 +88,5 @@ has bias −0.03 W/m², RMSE 0.75, slope 1.001; split by sign (the site is
 advective, H < 0 in 63 % of periods): −0.16 / 0.52 for H < 0, +0.18 / 1.03
 for H > 0. Driving the WPL terms with w′T′ moved the CO₂ flux slope from
 0.940 to 0.975 and lowered LE by ~0.5 %. Record:
-`tasks/active/2026-08-22_code-audit-and-python-gameplan.md`, "VAC001 test
+`tasks/archive/audit/2026-08-22_code-audit-and-python-gameplan.md`, "VAC001 test
 dataset".

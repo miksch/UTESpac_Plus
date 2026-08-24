@@ -37,6 +37,19 @@ def test_pipeline_matches_pinned_output(staged_root, config_name):
     assert not problems, f"{config_name}:\n  " + "\n  ".join(problems)
 
 
+@pytest.mark.parametrize("config_name", sorted(CONFIGS))
+def test_pinned_co2_ppm_is_ambient(config_name):
+    """Standing ambient-CO2 plausibility check (audit: caught the 38 ppm bug,
+    BUGFIXES.txt item 10). Guards a re-pin that pins a broken conversion."""
+    import numpy as np
+    expected, meta = load_expected(config_name)
+    header = meta["headers"]["CO2flux"]
+    (idx,) = [i for i, h in enumerate(header) if "ppm" in h]
+    ppm = expected["avg/CO2flux"][:, idx]
+    valid = ppm[~np.isnan(ppm)]
+    assert valid.size and np.all((valid > 350.0) & (valid < 500.0))
+
+
 def test_products_on_disk_are_the_runs_view(tmp_path_factory):
     """The run netCDF through get_data equals the in-memory Run's legacy view, and
     the HF netCDF holds the raw products (float32) with the per-window ancillaries."""

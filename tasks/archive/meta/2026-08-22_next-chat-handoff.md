@@ -3,7 +3,7 @@
 Opened 2026-08-22 at the close of the audit session; updated the same day
 after the second session landed items 1, 2, 4 and step 2 of item 5 below. State of the tree:
 the audit doc
-[2026-08-22_code-audit-and-python-gameplan.md](../../active/2026-08-22_code-audit-and-python-gameplan.md)
+[2026-08-22_code-audit-and-python-gameplan.md](../audit/2026-08-22_code-audit-and-python-gameplan.md)
 holds the findings, the VAC001-vs-EddyPro results, and the migration plan;
 [board.md](../../board.md) holds the queue;
 [tests/KNOWN_DIVERGENCES.md](../../../tests/KNOWN_DIVERGENCES.md) is the

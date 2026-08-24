@@ -3,6 +3,15 @@
 Rolling log of roughly the last 15 closures; older records live only in
 archive/. Format: `- [DONE|DROPPED YYYY-MM-DD] <one line> -- <link>`.
 
+- [DONE 2026-08-24] Code audit and Python gameplan closed: findings 1-7
+  fixed or dispositioned with ledger rows, migration steps 1-5 landed,
+  EddyPro external-reference validation complete (GPF H bias −0.03 W/m²,
+  closure ranking with provisional Rn/G), ambient-CO2 standing check added
+  (`test_pinned_fixture.py::test_pinned_co2_ppm_is_ambient`), suite 244
+  green; the per-height PF figure and the closure re-run stay on the board
+  blocked on user inputs -- record in
+  [archive/audit/2026-08-22_code-audit-and-python-gameplan.md](archive/audit/2026-08-22_code-audit-and-python-gameplan.md)
+  "Close-out".
 - [DONE 2026-08-24] ec_coherent build-out (steps 0-7 of the gameplan):
   the `ec_coherent` package (io, preprocess, spectra, mrd, quadrant/octant,
   ramps, ampmod, scales, coherent_flux, config, cli), 8 library notes with
@@ -66,7 +75,7 @@ archive/. Format: `- [DONE|DROPPED YYYY-MM-DD] <one line> -- <link>`.
   `run_test.py` and the `.mat` loaders in `testkit` deleted, `PFinfo.json`
   written alone (legacy pickle still read), fixture re-pinned; the
   parity-set validation line dropped -- record in
-  [active/2026-08-22_code-audit-and-python-gameplan.md](active/2026-08-22_code-audit-and-python-gameplan.md)
+  [archive/audit/2026-08-22_code-audit-and-python-gameplan.md](archive/audit/2026-08-22_code-audit-and-python-gameplan.md)
   "Migration gameplan" steps 4-5 and [../tests/KNOWN_DIVERGENCES.md](../tests/KNOWN_DIVERGENCES.md).
 - [DONE 2026-08-22] Next-chat handoff closed: items 1-4 landed or closed,
   item 5 steps 2-3 landed; the remaining migration steps 4-5 live on the
@@ -82,7 +91,7 @@ archive/. Format: `- [DONE|DROPPED YYYY-MM-DD] <one line> -- <link>`.
   GPF averaged pickle bit-identical, nc round trip zero diffs, HF file 135 MB
   in 9 s; suite 132 passed -- `tests/test_labeled.py`, `test_pf_info.py`,
   `test_campbell_date.py`, `test_export_hf.py`; record in
-  [active/2026-08-22_code-audit-and-python-gameplan.md](active/2026-08-22_code-audit-and-python-gameplan.md)
+  [archive/audit/2026-08-22_code-audit-and-python-gameplan.md](archive/audit/2026-08-22_code-audit-and-python-gameplan.md)
   "Migration gameplan" step 3.
 - [DONE 2026-08-22] Migration step 2 (config and UI): packaged stage TOMLs
   in `utespac/config/` with frozen dataclasses (`RunConfig`, `QCConfig`,
@@ -147,5 +156,5 @@ archive/. Format: `- [DONE|DROPPED YYYY-MM-DD] <one line> -- <link>`.
   + `scratch`) and the per-site `data/` tree; site discovery by `siteInfo.*`,
   inputs in `data/<SITE>/utespac/`; VAC001 raw/slow/EddyPro landed and
   processed to 48-h inputs -- record in
-  [active/2026-08-22_code-audit-and-python-gameplan.md](active/2026-08-22_code-audit-and-python-gameplan.md)
+  [archive/audit/2026-08-22_code-audit-and-python-gameplan.md](archive/audit/2026-08-22_code-audit-and-python-gameplan.md)
   "VAC001 test dataset".
