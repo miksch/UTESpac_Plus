@@ -78,8 +78,8 @@ tke_thresh = 1.25              # trigger when a wave's min-to-max amplitude > th
 [coherent_flux]
 # Coherent-structure flux fractions, library/writeups/ec_coherent_flux.md
 # (Thomas & Foken 2007 eqs. 3-7 triple decomposition; quadrant estimator their §3.3)
-event_signals = ["u", "Ts"]    # ramp event sets conditioned on; u default with Ts alongside (VAC001 ruling,
-#                                user 2026-08-23; Thomas & Foken condition on Ts at their site)
+event_signals = ["u", "Ts"]    # ramp event sets conditioned on; u default with Ts alongside (user ruling
+#                                2026-08-23; Thomas & Foken condition on Ts at their site)
 pairs = ["uw", "wTs", "wrhov"] # flux pairs (quadrant-plane keys); F_cs/F_tot per pair and event set
 window = "duration"            # duration (half-width D_e of the event signal, [CITED] TF 2007 eq. 5) |
 #                                fixed (window_s, [CITED] CB 1993 II p. 62: 30 s ~ period between events)

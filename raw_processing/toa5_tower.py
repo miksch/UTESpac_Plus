@@ -2,7 +2,8 @@
 
 Generalizes the FM_*_process.py scripts for towers whose raw data are
 TOA5 .dat files (fast sonic/IRGA tables and slow 1-min tables). A thin
-per-site script (see VAC001_*_process.py) supplies a config dict;
+per-site script (under ``data/<SITE>/scripts/`` in the development tree)
+supplies a config dict;
 ``process_table`` handles the rest.
 
 Pipeline per 48-h window:
@@ -140,7 +141,7 @@ def write_header(out_dir, table_name, columns):
     out_dir : str
         Site folder.
     table_name : str
-        Full table name (e.g. ``"VAC001_20Hz"``).
+        Full table name (e.g. ``"MySite_20Hz"``).
     columns : iterable of str
         Output column names, in file order.
 
@@ -166,7 +167,7 @@ def process_table(cfg):
         out_dir : str
             Site folder receiving the outputs (created if missing).
         prefix : str
-            Output filename prefix (e.g. ``"VAC001"``).
+            Output filename prefix (e.g. ``"MySite"``).
         table : str
             Table label (e.g. ``"20Hz"``, ``"1min"``).
         hz : float

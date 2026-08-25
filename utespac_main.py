@@ -10,9 +10,9 @@ flags here).
 Usage::
 
     python utespac_main.py                          # prompts for site and dates, GPF
-    python utespac_main.py --site VAC001 --dates all --pf local --detrend constant
-    python utespac_main.py --site VAC001 --pf global --reuse-pf  # keep PFinfo.json
-    python utespac_main.py --site VAC001 --no-prompts            # scripted PF selection
+    python utespac_main.py --site MySite --dates all --pf local --detrend constant
+    python utespac_main.py --site MySite --pf global --reuse-pf  # keep PFinfo.json
+    python utespac_main.py --site MySite --no-prompts            # scripted PF selection
 
 Interactive prompts (site, dates, planar-fit sectors/dates/confirmation) live
 here only; ``--no-prompts`` runs the scripted single-sector selection that

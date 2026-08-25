@@ -219,3 +219,95 @@ Python Port Bug Fixes (found by comparison to MATLAB reference outputs)
     Fix: Implemented full MATLAB-matching header string generation for
          all 17 matrices, including preserving the "skew_Theata_v" typo
          present in the original MATLAB headers.
+
+
+===================================================
+Bug Fixes from the 2026-08 Code Audit
+(validated against EddyPro output at the primary tower site;
+ details and magnitudes in tests/KNOWN_DIVERGENCES.md)
+===================================================
+
+13. Global planar-fit coefficients misapplied in the rotation
+    File: sonicRotation.m (Python: utespac/rotation.py, sonic_rotation.py)
+    ----------------------------------------------------------------
+    Bug: findGlobalPF fits w = b0 + b1*u + b2*v (Wilczak et al. 2001),
+         so the tilt plane is defined by the slopes (b1, b2) and b0 is
+         an offset to be removed from w. The rotation code built the
+         tilt matrix from (b0, b1) -- the offset and the first slope --
+         and never subtracted b0 from w. Every wind-direction sector was
+         rotated into the wrong plane.
+    Fix: Tilt matrix from (b1, b2); b0 removed from w (Wilczak et al.
+         2001 eqs. 35-39). Measured impact on global-PF runs: u* ~18%,
+         LE ~20%.
+
+14. Wrong humidity coefficient recovering air temperature from sonic
+    temperature
+    File: fluxes.m line 575 (Python: utespac/sonic_temperature.py,
+          utespac/flux/levels.py, utespac/flux/engine.py)
+    ----------------------------------------------------------------
+    Bug: Air temperature was recovered from sonic temperature with
+         T = Ts / (1 + 0.61*q). Schotanus et al. (1983) eq. 5 gives
+         Ts = T (1 + 0.51*q); 0.61 is the virtual-temperature
+         coefficient, a different quantity. In addition, the T_air flux
+         columns were only a mean-humidity rescale of w'Ts', not a
+         flux-level correction.
+    Fix: 0.51 in the mean rescale; where high-frequency humidity
+         exists, the corrected flux w'T' = w'Ts' - 0.51*Tmean*w'q'
+         (Schotanus eq. 8; Liu et al. 2001 eq. 12). Sensible-heat bias
+         against EddyPro dropped from +11.1 to -0.03 W/m^2 (RMSE
+         15.7 -> 0.75).
+
+15. WPL corrections driven by the buoyancy flux
+    File: fluxes.m line 1073 (Python: utespac/flux/engine.py)
+    ----------------------------------------------------------------
+    Bug: The latent-heat and CO2 WPL terms used the buoyancy flux
+         Theta_v'wPF' as the temperature flux in Webb et al. (1980)
+         eqs. 24-25 and 44 instead of the (Schotanus-corrected)
+         sensible temperature flux w'T'.
+    Fix: All WPL terms driven by the corrected w'T'. CO2 flux slope
+         vs EddyPro 0.940 -> 0.975 (bias +0.63 -> +0.10 umol/m^2/s);
+         LE changed by ~0.5%.
+
+16. Dissipation rate computed from a single structure-function lag
+    File: calc_dissipation_rate.m (Python: utespac/calc_dissipation_rate.py)
+    ----------------------------------------------------------------
+    Bug: Epsilon was taken from the single lag where the longitudinal
+         structure function D_LL crossed r^(2/3); the resulting values
+         were not an estimate of epsilon.
+    Fix: Compensated structure function averaged over lags 0.1-2 s with
+         C2 = 2.0. Verified to 1% on synthetic Kolmogorov turbulence.
+
+17. Slope geometry hardcoded in the SNSP decomposition
+    File: calc_SNSP_angle.m (Python: utespac/calc_snsp_angle.py, fluxes.py)
+    ----------------------------------------------------------------
+    Bug: The downslope aspect (30 deg) and along-slope PF axis ("v") of
+         the original deployment site were applied unconditionally to
+         every site, producing a wrong slope-normal/slope-parallel
+         decomposition anywhere else.
+    Fix: Read from new SiteInfo fields downslopeAspect / slopeAxis; the
+         legacy values remain only as a warned fallback.
+
+18. Whole days blanked when a table's column count changed
+    File: getData.m (Python: utespac/get_data.py)
+    ----------------------------------------------------------------
+    Bug: When concatenating multi-day output, any day whose table had a
+         different number of columns (e.g. a sensor outage dropping
+         columns mid-campaign) was replaced with an all-NaN block,
+         discarding the data that did exist.
+    Fix: Concatenate by header label -- union of columns, NaN only
+         where a column is genuinely absent.
+
+19. Gas analyzers resolved per run instead of per height; LI-7500
+    diagnostic polarity
+    File: fluxes.m lines 136-151, 610 (Python: utespac/flux/levels.py)
+    ----------------------------------------------------------------
+    Bug 1: One H2O/CO2 sensor family was selected for the whole run, so
+           a tower carrying different IRGA types at different levels
+           (e.g. an EC150-style IRGA on one level, a LI-7500 on
+           another) paired some sonics with the wrong gas analyzer.
+    Fix:   H2O and CO2 sensors resolved at each sonic height.
+
+    Bug 2: The LI-7500 diagnostic flag tripped on high values, but that
+           diagnostic decreases as signal quality degrades (full
+           strength = 255).
+    Fix:   Flag trips at or below meanLiGasDiagnosticLimit.

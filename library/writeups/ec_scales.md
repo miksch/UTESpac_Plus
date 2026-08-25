@@ -60,8 +60,8 @@ to ~60 % at $z = 0.2\delta$ (p. 481, noting the 50-Hz sampling makes 60 %
 difficult to distinguish in the current ASL data" (p. 483-484) -- the
 reason our band edges do not rest on detecting two separate peaks. Their
 $\delta$ was not measured but fitted through the Marusic et al. (2013)
-turbulence-intensity formulation (p. 473); single-height VAC001 cannot do
-that, hence the assumed-$\delta$ mode below.
+turbulence-intensity formulation (p. 473); the single-height validation
+site cannot do that, hence the assumed-$\delta$ mode below.
 
 ## The ASL behaves like the lab -- Hutchins et al. (2012) [@Hutchins2012]
 
@@ -106,7 +106,7 @@ vlsm, plus the band-edge wavelengths and frequencies, cutoff source,
   `scaled` mode uses `scales_z_mult_small`/`scales_z_mult_vlsm` $\times z$
   `[ASSUMED]`. Sources flagged per record.
 - **Bands from a 30-min window.** The lowest resolved frequency is
-  1/1800 Hz, i.e. $\lambda \le U T \approx$ 9-14 km at VAC001 winds; a
+  1/1800 Hz, i.e. $\lambda \le U T \approx$ 9-14 km at the validation site's winds; a
   VLSM band starting at ~3 km holds only the first few spectral lines, so
   its fraction is a coarse, high-variance estimate (Hutchins2012:
   several minutes per structure). Fractions are of the *within-window*

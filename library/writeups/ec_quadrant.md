@@ -139,7 +139,7 @@ notes A.3) -- asserted against those functions directly in
 Sign convention: quadrant indices are fixed by the literature layouts
 above; ejection/sweep *labels* are sign-aware -- downgradient samples are
 those whose product shares the sign of the total flux (UTESpac
-convention; VAC001's $H$ flips sign diurnally), ejection the downgradient
+convention; the validation site's $H$ flips sign diurnally), ejection the downgradient
 half with $w' > 0$. Exuberance is emitted as
 $Ex = \overline{w'c'}_{counter}/\overline{w'c'}_{down} = \eta - 1$
 `[DERIVED]` from Li2011 eq. 8; the *name* "exuberance" is common usage
@@ -162,7 +162,7 @@ docstring already flags the distinction.
   it appears in no read source (Li2011 studies scalar dissimilarity with
   *quadrants*, not octants). Output variables are tagged per triplet
   (`flux_frac_uwTs_wTs`, `flux_frac_wTsrhov_wTs`, ...); any signals are
-  accepted ($v$, $rhoCO_2$ anticipated). VAC001 check: in the
+  accepted ($v$, $rhoCO_2$ anticipated). Validation-site check: in the
   $(w,Ts,\rho_v)$ sign space the warm-moist-updraft (+++) and
   cool-dry-downdraft (---) octants carry the $w'Ts'$ flux, the moist
   analog of the hot-ejection/cold-sweep dominance.

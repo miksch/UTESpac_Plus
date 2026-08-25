@@ -170,20 +170,20 @@ class TestCampbellDate:
 
     def test_datenum_roundtrip(self):
         # float-day datenums carry ~µs quantization error; require < 1 ms
-        dt = datetime(2023, 7, 6, 12, 30, 15)
+        dt = datetime(2024, 6, 1, 12, 30, 15)
         back = matlab_datenum_to_datetime(datetime_to_matlab_datenum(dt))
         assert abs((back - dt).total_seconds()) < 1e-3
 
     def test_campbell_to_serial_known_value(self):
-        # 2023-07-06 12:30:15 → DOY 187, HHMM 1230
-        mat = np.array([[2023, 187, 1230, 15.0]])
+        # 2024-06-01 12:30:15 → DOY 153, HHMM 1230
+        mat = np.array([[2024, 153, 1230, 15.0]])
         serial = campbell_date_to_serial_date(mat)
-        expected = datetime_to_matlab_datenum(datetime(2023, 7, 6, 12, 30, 15))
+        expected = datetime_to_matlab_datenum(datetime(2024, 6, 1, 12, 30, 15))
         assert serial[0] == pytest.approx(expected, abs=1e-9)
 
     def test_serial_to_campbell_roundtrip(self):
         mat = np.array([
-            [2023, 187, 1230, 15.0],
+            [2022, 187, 1230, 15.0],
             [2024, 60, 0, 0.0],      # leap year: DOY 60 = Feb 29
             [2025, 1, 2359, 59.5],
         ])

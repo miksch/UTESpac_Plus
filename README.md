@@ -16,8 +16,8 @@ pip3 install xarray netCDF4
 
 ```bash
 python utespac_main.py                                  # prompts for site and dates, GPF with the planar-fit prompts
-python utespac_main.py --site VAC001 --pf local --dates all --detrend constant
-python utespac_main.py --site VAC001 --pf global --reuse-pf --no-prompts
+python utespac_main.py --site <SITE> --pf local --dates all --detrend constant
+python utespac_main.py --site <SITE> --pf global --reuse-pf --no-prompts
 ```
 
 The local planar fit (`--pf local`) has to be run before the global one for a site: `find_global_pf` reads the LPF products. From Python:
@@ -26,19 +26,17 @@ The local planar fit (`--pf local`) has to be run before the global one for a si
 from utespac import RunConfig, run_utespac, ScriptedPFSelection
 config = RunConfig.from_config(rootFolder="data", pf={"globalCalculation": "global"},
                                flux={"detrendingFormat": "constant"})
-result = run_utespac(config, site="VAC001", dates="all", prompter=ScriptedPFSelection())
+result = run_utespac(config, site="MySite", dates="all", prompter=ScriptedPFSelection())
 result.ok, [d.paths for d in result.dates]
 ```
 
 ## Coherent-structure analysis (`ec_coherent`)
 
-A sibling package that reads the `utespac-hf-1` high-frequency netCDF the pipeline writes with `saveRawConditionedData` and adds one analysis netCDF per file (`<Site>_coherent_<PF>_<Det>_<date>.nc`, a group per module). Settings: `ec_coherent/config/ec_coherent.toml` (overridable like the pipeline TOMLs); science notes: `library/writeups/ec_preprocess.md`, `ec_spectra.md`; plan: `testbed/2026-08-12_ec_coherent_gameplan.md`. Modules landed so far: `spectra` (spectra, cospectra, quadrature spectra, ogives) and `ramps` (wavelet zero-crossing microfront detector on Ts and u; `library/writeups/ec_ramps.md`).
+A sibling package that reads the `utespac-hf-1` high-frequency netCDF the pipeline writes with `saveRawConditionedData` and adds one analysis netCDF per file (`<Site>_coherent_<PF>_<Det>_<date>.nc`, a group per module). Settings: `ec_coherent/config/ec_coherent.toml` (overridable like the pipeline TOMLs); science notes: the `library/writeups/ec_*.md` topic notes (`ec_preprocess`, `ec_spectra`, `ec_mrd`, `ec_quadrant`, `ec_ramps`, `ec_ampmod`, `ec_scales`, `ec_coherent_flux`), one per module.
 
 ```bash
-python -m ec_coherent.cli data/VAC001/output/VAC001_hf_GPF_ConstDet_2023_07_06.nc           # all records
-python -m ec_coherent.cli data/VAC001/output/VAC001_hf_*.nc --records 0-5 --modules spectra
-python testbed/scripts/ec_spectra_vac001.py                                                 # closure + Kaimal figure
-python testbed/scripts/ec_ramps_vac001.py --record 70                                        # scalograms + detections
+python -m ec_coherent.cli data/<SITE>/output/<SITE>_hf_GPF_ConstDet_<date>.nc      # all records
+python -m ec_coherent.cli data/<SITE>/output/<SITE>_hf_*.nc --records 0-5 --modules spectra
 ```
 
 ---

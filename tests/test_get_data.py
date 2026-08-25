@@ -19,7 +19,7 @@ def _write(site_out, name, hdr, mat, extra=None):
 
 @pytest.fixture
 def site(tmp_path):
-    s = tmp_path / "VAC001"
+    s = tmp_path / "SiteA"
     s.mkdir()
     (s / "siteInfo.toml").write_text("tower = 1\n")
     out = s / "output"
@@ -36,7 +36,7 @@ def test_missing_column_fills_only_that_column(site):
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        d = get_data(root, site="VAC001", avg_per=30, qualifier="LPF", fmt="pkl")
+        d = get_data(root, site="SiteA", avg_per=30, qualifier="LPF", fmt="pkl")
 
     assert d["Hheader"] == full
     np.testing.assert_array_equal(d["H"][:, 0], [1, 2, 3, 4, 5, 6])
@@ -49,7 +49,7 @@ def test_new_column_widens_accumulated_block(site):
     _write(out, "X_30minAvg_LPF_01.pkl", ["time", "a"], np.array([[1., 10.]]))
     _write(out, "X_30minAvg_LPF_02.pkl", ["time", "a", "c"], np.array([[2., 20., 7.]]))
 
-    d = get_data(root, site="VAC001", avg_per=30, qualifier="LPF", fmt="pkl")
+    d = get_data(root, site="SiteA", avg_per=30, qualifier="LPF", fmt="pkl")
 
     assert d["Hheader"] == ["time", "a", "c"]
     np.testing.assert_array_equal(d["H"], [[1, 10, np.nan], [2, 20, 7]])
@@ -64,7 +64,7 @@ def test_unlabeled_field_keeps_shape_check(site):
            extra={"tau": np.zeros((1, 2))})
 
     with pytest.warns(UserWarning, match="NaN block"):
-        d = get_data(root, site="VAC001", avg_per=30, qualifier="LPF", fmt="pkl")
+        d = get_data(root, site="SiteA", avg_per=30, qualifier="LPF", fmt="pkl")
 
     assert d["tau"].shape == (2, 3)
     assert np.all(np.isnan(d["tau"][1]))
@@ -79,5 +79,5 @@ def test_row_count_mismatch_still_nan_block(site):
            extra={"tableNames": ["tau", "H"], "tau": np.zeros((2, 1))})
     # tableNames contains H and tau with different row counts → file skipped
     with pytest.warns(UserWarning, match="Row count inconsistent"):
-        d = get_data(root, site="VAC001", avg_per=30, qualifier="LPF", fmt="pkl")
+        d = get_data(root, site="SiteA", avg_per=30, qualifier="LPF", fmt="pkl")
     assert d["H"].shape == (2, 2)

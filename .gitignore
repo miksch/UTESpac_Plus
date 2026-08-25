@@ -50,6 +50,8 @@ data/**
 !data/*/siteInfo.m
 !data/*/utespac/
 !data/*/utespac/*_header.dat
+!data/*/scripts/
+!data/*/scripts/*.py
 
 # ── testbed scratch: assistant working space, never tracked ──────────────────
 testbed/scratch/
@@ -61,6 +63,8 @@ testbed/scratch/
 library/*.pdf
 library/My Library.bib
 library/extracted/
-# -- committed regression fixtures (tests/fixtures/): keep every file, including the PFinfo.json copy
-!tests/fixtures/**
-tests/fixtures/**/__pycache__/
+# -- committed regression fixtures (data/fixtures/, dev-only like the rest of
+#    data/): keep every file, including the PFinfo.json copy
+!data/fixtures/
+!data/fixtures/**
+data/fixtures/**/__pycache__/

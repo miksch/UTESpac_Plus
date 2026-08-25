@@ -76,8 +76,8 @@ the default) and returns the smallest-scale interior local maximum
 (`peak = "smallest_scale"`, following Thomas & Foken), with `peak =
 "global"` as the Collineau & Brunet reading; a maximum on the edge of the
 searched grid is not a peak and gives NaN (no events). The Morlet variance
-itself is not implemented (deviation register). Measured on VAC001 GPF
-ConstDet 2023-07-06 (96 records, block detrend): without the `D_min_s` cut
+itself is not implemented (deviation register). Measured on the validation
+site's GPF ConstDet reference day (96 records, block detrend): without the `D_min_s` cut
 the smallest-scale maximum of the `Ts'` scalogram sits on the small-scale
 turbulence shoulder at $a$ = 1.5-3 s (158 "events" per 30 min); with it,
 79 records have an interior peak and the `Ts'` peak is most often the
@@ -88,8 +88,8 @@ dominant ramp scale Collineau & Brunet and Thomas & Foken saw above
 forest. `u'` behaves as the papers describe, one broad peak: $a_0$ ≈ 5 s,
 $D$ median 10.7 s, ≈ 80 events per 30 min, mean spacing 20 s ≈ 2 D
 (Collineau & Brunet: $D$ 13-20 s for $u'$, spacing 29 s for $T'$ at
-$D$ = 12 s). Figure `testbed/scratch/ec_ramps_vac001.png`
-(`testbed/scripts/ec_ramps_vac001.py`).
+$D$ = 12 s). Figure and script: the ramps validation script under
+`testbed/scripts/` (development tree).
 
 ## Detection -- the zero-crossing method, Part I §4.3 pp. 374-375; Part II §3.2.1 pp. 54-55
 
@@ -148,9 +148,9 @@ not as a re-timing step after a threshold-free detection. Ruled (user,
 the option remains for per-site use.
 
 On real data the ideal-train lag does not survive (measured 2026-08-23 on
-all events of VAC001 GPF ConstDet 2023-07-06,
-`testbed/scripts/ec_ramps_issue_vac001.py`, figure
-`testbed/scratch/ec_ramps_issues_vac001.png` panel c): over 6585 u and
+all events of the validation site's GPF ConstDet reference day; the
+ramp-issue diagnostic script and its figure under `testbed/scripts/` and
+`testbed/scratch/`, development tree, panel c): over 6585 u and
 1737 Ts events the median of (zero-crossing − RAMP-refined)/$a_0$ is 0.00,
 the distribution spreads over the full $\pm a_0$ search window, and only
 16 % of u events agree within $0.1\,a_0$ -- on real turbulence the RAMP
@@ -313,7 +313,7 @@ error contributors but "fall within the measurement error" (p. 551).
 Implemented as `phi_h` and `alpha_castellvi` (inertial-sublayer branch;
 the $z \le z^*$ branch and the roughness-sublayer-depth machinery of
 their eqs. 6-14 are not implemented -- our sonic sits at 10.85 m, far
-above any local canopy). VAC001 sanity check (advective site, same
+above any local canopy). Validation-site sanity check (advective site, same
 regime): see the validation script and task doc -- the similarity
 $\alpha$ computed from the measured $u_*$, $\zeta$ and the SR $\tau$ is
 compared against the empirical $\alpha \approx 0.45$ that the fixed
@@ -324,7 +324,7 @@ $\alpha = 1$ run implied.
 BEAREX08 (Texas High Plains, irrigated cotton amid dryland; "strongly
 advective events were those when mid-day H fluxes become dominantly
 negative, leading to LE fluxes exceeding net radiation", p. 92 -- the
-VAC001 regime). Their SR is exactly the configuration landed here: the
+validation site's regime). Their SR is exactly the configuration landed here: the
 sample-lag Van Atta cubic (their eqs. 1-5) with "$\alpha$ was set to 1.0
 and $z$ to measurement height" (Snyder's interpretation, p. 94), 20 Hz
 thermocouples at 2.25 m, tested against 9 EC stations. Findings carried
@@ -357,8 +357,9 @@ as checks:
   SR over flux variance.
 
 No new code from this source; it validates the landed formulation and
-supplies the diagnostics run in `testbed/scripts/ec_sr_vac001.py`
-(per-lag ratio, sign-agreement fraction, $q$-only amplitude check).
+supplies the diagnostics run in the SR validation script under
+`testbed/scripts/` (development tree; per-lag ratio, sign-agreement
+fraction, $q$-only amplitude check).
 
 ## TKE detection and IQA -- Mangan et al. (2022) [@Mangan2022]
 
@@ -368,7 +369,7 @@ therefore all three velocity components are crucial to coherent
 structures" (§4, p. 52); "The temperature signal cannot indicate the
 presence of a coherent structure when the temperature vertical gradient
 is weak whereas the $u_{TKE}$ method is not limited by the temperature
-gradient" (p. 66) -- directly the VAC001 situation (visible-but-
+gradient" (p. 66) -- directly the validation site's situation (visible-but-
 undetectable Ts ramps, task doc).
 
 Detection signal: $u_{TKE} = \sqrt{u'^2 + v'^2 + w'^2}$ ("the square
@@ -448,14 +449,14 @@ $u_{TKE,LP}$), and attributes `tke_lp_s`, `tke_a_s`, `tke_thresh`.
 
 | Paper | Code | Why | Validation |
 |---|---|---|---|
-| Collineau & Brunet: scalogram peak $a_0$ (one peak for velocities, a secondary trend peak for $T$); Thomas & Foken: highest-frequency peak after a 6.2 s low-pass, Morlet variance | smallest-scale local maximum of the MHAT variance above `a_min_s` (default), global maximum optional; no Morlet | keeps one wavelet for variance and detection; the low-pass is replaced by `a_min_s` | synthetic ramp train recovers its period (`tests/test_ec_ramps.py`); VAC001 figure |
+| Collineau & Brunet: scalogram peak $a_0$ (one peak for velocities, a secondary trend peak for $T$); Thomas & Foken: highest-frequency peak after a 6.2 s low-pass, Morlet variance | smallest-scale local maximum of the MHAT variance above `a_min_s` (default), global maximum optional; no Morlet | keeps one wavelet for variance and detection; the low-pass is replaced by `a_min_s` | synthetic ramp train recovers its period (`tests/test_ec_ramps.py`); validation-site figure |
 | continuous $b$ over the record | detections within $3a_0$ of the edges dropped | zero-padded convolution | `[ASSUMED]` |
-| Thomas & Foken: low-pass (<6.2 s) before the variance | `D_min_s` bounds the peak search instead; scalogram itself unfiltered | one transform for variance and detection | VAC001 numbers above; `[CITED]` value, site-specific |
+| Thomas & Foken: low-pass (<6.2 s) before the variance | `D_min_s` bounds the peak search instead; scalogram itself unfiltered | one transform for variance and detection | validation-site numbers above; `[CITED]` value, site-specific |
 | MHAT zero-crossing time as the event time | optional `refine` to the RAMP/HAAR extremum, default off | 0.35 $a_0$ lag measured on ideal ramps | ruled: `none` default for repeatability, option per site (user 2026-08-23) |
-| slope sign chosen by the analyst per signal | `slope="auto"` from the sign of $\overline{w'T'}$ | VAC001 runs through both stabilities unattended | `[DERIVED]`, recorded per record |
+| slope sign chosen by the analyst per signal | `slope="auto"` from the sign of $\overline{w'T'}$ | validation-site runs pass through both stabilities unattended | `[DERIVED]`, recorded per record |
 | -- | scale grid, `a_min_s`, `a_max_s` | -- | `[ASSUMED]`, config |
-| Spano: 8 Hz thermocouples over crops, lags 0.25-1.0 s | same lag set at 20 Hz sonic Ts at 10.85 m | lag sensitivity is stored per record on the `sr_lag` axis | VAC001 validation script; `[ASSUMED]` transferability |
-| Spano/Paw U: $\alpha$ fit against eddy covariance per site; Castellví: similarity $\alpha$ with $z^*$ machinery | `sr_alpha_mode`: `fixed` (default 1), `castellvi` (inertial branch only, `sr_d` displacement), `fit` (per lag and file) | ruled (user 2026-08-23): fixed default, other modes selectable; EC flux is the flux of record here | VAC001: fixed gives ratio 2.23, castellvi 1.39 at r 0.99 (task doc) |
+| Spano: 8 Hz thermocouples over crops, lags 0.25-1.0 s | same lag set at 20 Hz sonic Ts at 10.85 m | lag sensitivity is stored per record on the `sr_lag` axis | site validation script; `[ASSUMED]` transferability |
+| Spano/Paw U: $\alpha$ fit against eddy covariance per site; Castellví: similarity $\alpha$ with $z^*$ machinery | `sr_alpha_mode`: `fixed` (default 1), `castellvi` (inertial branch only, `sr_d` displacement), `fit` (per lag and file) | ruled (user 2026-08-23): fixed default, other modes selectable; EC flux is the flux of record here | validation site: fixed gives ratio 2.23, castellvi 1.39 at r 0.99 (task doc) |
 | Chen: nonlinear fit of the finite-microfront model | linearized + two-lag only; $S^3(r)/r$ reported so $t_m$ is visible | fit not adopted (DECIDE, task doc); their Table I quantifies the bias | -- |
-| Mangan: $\bar A_i$ from multi-height + $u_{TKE}$ regressions (eqs. 6-11) | $\bar A$ = per-record mean wave amplitude, threshold $1.25\bar A$ | one sonic, no reference height; the threshold factor is theirs | `[SITE-TUNED]` at their sites; VAC001 event counts vs u-wavelet detector |
+| Mangan: $\bar A_i$ from multi-height + $u_{TKE}$ regressions (eqs. 6-11) | $\bar A$ = per-record mean wave amplitude, threshold $1.25\bar A$ | one sonic, no reference height; the threshold factor is theirs | `[SITE-TUNED]` at their sites; validation-site event counts vs u-wavelet detector |
 | Mangan: eq. 5 integrand printed as $u'^2{+}v'^2{+}w'^2$ | centred moving mean of $u_{TKE} = \sqrt{u'^2{+}v'^2{+}w'^2}$ | text and Fig. 3 filter $u_{TKE}$; constant factors cancel in the relative threshold | note, TKE section |

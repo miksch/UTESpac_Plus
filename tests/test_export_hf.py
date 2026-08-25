@@ -13,7 +13,7 @@ from utespac.pf_info import PFRecord, PFTable
 netCDF4 = pytest.importorskip("netCDF4")
 
 N, FS = 600, 20.0                       # 30 s of 20 Hz
-T0 = datetime_to_matlab_datenum(datetime(2023, 7, 6, 0, 0)) + 1 / (FS * 86400)
+T0 = datetime_to_matlab_datenum(datetime(2024, 6, 1, 0, 0)) + 1 / (FS * 86400)
 T = T0 + np.arange(N) / (FS * 86400)
 Z = np.array([32.18, 10.85])            # descending on purpose
 
@@ -29,7 +29,7 @@ def _raw():
 
 
 def _avg():
-    te = np.array([datetime_to_matlab_datenum(datetime(2023, 7, 6, 0, 30))])
+    te = np.array([datetime_to_matlab_datenum(datetime(2024, 6, 1, 0, 30))])
     return {"tableNames": ["X_20Hz"],
             "X_20Hz": np.column_stack([te, [1.0], [2.0], [3.0]]),
             "X_20HzHeader": [["TIMESTAMP", "Ux_10.85", "Ux_32.18", "T_Sonic_10.85"], [None, 10.85, 32.18, 10.85]],
@@ -44,15 +44,15 @@ def _avg():
                                 "32.18m direction", "32.18m flag 15<dir<55"],
             "fluxQC": np.column_stack([te, [0.0], [2.0]]),
             "fluxQCHeader": ["time", "10.85m:H_SSITC_TEST", "32.18m:H_SSITC_TEST"],
-            "dataInfo": [["file: X_20Hz_20230706000000_20230708000000.txt"],
+            "dataInfo": [["file: X_20Hz_20240601000000_20240603000000.txt"],
                          ["10.85m b0=0.01 b1=0.02 b2=0.03 pitch=1 roll=2 deg"]]}
 
 
 def _info(pf="global", detrend="constant"):
-    return {"siteFolder": "X", "date": "2023_07_06", "avgPer": 30, "UTESpacVersion": "5.0-Python",
+    return {"siteFolder": "X", "date": "2024_06_01", "avgPer": 30, "UTESpacVersion": "5.0-Python",
             "PF": {"globalCalculation": pf}, "detrendingFormat": detrend,
-            "latitude": 38.3, "longitude": -121.9, "tableScanFrequency": [20, 1 / 1800],
-            "canopyHeight": 6.0, "siteElevation": 18.2, "displacementHeight": 0.0}
+            "latitude": 41.15, "longitude": -98.92, "tableScanFrequency": [20, 1 / 1800],
+            "canopyHeight": 6.0, "siteElevation": 550.0, "displacementHeight": 0.0}
 
 
 def _run(raw, info, pf_table=None):
@@ -63,7 +63,7 @@ def _run(raw, info, pf_table=None):
 
 
 def test_write_hf(tmp_path):
-    pf = PFTable([PFRecord(10.85, "2023-07-06", "2023-07-21", 0.0, 0.0, 0.04, -0.08, 0.03)])
+    pf = PFTable([PFRecord(10.85, "2024-06-01", "2024-06-16", 0.0, 0.0, 0.04, -0.08, 0.03)])
     out = write_hf(_run(_raw(), _info(), pf), tmp_path / "x.nc", output=_avg(), dtype="f8")
     with netCDF4.Dataset(out) as ds:
         assert len(ds.dimensions["time"]) == N and list(ds["height"][:]) == [10.85, 32.18]
@@ -73,7 +73,7 @@ def test_write_hf(tmp_path):
         assert ds.getncattr("sampling_frequency_hz") == 20.0
         assert ds.getncattr("sampling_frequency_hz_measured") == pytest.approx(20.0, abs=1e-3)
         assert ds.getncattr("flux_averaging_s") == 1800.0 and ds.getncattr("canopy_height") == 6.0
-        assert ds.getncattr("source_files") == "X_20Hz_20230706000000_20230708000000.txt"
+        assert ds.getncattr("source_files") == "X_20Hz_20240601000000_20240603000000.txt"
         # heights sorted ascending: column 0 is 10.85 m (u = 1.0), column 1 is 32.18 m (u = 2.0)
         assert ds["u"][0, 0] == 1.0 and ds["u"][0, 1] == 2.0
         assert ds["Ts"].units == "degC" and ds["rhov"].units == "g m-3"
@@ -91,21 +91,21 @@ def test_write_hf(tmp_path):
         assert ds["ssitc_h_ssitc_test"][0, 1] == 2.0
         assert "rhov_prime" not in ds.variables
         pfg = ds.groups["planar_fit"]
-        assert pfg["b1"][0] == -0.08 and pfg["date_end"][0] == "2023-07-21"
+        assert pfg["b1"][0] == -0.08 and pfg["date_end"][0] == "2024-06-16"
 
 
 def test_lpf_coefficients_from_notes_and_primes(tmp_path):
     raw = _raw()
     raw["z_h2o"] = np.array([10.85])
     with pytest.warns(UserWarning, match="heights unknown"):   # rhoCO2 has no z_co2 and 1 col vs 2 heights
-        out = write_hf(_run(raw, _info("local", "linear")), tmp_path / "X_hf_LPF_LinDet_2023_07_06.nc",
+        out = write_hf(_run(raw, _info("local", "linear")), tmp_path / "X_hf_LPF_LinDet_2024_06_01.nc",
                        output=_avg(), include_primes=True)
     with netCDF4.Dataset(out) as ds:
         assert ds.getncattr("pf_type") == "LPF" and ds.getncattr("detrend_upstream") == "linear"
         assert ds["height_rhov"][0] == 10.85 and "rhov_prime" in ds.variables
         assert ds["u"].dtype == np.float32
         pfg = ds.groups["planar_fit"]
-        assert pfg["height"][0] == 10.85 and pfg["b0"][0] == 0.01 and pfg["date_start"][0] == "2023-07-06"
+        assert pfg["height"][0] == 10.85 and pfg["b0"][0] == 0.01 and pfg["date_start"][0] == "2024-06-01"
 
 
 def test_write_hf_needs_raw_products(tmp_path):

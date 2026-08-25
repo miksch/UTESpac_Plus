@@ -15,8 +15,8 @@ the pipeline on the fixture and compares.
 
 Usage (repo root, UTESpac_Plus env)::
 
-    python tests/fixtures/vac001_1hz/build_fixture.py build   # needs data/VAC001 (this machine)
-    python tests/fixtures/vac001_1hz/build_fixture.py pin     # re-pin after an accepted change
+    python data/fixtures/vac001_1hz/build_fixture.py build   # needs data/VAC001 (this machine)
+    python data/fixtures/vac001_1hz/build_fixture.py pin     # re-pin after an accepted change
 
 Re-pinning is a deliberate act: do it only when the ledger
 (tests/KNOWN_DIVERGENCES.md) has a row for the change that moved the values.
@@ -57,7 +57,7 @@ SITE_INFO_TOML = """\
 # VAC001_1Hz -- regression fixture carved from data/VAC001 (2023-07-08):
 # the 20 Hz IRGASON + fine-wire table decimated to 1 Hz, real samples
 # 08:00-16:00, NaN rows for the rest of the day. Site facts as in
-# data/VAC001/siteInfo.toml. Built by tests/fixtures/vac001_1hz/build_fixture.py.
+# data/VAC001/siteInfo.toml. Built by data/fixtures/vac001_1hz/build_fixture.py.
 tower = 180
 siteElevation = 18.2
 latitude = 38.300056

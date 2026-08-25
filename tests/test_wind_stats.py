@@ -35,7 +35,7 @@ def test_manufacturer_conventions_agree_on_speed_and_map_axes():
 
 
 def test_shadow_sector_wraps_through_north():
-    assert shadow_sector(180.0, 215.0, 20.0) == (15.0, 55.0)       # VAC001: centre 35
+    assert shadow_sector(180.0, 215.0, 20.0) == (15.0, 55.0)       # centre 35
     lo, hi = shadow_sector(0.0, 350.0, 20.0)                        # centre 350 -> 330..10
     assert (lo, hi) == (330.0, 10.0)
     flag, _, _ = shadow_flag(np.array([340.0, 5.0, 100.0]), 0.0, 350.0, 20.0)

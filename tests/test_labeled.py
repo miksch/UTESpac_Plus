@@ -14,7 +14,7 @@ netCDF4 = pytest.importorskip("netCDF4")
 
 from datetime import datetime  # noqa: E402
 
-T0 = datetime_to_matlab_datenum(datetime(2023, 7, 6, 0, 30))
+T0 = datetime_to_matlab_datenum(datetime(2024, 6, 1, 0, 30))
 T = T0 + np.arange(4) * (30 / 1440)
 
 
@@ -34,7 +34,7 @@ def _output():
         "rotatedSonicHeader": ["10.85m:u", "10.85m:v", "10.85m:w"],
         "epsilon": np.column_stack([T]),
         "epsilonHeader": ["time"],
-        "dataInfo": [["file: X_20Hz_20230706000000_20230708000000.txt", "beg date: 06-Jul-2023"]],
+        "dataInfo": [["file: X_20Hz_20240601000000_20240603000000.txt", "beg date: 01-Jun-2024"]],
         "warnings": [],
     }
 
@@ -54,7 +54,7 @@ def test_tables_shapes_and_time():
     h = tabs["H"]
     assert h.time_in_col0 and h.labels == ["rho", "10.85m son:Ts'w'"]
     assert h.heights == [None, 10.85] and h.values.shape == (4, 2)
-    assert h.time[0] == np.datetime64("2023-07-06T00:30:00.000")
+    assert h.time[0] == np.datetime64("2024-06-01T00:30:00.000")
     assert h.time_label == "time" and h.header_key == "Hheader"
     # nested table header: heights from the header row, time column dropped
     x = tabs["X_20Hz"]
@@ -71,7 +71,7 @@ def test_tables_shapes_and_time():
 def test_to_frames():
     fr = labeled.to_frames(_output())
     assert fr["H"].index.name == "time" and list(fr["H"].columns) == ["rho", "10.85m son:Ts'w'"]
-    assert fr["H"].loc["2023-07-06 01:30", "10.85m son:Ts'w'"] == 2
+    assert fr["H"].loc["2024-06-01 01:30", "10.85m son:Ts'w'"] == 2
 
 
 def _assert_same(a, b):
@@ -91,7 +91,7 @@ def _assert_same(a, b):
 
 def test_netcdf_round_trip(tmp_path):
     out = _output()
-    info = {"siteFolder": "X", "latitude": 38.3, "longitude": -121.9, "avgPer": 30,
+    info = {"siteFolder": "X", "latitude": 41.15, "longitude": -98.92, "avgPer": 30,
             "PF": {"globalCalculation": "global"}, "detrendingFormat": "constant",
             "tableScanFrequency": [20, 1 / 1800], "UTESpacVersion": "5.0-Python"}
     path = labeled.write_netcdf(out, tmp_path / "x.nc", attrs=labeled.run_attrs(info, out))
@@ -99,9 +99,9 @@ def test_netcdf_round_trip(tmp_path):
     _assert_same(out, back)
     with netCDF4.Dataset(path) as ds:
         assert ds.getncattr("utespac_format") == labeled.FORMAT
-        assert ds.getncattr("pf_type") == "GPF" and ds.getncattr("latitude") == 38.3
+        assert ds.getncattr("pf_type") == "GPF" and ds.getncattr("latitude") == 41.15
         assert ds.getncattr("sampling_frequency_hz") == 20.0
-        assert ds.getncattr("source_files") == "X_20Hz_20230706000000_20230708000000.txt"
+        assert ds.getncattr("source_files") == "X_20Hz_20240601000000_20240603000000.txt"
         assert ds["time"].units.startswith("milliseconds since 1970-01-01")
         assert list(ds["H_column"][:]) == ["rho", "10.85m son:Ts'w'"]
         hh = np.ma.filled(ds["H_height"][:], np.nan)
@@ -118,7 +118,7 @@ def test_run_attrs_warns_without_lat_lon():
 
 
 def test_get_data_reads_netcdf_like_pkl(tmp_path):
-    site = tmp_path / "VAC001"
+    site = tmp_path / "SiteA"
     (site / "output").mkdir(parents=True)
     (site / "siteInfo.toml").write_text("tower = 1\n")
     out1 = _output()
@@ -129,11 +129,11 @@ def test_get_data_reads_netcdf_like_pkl(tmp_path):
         with open(site / "output" / f"X_30minAvg_LPF_ConstDet_0{i}.pkl", "wb") as fh:
             pickle.dump(o, fh)
         labeled.write_netcdf(o, site / "output" / f"X_30minAvg_LPF_ConstDet_0{i}.nc")
-    from_pkl = get_data(tmp_path, site="VAC001", avg_per=30, qualifier="LPF", fmt="pkl")
-    from_nc = get_data(tmp_path, site="VAC001", avg_per=30, qualifier="LPF", fmt="nc")
+    from_pkl = get_data(tmp_path, site="SiteA", avg_per=30, qualifier="LPF", fmt="pkl")
+    from_nc = get_data(tmp_path, site="SiteA", avg_per=30, qualifier="LPF", fmt="nc")
     _assert_same(from_pkl, from_nc)
     assert from_nc["H"].shape == (8, 3)
-    fr = get_frames(tmp_path, site="VAC001", avg_per=30, qualifier="LPF", fmt="nc")
+    fr = get_frames(tmp_path, site="SiteA", avg_per=30, qualifier="LPF", fmt="nc")
     assert fr["H"].shape == (8, 2) and fr["H"].index.name == "time"
     with pytest.raises(ValueError, match="fmt"):
-        get_data(tmp_path, site="VAC001", fmt="csv")
+        get_data(tmp_path, site="SiteA", fmt="csv")

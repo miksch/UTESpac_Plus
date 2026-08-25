@@ -127,12 +127,13 @@ window covariance is the invariant test.
 - **Per-record gap scales.** Vickers2003 use experiment-averaged gaps
   because single-record estimates are noisy; we store the per-record
   detected gap (with their 1 % leveling rule) and leave any averaging to
-  the analysis layer. The task-doc VAC001 run reports the spread.
+  the analysis layer. The task-doc validation run reports the spread.
 - **Gap on 30-min windows.** Their records are 1 h; ours are 30 min, so
   the largest resolved averaging length is $2^{15}$ samples = 1638 s
   (trim) and mesoscale scales beyond that are outside the accounting
   `[ASSUMED]` transferability.
 - **No $R_b$.** Their gap-scale *model* (eqs. 12-14) needs a bulk
-  Richardson number from surface radiative temperature, which VAC001
-  does not measure; the model is recorded here but not implemented. The
+  Richardson number from surface radiative temperature, which the
+  validation site does not measure; the model is recorded here but not
+  implemented. The
   detected gap is the deliverable.

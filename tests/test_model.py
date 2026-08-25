@@ -7,7 +7,7 @@ import xarray as xr
 from utespac import model as M
 from utespac.campbell_date import MATLAB_EPOCH
 
-DAY = 739075.0
+DAY = 739406.0
 HEADERS = [[["TIMESTAMP", "Ux_10.85", "Uy_10.85", "Uz_10.85", "T_Sonic_10.85", "H2O_10.85"],
             [None, 10.85, 10.85, 10.85, 10.85, 10.85]],
            [["TIMESTAMP", "Temp_10.85", "RH_10.85"], [None, 10.85, 10.85]]]

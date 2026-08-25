@@ -84,7 +84,7 @@ Event signal: they sample all fluxes "according to the moments of
 occurrence $t_i$ at the characteristic event duration $D_e$ for the sonic
 temperature data", for three stated reasons (Ts ramps pronounced day and
 night, available at all heights, literature comparability) (p. 322). We
-default to $u'$ events instead (deviation register -- the VAC001 Ts
+default to $u'$ events instead (deviation register -- the validation site's Ts
 scalogram has no ramp-scale peak in most records; ruling 2026-08-23).
 
 Quality gates (§4.2, p. 325): discard records whose "event duration
@@ -177,7 +177,7 @@ standalone (same convention as ampmod's internal cutoff).
   $t_i$ `[CITED]` §3.1. We reuse the ramps module detector (MHAT variance
   peak $a_0$ with the smallest-scale-peak rule and $D_{min}$ = 6.2 s,
   zero-crossings at $a_0$) and condition on $u'$ events by default with
-  $T_s'$ alongside -- the VAC001 ruling (2026-08-23): visible Ts ramps
+  $T_s'$ alongside -- the user ruling (2026-08-23): visible Ts ramps
   usually produce no ramp-scale scalogram peak here. Validation: the
   conditional-average patterns (fig-2 analog) and the $F_{tot}/cov$ gate.
 - **Window.** `window = "duration"` (default): half-width $D_e$ of the
@@ -203,9 +203,9 @@ standalone (same convention as ampmod's internal cutoff).
 - **The N = 1 degeneracy.** With a single event the conditional average
   *is* the sampled series, so $F_{cs} = F_{tot}$ identically and the
   fraction is 1 regardless of the data -- the estimator carries no
-  information. On VAC001 this happens where the $u'$ variance peak lands
+  information. At the validation site this happens where the $u'$ variance peak lands
   on the trend-hump scale ($D_e \approx$ 380-430 s, one surviving
-  zero-crossing; 6 of 96 records on 2023-07-06). These records pass the
+  zero-crossing; 6 of 96 records on the reference day). These records pass the
   0.8-1.2 gate (the ratio is exactly 1), which is why TF2007's
   $D_e$-neighbour outlier test exists. No threshold is imposed in the
   module (`n_structures` is stored); the validation script excludes
@@ -225,8 +225,8 @@ standalone (same convention as ampmod's internal cutoff).
   valid coefficients only `[ASSUMED]` (the paper's $N$ is not defined
   for the edge region). The absolute fraction is strongly
   $K$-dependent (their figs. 3-4; monotonicity asserted in the tests)
-  -- comparisons across sites must fix $K$. VAC001 (GPF ConstDet
-  2023-07-06, $w'T_s'$): the median fraction is 0.64 / 0.31 / 0.11 /
+  -- comparisons across sites must fix $K$. The validation site (GPF ConstDet
+  reference day, $w'T_s'$): the median fraction is 0.64 / 0.31 / 0.11 /
   0.01 / 0.00 at $K$ = 1 / 1.5 / 2 / 3 / 4 -- at $K = 2$ it matches
   what a correlated Gaussian pair gives (~0.09, tests), i.e. by the
   $K\,$-rms criterion this record set has almost no coefficients

@@ -36,7 +36,7 @@ validation step below still checks for them.
   regression computed from uncorrected winds.
 - Ingest is column-generic: the IMU rides through `process_table` as
   extra columns. Pattern to copy: `FW_MAP` in
-  [VAC_ADV_fast_process.py:73](../../raw_processing/VAC_ADV_fast_process.py#L73)
+  [VAC_ADV_fast_process.py](../../data/VAC_ADV/scripts/VAC_ADV_fast_process.py)
   (a bare `{output: source}` map not tied to a sonic level). Also needs:
   template keys in [run.toml](../../utespac/config/run.toml) (e.g.
   `imuAx = "Ax_*"`), a branch in

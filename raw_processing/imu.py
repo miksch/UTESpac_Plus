@@ -8,7 +8,7 @@ site's ``[imu]`` siteInfo block, not here):
 1. **Same logger as the sonic** (the default contract): the IMU channels
    are columns of the fast TOA5 table. Merge :data:`IMU_MAP` (renamed to
    the logger's source names) into the site script's ``columns`` dict,
-   exactly like the ``FW_MAP`` pattern in VAC_ADV_fast_process.py.
+   exactly like the ``FW_MAP`` pattern in the per-site fast-process scripts.
 
 2. **Separate IMU logger**: read the IMU's own files with
    :func:`load_imu_files` (delimited text with a names row; column

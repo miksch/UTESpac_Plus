@@ -149,7 +149,7 @@ the EC ancillary, `U_mean`). All `[CITED]` except as registered below.
   1000 m `[ASSUMED]`, the Salesky2020 AHATS assumption quoted above;
   `scaled` -- $\lambda_c$ = `am_z_mult` $\times z$ `[ASSUMED]`.
   Validation: the Mathis §7.1.3 cutoff-sensitivity sweep is repeated on
-  VAC001 by the validation script (R vs $\lambda_c$ over a decade).
+  the validation site by the validation script (R vs $\lambda_c$ over a decade).
   The gap detector itself is `[ASSUMED]` in its particulars (no source
   prescribes an algorithm): log-binned premultiplied spectrum at 10
   bins/decade, 3-bin smoothing, the two largest interior maxima at
@@ -158,7 +158,7 @@ the EC ancillary, `U_mean`). All `[CITED]` except as registered below.
   choices tolerable.
 - **Single-point only.** The two-point form with the advective lag
   $\delta\tau$ (Salesky2018 eq. 1.7) needs a second measurement level;
-  VAC001 has one sonic. Single-point is Mathis §6.2's validated
+  the validation site has one sonic. Single-point is Mathis §6.2's validated
   approximation (0.25 vs 0.33 above).
 - **Envelope-count caution, not implemented.** Schlatter & Örlü (2010b)
   critiqued the metric (envelope of a broadband carrier correlates with
@@ -169,7 +169,7 @@ the EC ancillary, `U_mean`). All `[CITED]` except as registered below.
   concerns. Baars et al. (2015) wavelet variant not on hand, not
   implemented.
 - **30-min window ceiling.** The longest resolvable wavelength is
-  $U T \approx$ 9-14 km at VAC001 winds; the large-scale signal below a
+  $U T \approx$ 9-14 km at the validation site's winds; the large-scale signal below a
   1000-m cutoff holds only ~5-15 Fourier modes per window, and $R$ from
   one window is far from converged (Salesky2018 §2.2). Reported per
   record; interpret medians.

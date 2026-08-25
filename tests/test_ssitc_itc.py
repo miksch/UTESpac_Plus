@@ -16,8 +16,8 @@ def test_unstable_side_foken_table():
 
 
 def test_stable_side_thomas_foken_with_latitude():
-    # 0.21 ln(z+ f / u*) + 3.1, z+ = 1 m; at 38.3 N, u* = 0.3 m/s
-    lat, ustar = 38.300056, 0.3
+    # 0.21 ln(z+ f / u*) + 3.1, z+ = 1 m; at 41.15 N, u* = 0.3 m/s
+    lat, ustar = 41.15, 0.3
     f = coriolis_parameter(lat)
     expect = 0.21 * np.log(1.0 * f / ustar) + 3.1
     assert _above_canopy_sigmaw(0.1, ustar, lat) == pytest.approx(expect)
@@ -28,10 +28,10 @@ def test_stable_side_thomas_foken_with_latitude():
 
 def test_stable_pahlow_beyond_04_and_without_latitude():
     # Pahlow et al. 2001 eq. 14: 1.1 + 0.9 (z/L)^0.6
-    assert _above_canopy_sigmaw(1.0, 0.3, 38.3) == pytest.approx(2.0)
+    assert _above_canopy_sigmaw(1.0, 0.3, 41.15) == pytest.approx(2.0)
     assert _above_canopy_sigmaw(0.2) == pytest.approx(1.1 + 0.9 * 0.2 ** 0.6)
     assert _above_canopy_sigmaw(0.0) == pytest.approx(1.1)           # no latitude, neutral limit
-    assert _above_canopy_sigmaw(10.0, 0.3, 38.3) == pytest.approx(1.1 + 0.9 * 10 ** 0.6)
+    assert _above_canopy_sigmaw(10.0, 0.3, 41.15) == pytest.approx(1.1 + 0.9 * 10 ** 0.6)
 
 
 def test_coriolis_parameter():

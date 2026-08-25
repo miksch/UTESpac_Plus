@@ -3,7 +3,7 @@ Convert Campbell Scientific binary card files (TOB3) to TOA5 with
 csidft_convert.exe, so every table carries its full unit/aggregation
 header rows.
 
-Ported from grapex-advection ec/processing/vac_main_proc.ipynb (Card
+Ported from the grapex-advection ec/processing main notebook (Card
 Convert section). The converter executable and its DLL live in
 raw_processing/utils/ (copied from grapex-advection ec/utils/,
 gitignored). Output files are named <table>_<yyyy_mm_dd_HHMMSS>.dat

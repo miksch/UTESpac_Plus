@@ -8,7 +8,7 @@ from utespac.pf_info import PFRecord, PFTable
 from utespac.rotation import (PlanarFit, SonicSeries, apply_global_fit, fit_sectors,
                               rotate_sonics, sector_mask, yaw_rotate)
 
-DAY = 739075.0   # 2023-07-08 as a datenum midnight
+DAY = 739406.0   # 2024-06-03 as a datenum midnight
 
 
 def _plane(b0=0.04, b1=-0.08, b2=0.03, n=400, seed=0):
@@ -63,11 +63,11 @@ def test_fit_sectors_keys_and_wrap():
 
 def test_apply_global_fit_by_date_and_sector():
     u, v, w = _plane(n=8)
-    t = DAY + np.arange(8) / 24.0            # hourly samples on 2023-07-08
+    t = DAY + np.arange(8) / 24.0            # hourly samples on 2024-06-03
     t[-1] = DAY + 1.5                        # one sample the next day
     d = np.array([100.0] * 4 + [250.0] * 4)
-    recs = [PFRecord(10.0, "2023-07-08", "2023-07-08", 0.0, 180.0, 0.04, -0.08, 0.03),
-            PFRecord(10.0, "2023-07-08", "2023-07-08", 180.0, 0.0, 0.0, 0.0, 0.0)]
+    recs = [PFRecord(10.0, "2024-06-03", "2024-06-03", 0.0, 180.0, 0.04, -0.08, 0.03),
+            PFRecord(10.0, "2024-06-03", "2024-06-03", 180.0, 0.0, 0.0, 0.0, 0.0)]
     out = apply_global_fit(u, v, w, t, d, recs)
     assert np.allclose(out[:4, 2], 0.0, atol=1e-9)            # first sector, on the plane
     assert np.allclose(out[4:7], np.column_stack([u, v, w])[4:7])   # identity record
@@ -108,10 +108,10 @@ def test_rotate_sonics_local_and_global():
     assert abs(np.nanmean(res.pf_only[:, 2])) < 0.05
     assert np.allclose(res.averaged("rotated")[:, 1], 0.0, atol=1e-12)
 
-    table = PFTable([PFRecord(10.0, "2023-07-08", "2023-07-08", 0.0, 0.0, 0.04, -0.08, 0.03)])
+    table = PFTable([PFRecord(10.0, "2024-06-03", "2024-06-03", 0.0, 0.0, 0.04, -0.08, 0.03)])
     res_g = rotate_sonics([s], t, 30, pf_table=table)
     assert res_g.records[10.0][0].b1 == -0.08
     assert not res_g.skipped
-    missing = PFTable([PFRecord(20.0, "2023-07-08", "2023-07-08", 0.0, 0.0, 0.0, 0.0, 0.0)])
+    missing = PFTable([PFRecord(20.0, "2024-06-03", "2024-06-03", 0.0, 0.0, 0.0, 0.0, 0.0)])
     res_m = rotate_sonics([s], t, 30, pf_table=missing)
     assert 10.0 in res_m.skipped and np.isnan(res_m.rotated).all()

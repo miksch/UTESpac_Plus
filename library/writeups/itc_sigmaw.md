@@ -35,8 +35,8 @@ scalar characteristics take extremely high values near neutral and the test
 fails there; the w-based test is the one `utespac` runs.
 
 Implemented by `_above_canopy_sigmaw` (with `coriolis_parameter`) for
-0 ≤ z/L ≤ 0.4 when `SiteInfo.latitude` is set (VAC001: 38.300056 N from
-the EddyPro metadata). Deviation: the unstable part of the −0.2 < z/L < 0
+0 ≤ z/L ≤ 0.4 when `SiteInfo.latitude` is set (the validation site's value
+comes from its EddyPro metadata). Deviation: the unstable part of the −0.2 < z/L < 0
 overlap keeps Table 2.11 (1.3), as the same tables list for it.
 
 ## Stable side beyond z/L = 0.4, or without a latitude — Pahlow, Parlange & Porté-Agel (2001), eq. 14 [@Pahlow2001]

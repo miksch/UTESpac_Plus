@@ -24,7 +24,7 @@ def find_files(
     info : dict
         Must contain ``info['rootFolder']``.
     site : str
-        Site folder name (``'VAC001'``) or bare legacy id; required.
+        Site folder name (``'MySite'``) or bare legacy id; required.
     dates : None, int, list, or ``'all'``
         Which date rows to process (1-based indices).  ``None`` / ``'all'``
         uses all available dates.  An integer selects that single date.  A

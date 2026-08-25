@@ -7,8 +7,16 @@ processed, and reference data stay local (see `.gitignore`).
 
 ```
 data/
+  fixtures/              committed regression fixtures (tracked): one mini
+                         site tree per fixture with build_fixture.py and
+                         expected/ pins; tests/test_pinned_fixture.py
+                         discovers whatever is present and skips otherwise
   <SITE>/
     siteInfo.toml        site facts: sonics, heights, bearings, slope, tables
+    scripts/             per-site raw_processing configs (tracked): thin
+                         wrappers over raw_processing/ (card convert,
+                         fast/slow process) with the site's column maps
+                         and date spans
     raw/
       <table>/           as logged: TOA5 .dat / logger CSV, one folder per
                          raw table; several folders when the heights of one
@@ -29,11 +37,11 @@ data/
     <other reference>/   anything else used for validation, named by source
 ```
 
-Site folder names are the bare site id (`VAC001`, not `siteVAC001_...`);
+Site folder names are the bare site id (`MySite`, not `siteMySite_...`);
 date ranges belong to the processed file names, not the folder. The
 pipeline discovers a site by the presence of `siteInfo.toml` (or legacy
 `siteInfo.py`). Legacy `site*` folders at the repo root still resolve,
-but none with tracked files remain; `VAC001` is the site in the repo.
+but none with tracked files remain.
 
 `raw/` is read-only: `raw_processing` scripts read it and write to
 `utespac/`; nothing in the pipeline writes into `raw/`.

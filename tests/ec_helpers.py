@@ -17,7 +17,7 @@ def make_hf(path, fs=10.0, window_s=300.0, n_records=4, heights=(3.0, 10.0), see
     n_win = int(round(window_s * fs))
     n = n_win * n_records
     dt = np.timedelta64(int(round(1e9 / fs)), "ns")
-    t0 = np.datetime64("2023-07-06T00:00:00", "ns")
+    t0 = np.datetime64("2024-06-01T00:00:00", "ns")
     time = t0 + dt * np.arange(1, n + 1)                      # Campbell: first sample one step after midnight
     records = t0 + np.timedelta64(int(window_s * 1e9), "ns") * np.arange(1, n_records + 1)
     nh = len(heights)

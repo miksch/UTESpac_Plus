@@ -15,15 +15,15 @@ TA_1_1_1, PA, CO2_sig_strgth, H2O_sig_strgth, FW.
 import os
 from datetime import datetime
 
+SITE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # data/VAC001
+ROOT_PY  = os.path.dirname(os.path.dirname(SITE_DIR))                   # UTESpac_Plus/
+
 try:
     from toa5_tower import process_table, level_columns
 except ImportError:  # allow running from repo root or elsewhere
     import sys
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(ROOT_PY, "raw_processing"))
     from toa5_tower import process_table, level_columns
-
-ROOT_PY  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # UTESpac_Plus/
-SITE_DIR = os.path.join(ROOT_PY, "data", "VAC001")
 
 # 2023 IOP: raw fast data span 2023-07-06 00:00 to 2023-07-21 00:00. The
 # end date is the exclusive bound of the last 48-h window.

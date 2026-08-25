@@ -1,20 +1,31 @@
-"""Pinned-fixture regression: the pipeline on the committed VAC001_1Hz day
-reproduces the expected outputs in tests/fixtures/vac001_1hz/expected/.
+"""Pinned-fixture regression: the pipeline on the pinned 1 Hz fixture day
+reproduces the expected outputs in data/fixtures/<fixture>/expected/.
 
-This is the regression safety net that runs on any machine (MATLAB parity
+This is the regression safety net for the development tree (MATLAB parity
 was retired 2026-08-22; EddyPro is the external reference, see the audit
 doc). A failure means a numeric or structural change in the pipeline:
 either a defect, or a deliberate change that needs a ledger row in
-tests/KNOWN_DIVERGENCES.md and a re-pin (build_fixture.py pin).
+tests/KNOWN_DIVERGENCES.md and a re-pin (build_fixture.py pin). The
+fixture data live under data/fixtures/ (dev-only, like the rest of
+data/); when absent, this module skips.
 """
 
+import glob
 import os
 import sys
 import warnings
 
 import pytest
 
-FIXTURE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "vac001_1hz")
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_candidates = sorted(
+    d for d in glob.glob(os.path.join(REPO_ROOT, "data", "fixtures", "*"))
+    if os.path.isfile(os.path.join(d, "build_fixture.py"))
+)
+if not _candidates:
+    pytest.skip("no pinned fixture under data/fixtures/ on this machine",
+                allow_module_level=True)
+FIXTURE_DIR = _candidates[0]
 sys.path.insert(0, FIXTURE_DIR)
 
 from build_fixture import CONFIGS, compare, load_expected, run_fixture, stage_site  # noqa: E402
@@ -22,7 +33,7 @@ from build_fixture import CONFIGS, compare, load_expected, run_fixture, stage_si
 
 @pytest.fixture(scope="module")
 def staged_root(tmp_path_factory):
-    root = tmp_path_factory.mktemp("vac001_1hz")
+    root = tmp_path_factory.mktemp("pinned_1hz")
     stage_site(FIXTURE_DIR, str(root))
     return str(root)
 
@@ -58,7 +69,7 @@ def test_products_on_disk_are_the_runs_view(tmp_path_factory):
     from utespac import RunConfig, get_data, run_utespac
     from utespac.model import raw_to_legacy, to_legacy_output
     from build_fixture import SITE
-    root = str(tmp_path_factory.mktemp("vac001_1hz_nc"))
+    root = str(tmp_path_factory.mktemp("pinned_1hz_nc"))
     stage_site(FIXTURE_DIR, root)
     cfg = RunConfig.from_config(rootFolder=root, saveCSV=True, saveRawConditionedData=True,
                                 **CONFIGS["LPF_LinDet"])

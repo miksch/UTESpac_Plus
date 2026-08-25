@@ -3,6 +3,20 @@
 Rolling log of roughly the last 15 closures; older records live only in
 archive/. Format: `- [DONE|DROPPED YYYY-MM-DD] <one line> -- <link>`.
 
+- [DONE 2026-08-25] Repo made generic for publishing (user request,
+  dopli scrub conventions): site tokens, real coordinates, and campaign
+  dates replaced in code/docs/tests/writeups with generic vocabulary
+  ("the validation site", example coords 41.15/-98.92, example date
+  2024-06-01); per-site raw_processing scripts moved to
+  `data/<SITE>/scripts/`, the pinned fixture to
+  `data/fixtures/vac001_1hz/` (test discovers it, skips when absent);
+  token-sweep grep clean over the package trees, suite 269 green. The
+  dopli curated-snapshot flow was drafted then dropped on the user's
+  ruling that the site data are publicly available -- the branch
+  publishes as-is, `data/` included. BUGFIXES.txt gained entries 13-19
+  (2026-08 audit fixes); upstream (Diane) main compared: Tref
+  sonic-fallback Schotanus gating and the AmeriFlux H/LE rework are the
+  two upstream fixes not yet adopted here (reported, awaiting ruling).
 - [DONE 2026-08-24] Surface-layer scales theta*_SL and q*_SL as run-file
   products: new non-extra `scaling` table (`flux/tables.py`) with
   theta*_SL = -Thv_wPF/u* [K] and q*_SL = -(E_wPF/rho_moist)/u* [g/kg]

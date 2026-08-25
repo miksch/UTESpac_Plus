@@ -46,7 +46,7 @@ def _level(seed=0, with_h2o=True, with_co2=True, with_fw=True):
 
 
 def _run(lev, opts=None, jj=0):
-    t = np.arange(N_SAMP * N_PER, dtype=float) / 86400.0 + 739075.0
+    t = np.arange(N_SAMP * N_PER, dtype=float) / 86400.0 + 739406.0
     return compute_period(lev, _ref(), opts or FluxOptions(detrend="constant"), jj,
                           jj * N_SAMP, (jj + 1) * N_SAMP, t)
 

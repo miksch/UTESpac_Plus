@@ -26,15 +26,15 @@ CO2_density_fast_tmpr, T_SONIC_corr, TA_1_1_1 (slow value held at 10 Hz).
 import os
 from datetime import datetime
 
+SITE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # data/VAC_ADV
+ROOT_PY  = os.path.dirname(os.path.dirname(SITE_DIR))                   # UTESpac_Plus/
+
 try:
     from toa5_tower import process_table, level_columns
 except ImportError:  # allow running from repo root or elsewhere
     import sys
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(ROOT_PY, "raw_processing"))
     from toa5_tower import process_table, level_columns
-
-ROOT_PY  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # UTESpac_Plus/
-SITE_DIR = os.path.join(ROOT_PY, "data", "VAC_ADV")
 
 # 2023 IOP: raw fast data span 2023-07-10 09:00 to 2023-07-20 23:59 with
 # no missing 30-min files. The end date is the exclusive bound of the

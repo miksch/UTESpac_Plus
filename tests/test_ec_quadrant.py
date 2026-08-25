@@ -69,7 +69,7 @@ def test_large_hole_leaves_only_extremes():
 
 
 def test_derived_matches_utespac():
-    # A.3 cross-check, both flux signs (VAC001's H flips sign)
+    # A.3 cross-check, both flux signs (advective sites flip H's sign)
     for seed, r in ((5, -0.4), (6, +0.35)):
         w, c = _correlated(seed=seed, r=r)
         d = qd.derived_h0(w, c, w_is=0)

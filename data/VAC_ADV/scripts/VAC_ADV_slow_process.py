@@ -23,15 +23,15 @@ from datetime import datetime
 
 import pandas as pd
 
+SITE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # data/VAC_ADV
+ROOT_PY  = os.path.dirname(os.path.dirname(SITE_DIR))                   # UTESpac_Plus/
+
 try:
     from toa5_tower import process_table, level_columns
 except ImportError:  # allow running from repo root or elsewhere
     import sys
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(ROOT_PY, "raw_processing"))
     from toa5_tower import process_table, level_columns
-
-ROOT_PY  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # UTESpac_Plus/
-SITE_DIR = os.path.join(ROOT_PY, "data", "VAC_ADV")
 
 start_date = datetime(2023, 7, 10)
 end_date   = datetime(2023, 7, 22)

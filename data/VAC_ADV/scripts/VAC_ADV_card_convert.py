@@ -11,14 +11,15 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+SITE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # data/VAC_ADV
+ROOT_PY  = os.path.dirname(os.path.dirname(SITE_DIR))                   # UTESpac_Plus/
+
 try:
     from card_convert import csi_card_convert, select_pull_dirs
 except ImportError:  # allow running from repo root or elsewhere
     import sys
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(ROOT_PY, "raw_processing"))
     from card_convert import csi_card_convert, select_pull_dirs
-
-ROOT_PY = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # UTESpac_Plus/
 
 prefix  = "25982"
 bin_dir = Path("K:/data/TREX/VAC/MCM/VAC_ADV/2023/binary")

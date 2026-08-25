@@ -8,7 +8,7 @@ from utespac.averaging import (block_average, block_last, block_mean, block_mean
 from utespac.campbell_date import MATLAB_EPOCH
 from utespac.simple_avg import simple_avg
 
-DAY = 739075.0   # a datenum midnight
+DAY = 739406.0   # a datenum midnight
 
 
 def _day_grid(hz, days=1):

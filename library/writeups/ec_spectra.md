@@ -50,8 +50,8 @@ segment, boxcar) followed by log-spaced band averaging (`log_bin`,
 `n_bins_per_decade` in config): it keeps the lowest resolvable frequency
 $1/T$ = 1/1800 Hz, which the ogive needs, and closes Parseval exactly.
 Welch is available through `nperseg`, a Hann taper through `taper`.
-Measured 2026-08-23 on six VAC001 windows (GPF ConstDet 2023-07-06,
-records 0-5, block detrend): boxcar closes to 1.000 for every series; a
+Measured 2026-08-23 on six validation-site windows (GPF ConstDet reference
+day, records 0-5, block detrend): boxcar closes to 1.000 for every series; a
 single-segment Hann taper returns 0.74-1.03 of the variance for `Ts`
 (0.96-1.09 for `u`, `w`) because its variance correction holds only in
 expectation and these nighttime `Ts` windows carry a residual trend. With
@@ -81,8 +81,9 @@ the equation fit the data extremely well in the range $0.01 < f < 4.0$."
 $T_*$ is defined as $-\overline{w\theta}/u_*$").
 
 Implemented by `kaimal_neutral` `[CITED]`, used only as a QC overlay in
-`testbed/scripts/ec_spectra_vac001.py`; never an input to any estimate.
-The overlay is drawn for $0.01 < f < 4$ only. VAC001 is a flat site with
+the spectra validation script under `testbed/scripts/` (development
+tree); never an input to any estimate.
+The overlay is drawn for $0.01 < f < 4$ only. The validation site is flat with
 the sonic at 10.85 m, so $z$ is the sonic height; $u_*$ is the per-record
 `ustar` ancillary, $T_*$ is formed from the window's own $\overline{w'T'}$.
 
@@ -125,7 +126,7 @@ frequency of each log bin, `frequency_edges` the bin edges. The edges
 are snapped to the half-line points $(k + \tfrac12)\,\Delta f$ of the
 FFT grid (`log_bins`), so every bin holds at least one line, its width is
 $n_b\,\Delta f$, and the band sum $\sum_b S_b\,\Delta f_b$ equals the
-variance exactly -- the closure survives the binning (VAC001 check
+variance exactly -- the closure survives the binning (validation-site check
 2026-08-23: band-sum/variance 1.000 for u, w, Ts on all 96 records).
 `S_u, S_v, S_w, S_Ts, S_rhov, S_rhoCO2`; `Co_uw, Co_wTs, Co_wrhov,
 Co_wrhoCO2` and the matching `Qu_*`; `ogive_*` for the same pairs;
@@ -139,5 +140,5 @@ U/f, k = 2 pi f/U"), plus the provenance globals copied from the HF file.
 | Paper | Code | Why | Validation |
 |---|---|---|---|
 | Kaimal 1972: 16 x 4096-point segment averaging + band averaging | full-record periodogram + log-band averaging (default); Welch via `nperseg` | keep $1/T$ for the ogive; exact closure | closure tests; figure overlay against eq. 21 |
-| no taper stated | boxcar default, Hann optional `[ASSUMED]`; stored in attrs | boxcar closes Parseval exactly; Hann measured 0.74-1.09 on VAC001 windows (above) | closure tests; figure |
+| no taper stated | boxcar default, Hann optional `[ASSUMED]`; stored in attrs | boxcar closes Parseval exactly; Hann measured 0.74-1.09 on validation-site windows (above) | closure tests; figure |
 | Kaimal curves are for the Kansas surface layer at $z/L=0$ | overlay only for $0.01<f<4$, QC use | stated validity range p. 579 | figure |

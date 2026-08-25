@@ -1,7 +1,7 @@
 """Global planar-fit coefficients as a labeled record table (``PFinfo.json``).
 
 The legacy ``PFinfo.pkl`` is a nested dict whose keys encode the data
-(``cm_1085`` → ``day_739073to739088`` → ``degrees_0_to_0`` → ``[b0, b1, b2]``).
+(``cm_1085`` → ``day_739404to739419`` → ``degrees_0_to_0`` → ``[b0, b1, b2]``).
 :class:`PFTable` carries the same content as explicit records — height,
 date window, wind-direction sector, coefficients — and converts both ways,
 so ``find_global_pf`` can persist the table and the rotation stage can keep

@@ -11,12 +11,12 @@ from utespac.pf_info import PFRecord, PFTable
 
 LEGACY = {
     "cm_1085": {
-        "day_739073to739088": {"degrees_0_to_0": np.array([0.0425, -0.0811, 0.0295])},
+        "day_739404to739419": {"degrees_0_to_0": np.array([0.0425, -0.0811, 0.0295])},
     },
     "cm_3218": {
-        "day_739073to739080": {"degrees_90_to_270": np.array([0.01, 0.02, 0.03]),
+        "day_739404to739411": {"degrees_90_to_270": np.array([0.01, 0.02, 0.03]),
                                "degrees_270_to_90": np.array([0.04, 0.05, 0.06])},
-        "day_739081to739088": {"degrees_90_to_270": np.array([0.07, 0.08, 0.09]),
+        "day_739412to739419": {"degrees_90_to_270": np.array([0.07, 0.08, 0.09]),
                                "degrees_270_to_90": np.array([0.10, 0.11, 0.12])},
     },
 }
@@ -39,7 +39,7 @@ def test_from_legacy_records():
     t = PFTable.from_legacy(LEGACY, site="X")
     assert t.heights == [10.85, 32.18] and len(t.records) == 5
     r = t.records[0]
-    assert r == PFRecord(10.85, "2023-07-06", "2023-07-21", 0.0, 0.0, 0.0425, -0.0811, 0.0295)
+    assert r == PFRecord(10.85, "2024-06-01", "2024-06-16", 0.0, 0.0, 0.0425, -0.0811, 0.0295)
     assert t.records[1].sector_lo == 90 and t.records[1].sector_hi == 270
 
 
@@ -65,13 +65,13 @@ def test_json_round_trip(tmp_path):
 
 def test_coefficients_lookup():
     t = PFTable.from_legacy(LEGACY)
-    r = t.coefficients(32.18, np.datetime64("2023-07-10T12:00"), 180.0)
+    r = t.coefficients(32.18, np.datetime64("2024-06-05T12:00"), 180.0)
     assert r.b0 == 0.01                                    # first window, 90-270 sector
-    r = t.coefficients(32.18, 739085.3, 10.0)              # datenum, wrap-around sector
+    r = t.coefficients(32.18, 739416.3, 10.0)              # datenum, wrap-around sector
     assert r.b0 == 0.10
-    assert t.coefficients(10.85, np.datetime64("2023-07-10"), 123.0).b0 == 0.0425   # all sectors
-    assert t.coefficients(10.85, np.datetime64("2023-09-01"), 0.0) is None
-    assert t.coefficients(99.0, np.datetime64("2023-07-10"), 0.0) is None
+    assert t.coefficients(10.85, np.datetime64("2024-06-05"), 123.0).b0 == 0.0425   # all sectors
+    assert t.coefficients(10.85, np.datetime64("2024-08-01"), 0.0) is None
+    assert t.coefficients(99.0, np.datetime64("2024-06-05"), 0.0) is None
 
 
 def test_save_and_load_prefers_json(tmp_path):

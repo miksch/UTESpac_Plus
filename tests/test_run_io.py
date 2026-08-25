@@ -8,7 +8,7 @@ from utespac import model as M
 from utespac.pf_info import PFRecord, PFTable
 from utespac.run_io import FORMAT, load_products, read_run, run_files, write_run
 
-DAY = 739075.0
+DAY = 739406.0
 HEADERS = [[["TIMESTAMP", "Ux_10.85", "Uy_10.85", "Uz_10.85"], [None, 10.85, 10.85, 10.85]]]
 TABLES = ["X_1Hz"]
 SENSOR_INFO = {"u": np.array([[0, 1, 10.85, 215.0, 1.0]]), "v": np.array([[0, 2, 10.85]]),
@@ -33,14 +33,14 @@ def _run(day=DAY, seed=0):
     rot = np.ones((n, 3))
     run = M.run_from_legacy({"avgPer": 30, "siteFolder": "X", "tower": 180}, data, HEADERS, TABLES,
                             SENSOR_INFO, out, rot, rot * 2, None, [["file: x"]],
-                            pf_table=PFTable([PFRecord(10.85, "2023-07-08", "2023-07-08", 0, 0, 0.04, -0.08, 0.03)],
+                            pf_table=PFTable([PFRecord(10.85, "2024-06-03", "2024-06-03", 0, 0, 0.04, -0.08, 0.03)],
                                              site="X"))
     return run
 
 
 def test_write_and_read_run_round_trip(tmp_path):
     run = _run()
-    path = write_run(run, tmp_path / "X_30minAvg_LPF_LinDet_2023_07_08.nc", attrs={"site_id": "X"})
+    path = write_run(run, tmp_path / "X_30minAvg_LPF_LinDet_2024_06_03.nc", attrs={"site_id": "X"})
     back = read_run(path)
     assert back.attrs["utespac_format"] == FORMAT and back.attrs["site_id"] == "X"
     assert back.site == {"avgPer": 30, "siteFolder": "X", "tower": 180}
@@ -67,7 +67,7 @@ def test_load_products_concatenates_dates(tmp_path):
     out_dir.mkdir(parents=True)
     (tmp_path / "X" / "siteInfo.toml").write_text("tower = 180\n")
     for k, day in enumerate((DAY, DAY + 1)):
-        write_run(_run(day, seed=k), out_dir / f"X_30minAvg_LPF_LinDet_2023_07_0{8 + k}.nc")
+        write_run(_run(day, seed=k), out_dir / f"X_30minAvg_LPF_LinDet_2024_06_0{3 + k}.nc")
     (out_dir / "other.nc").write_bytes(b"not a netcdf")
     assert len(run_files(tmp_path, "X", avg_per=30, qualifier="LPF")) == 2
     prod = load_products(tmp_path, "X", avg_per=30, qualifier="LPF")
@@ -85,15 +85,15 @@ def test_save_data_writes_run_file_and_csv_only(tmp_path):
     from utespac.save_data import save_data
     (tmp_path / "X").mkdir()
     run = _run()
-    run.site.update({"rootFolder": str(tmp_path), "date": "2023_07_08", "saveCSV": True,
+    run.site.update({"rootFolder": str(tmp_path), "date": "2024_06_03", "saveCSV": True,
                      "saveRawConditionedData": True, "PF": {"globalCalculation": "local"},
                      "detrendingFormat": "linear", "latitude": 38.3, "longitude": -121.9})
     paths = save_data(run)
     assert set(paths) == {"nc", "csv"}           # raw is None -> no HF file
-    assert paths["nc"].endswith(os.path.join("X", "output", "X_30minAvg_LPF_LinDet_2023_07_08.nc"))
+    assert paths["nc"].endswith(os.path.join("X", "output", "X_30minAvg_LPF_LinDet_2024_06_03.nc"))
     assert sorted(f for f in os.listdir(tmp_path / "X" / "output") if f != "csv") == \
-        ["X_30minAvg_LPF_LinDet_2023_07_08.nc"]
-    assert (tmp_path / "X" / "output" / "csv" / "X_30minAvg_LPF_LinDet_2023_07_08_H.csv").exists()
+        ["X_30minAvg_LPF_LinDet_2024_06_03.nc"]
+    assert (tmp_path / "X" / "output" / "csv" / "X_30minAvg_LPF_LinDet_2024_06_03_H.csv").exists()
     back = read_run(paths["nc"])
     assert back.attrs["site_id"] == "X" and back.attrs["pf_type"] == "LPF"
     assert np.array_equal(M.to_legacy_output(back)["H"], M.to_legacy_output(run)["H"], equal_nan=True)

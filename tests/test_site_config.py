@@ -32,12 +32,12 @@ def test_unknown_key_warns(tmp_path):
 def test_load_toml_file(tmp_path):
     (tmp_path / "siteInfo.toml").write_text(
         'tableNames = ["FMDOL_10Hz"]\nshiftzRef = true\n'
-        'latitude = 38.300056\nlongitude = -121.9105\n'
+        'latitude = 41.15\nlongitude = -98.92\n'
     )
     site = load_site_info(tmp_path)
     assert site.tableNames == ["FMDOL_10Hz"]
     assert site.shiftzRef is True
-    assert site.latitude == 38.300056 and site.longitude == -121.9105
+    assert site.latitude == 41.15 and site.longitude == -98.92
 
 
 def test_toml_takes_precedence(tmp_path):

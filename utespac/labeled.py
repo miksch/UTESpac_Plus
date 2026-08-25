@@ -78,7 +78,7 @@ class LabeledTable:
     heights: List[Optional[float]]   # per column, parsed from the label or the header
     time_in_col0: bool               # the legacy matrix carried the timestamp in column 0
     time_label: Optional[str] = None
-    header_key: Optional[str] = None   # "Hheader", "VAC001_20HzHeader", ... (None: unlabeled)
+    header_key: Optional[str] = None   # "Hheader", "MySite_20HzHeader", ... (None: unlabeled)
     header_nested: bool = False        # header stored as [names, heights]
     header_of: Optional[str] = None    # flags: the table whose header names the columns
 

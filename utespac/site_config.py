@@ -179,7 +179,7 @@ def list_sites(root) -> list:
 def resolve_site_dir(root, site) -> str:
     """Map a user-given site name to a folder name under *root*.
 
-    Accepts the folder name itself (``"VAC001"``, ``"siteGill..."``) or the
+    Accepts the folder name itself (``"MySite"``, ``"siteGill..."``) or the
     legacy bare id for a ``site``-prefixed folder (``"Gill..."``).
     """
     available = list_sites(root)
