@@ -11,7 +11,7 @@ per row.
 
 Usage (blessed conda invocation, Bash tool)::
 
-    cmd.exe //c "C:/Users/mdmiksch/AppData/Local/miniconda3/condabin/conda.bat run -n UTESpac_Plus --no-capture-output python testbed/scripts/extract_paper.py Thomas2007"
+    conda run -n UTESpac_Plus --no-capture-output python testbed/scripts/extract_paper.py Thomas2007
 
     python extract_paper.py Thomas2007              # by bibkey
     python extract_paper.py "Turner and Leclerc"    # by filename fragment

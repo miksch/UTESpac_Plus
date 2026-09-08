@@ -4,7 +4,7 @@
 # override it, a config/ec_coherent.toml in the working directory overrides
 # this packaged file, and ECConfig.from_config(**kw) overrides both. Science
 # behind each value: library/writeups/ec_preprocess.md, ec_spectra.md.
-# Provenance labels follow LLM_PRACTICE (dopli): [CITED] [DERIVED] [ASSUMED].
+# Provenance labels: [CITED] [DERIVED] [ASSUMED].
 
 [run]
 modules = ["spectra", "mrd", "quadrant", "octant", "ramps", "ampmod", "scales", "coherent_flux"]  # analyses to run, in order

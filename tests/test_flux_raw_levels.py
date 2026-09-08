@@ -1,7 +1,7 @@
 """The raw high-frequency products carry every gas-analyser level: a tower
 with an EC150-style IRGA on one sonic and a LI-7500 on another gets one
-``rhov`` / ``rhoCO2`` column per level, each at its own height (the VAC_ADV
-2023 IOP layout; task 2026-09-07 vac-adv-second-irga-level-in-hf-export)."""
+``rhov`` / ``rhoCO2`` column per level, each at its own height (a two-level
+tower with an IRGASON above a CSAT3 + LI-7500)."""
 
 import numpy as np
 import xarray as xr
@@ -12,7 +12,7 @@ from utespac.model import TIME_HF, Run, Sensor, Sensors, to_datetime64
 FS = 1.0 / 60.0            # [Hz] one sample a minute
 N = 1440                   # one complete day -> 48 periods (the reference state wants a day)
 T0_DATENUM = 738000.0
-UPPER, LOWER = 7.44, 3.07  # [m] IRGASON; CSAT3 + LI-7500
+UPPER, LOWER = 8.0, 3.0    # [m] IRGASON; CSAT3 + LI-7500
 
 _FIELD = {"Ux": "u", "Uy": "v", "Uz": "w", "Ts": "Tson",
           "H2O": "irgaH2O", "CO2": "irgaCO2", "LiH2O": "LiH2O", "LiCO2": "LiCO2"}
@@ -86,7 +86,7 @@ def _hf_run_pairs():
 def test_hf_files_carry_every_hygrometer_level():
     """For every HF file next to its run file: the HF ``height_h2o`` levels are
     the run file's ``latent_heat`` heights with a finite LE, and likewise for
-    ``height_co2`` and ``co2_flux`` (VAC_ADV dropped its 3.07 m LI-7500)."""
+    ``height_co2`` and ``co2_flux`` (a tower that dropped its lower LI-7500)."""
     import pytest
     netCDF4 = pytest.importorskip("netCDF4")
     pairs = list(_hf_run_pairs())

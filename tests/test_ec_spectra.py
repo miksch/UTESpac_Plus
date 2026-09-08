@@ -77,7 +77,7 @@ def test_kaimal_curves_match_the_printed_values():
 
 
 def test_module_run_on_synthetic_file_closes_and_writes(tmp_path):
-    path, truth = make_hf(tmp_path / "SYN_hf_GPF_ConstDet_2023_07_06.nc", nan_block=(2, 0, 2000))
+    path, truth = make_hf(tmp_path / "SYN_hf_GPF_ConstDet_2024_06_01.nc", nan_block=(2, 0, 2000))
     cfg = ECConfig.from_config()
     out = run_file(path, cfg)
     ds = ecio.read_group(out, "spectra")

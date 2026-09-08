@@ -48,7 +48,7 @@ from utespac.campbell_date import datetime64_to_matlab_datenum   # noqa: E402
 
 # ── configuration ─────────────────────────────────────────────────────────────
 
-SITE_ID = "US-xFM"    # replace with official AmeriFlux site ID when registered
+SITE_ID = "US-xSITE"    # replace with official AmeriFlux site ID when registered
 
 ROOT_PY = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(ROOT_PY, "ameriflux_hf_output")

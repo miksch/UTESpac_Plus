@@ -105,13 +105,13 @@ def open_hf(path) -> HFFile:
     ValueError
         The file is not ``utespac-hf-2``. ``utespac-hf-1`` files carry the
         pre-rename variable names (``u``, ``Ts``, ``rhov``, ...) and are not
-        read; regenerate them with ``testbed/scripts/run_vac001.py``.
+        read; regenerate them by re-running the pipeline with ``saveRawConditionedData``.
     """
     ds = xr.open_dataset(path, engine="netcdf4", decode_times=True, chunks=None)
     fmt = ds.attrs.get("utespac_format", "")
     if fmt != HF_FORMAT:
         hint = (f" {LEGACY_HF_FORMAT} uses the pre-rename variable names; regenerate the file "
-                "with testbed/scripts/run_vac001.py") if fmt == LEGACY_HF_FORMAT else ""
+                "by re-running the pipeline with saveRawConditionedData") if fmt == LEGACY_HF_FORMAT else ""
         raise ValueError(f"{path}: utespac_format {fmt!r}, expected {HF_FORMAT!r}.{hint}")
     fs = float(ds.attrs["sampling_frequency_hz"])
     window_s = float(ds.attrs["flux_averaging_s"])

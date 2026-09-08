@@ -53,7 +53,7 @@ Format requirements (ameriflux.lbl.gov/half-hourly-hourly-data-upload-format/):
 Usage::
 
     python generate_ameriflux.py
-    python generate_ameriflux.py --site VAC001 --qualifier GPF_ConstDet --site-id US-xVAC001
+    python generate_ameriflux.py --site <SITE> --qualifier GPF_ConstDet --site-id US-xSITE
 """
 
 import argparse
@@ -74,7 +74,6 @@ from utespac.run_io import read_run, run_files
 
 ROOT_PY = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_ROOT = os.path.join(ROOT_PY, "data")
-DEFAULT_SITE = "VAC001"
 DEFAULT_QUALIFIER = "GPF_ConstDet"          # <PF>_<detrending> of the run files
 OUT_DIR = os.path.join(ROOT_PY, "ameriflux_output")
 
@@ -502,7 +501,7 @@ def write_base_csv(df: pd.DataFrame, out_dir, site_id: str) -> str:
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--root", default=DEFAULT_ROOT, help="data root holding <SITE>/output")
-    p.add_argument("--site", default=DEFAULT_SITE, help="site folder name")
+    p.add_argument("--site", required=True, help="site folder name under data/")
     p.add_argument("--qualifier", default=DEFAULT_QUALIFIER,
                    help="run-file qualifier, <PF>_<detrending> (default: %(default)s)")
     p.add_argument("--avg-per", type=int, default=AVG_PER, help="averaging period [min]")

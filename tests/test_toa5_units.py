@@ -15,16 +15,16 @@ TOA5 = (
     '"TIMESTAMP","RECORD","Ux","T_SONIC","H2O_density","PA"\n'
     '"TS","RN","m s-1","deg C","g m-3","kPa"\n'
     '"","","Smp","Smp","Smp","Smp"\n'
-    '"2023-07-06 00:00:00.05",0,1.5,20.1,9.2,86.4\n'
+    '"2024-06-01 00:00:00.05",0,1.5,20.1,9.2,86.4\n'
 )
 EXPORT = (
     "TIMESTAMP,RECORD,TA_1_1_1,RH_1_1_1,Site\n"
     "TS,RN,deg C,%,Unnamed: 4_level_1\n"
-    "2023-07-06 00:00:00,0,20.1,45.0,VAC\n"
+    "2024-06-01 00:00:00,0,20.1,45.0,SiteX\n"
 )
 NAMES_ONLY = (
     "TIMESTAMP,RECORD,Ux,H2O_density_2\n"
-    "2023-07-10 09:00:00.1,9920,0.75,550.5\n"
+    "2024-06-05 09:00:00.1,9920,0.75,550.5\n"
 )
 
 COLUMNS = {"Ux_10.85": "Ux", "T_Sonic_10.85": "T_SONIC",
@@ -63,9 +63,9 @@ def test_resolve_units_from_a_toa5_file(tmp_path):
 def test_resolve_units_from_a_pandas_export(tmp_path):
     path = tmp_path / "slow.csv"
     path.write_text(EXPORT)
-    cfg = {"loader": len, "columns": {"Temp_7.44": "TA_1_1_1", "RH_7.44": "RH_1_1_1",
+    cfg = {"loader": len, "columns": {"Temp_8": "TA_1_1_1", "RH_8": "RH_1_1_1",
                                       "Site": "Site"}}
-    assert resolve_units(cfg, str(path)) == {"Temp_7.44": "deg C", "RH_7.44": "%",
+    assert resolve_units(cfg, str(path)) == {"Temp_8": "deg C", "RH_8": "%",
                                              "Site": ""}
 
 
@@ -73,10 +73,10 @@ def test_declared_raw_units_supply_a_source_without_a_units_row(tmp_path):
     path = tmp_path / "cc.dat"
     path.write_text(NAMES_ONLY)
     cfg = {"read_kwargs": {"skiprows": []},
-           "columns": {"Ux_7.44": "Ux", "LiH2O_3.07": "H2O_density_2"},
+           "columns": {"Ux_8": "Ux", "LiH2O_3": "H2O_density_2"},
            "raw_units": {"Ux": "m s-1", "H2O_density_2": "mmol m-3"}}
-    assert resolve_units(cfg, str(path)) == {"Ux_7.44": "m s-1",
-                                             "LiH2O_3.07": "mmol m-3"}
+    assert resolve_units(cfg, str(path)) == {"Ux_8": "m s-1",
+                                             "LiH2O_3": "mmol m-3"}
 
 
 def test_write_units_matches_the_header_column_order(tmp_path):

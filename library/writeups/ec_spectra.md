@@ -83,8 +83,8 @@ $T_*$ is defined as $-\overline{w\theta}/u_*$").
 Implemented by `kaimal_neutral` `[CITED]`, used only as a QC overlay in
 the spectra validation script under `testbed/scripts/` (development
 tree); never an input to any estimate.
-The overlay is drawn for $0.01 < f < 4$ only. The validation site is flat with
-the sonic at 10.85 m, so $z$ is the sonic height; $u_*$ is the per-record
+The overlay is drawn for $0.01 < f < 4$ only. The validation site is flat and the
+sonic is above any canopy, so $z$ is the sonic height; $u_*$ is the per-record
 `ustar_pf` ancillary, $T_*$ is formed from the window's own $\overline{w'T'}$.
 
 ## Ogive -- Foken & Wichura (1996) eq. 10, p. 89 [@Foken1996]; Desjardins et al. (1989) pp. 61-62 [@Desjardins1989]

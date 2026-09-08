@@ -1,6 +1,6 @@
 """Run the ec_coherent modules over one or more ``utespac-hf-2`` files.
 
-    python -m ec_coherent.cli data/MySite/output/MySite_hf_GPF_ConstDet_2023_07_06.nc
+    python -m ec_coherent.cli data/MySite/output/MySite_hf_GPF_ConstDet_2024_06_01.nc
     python -m ec_coherent.cli <files...> --modules spectra --records 0-5 --config my.toml
 """
 

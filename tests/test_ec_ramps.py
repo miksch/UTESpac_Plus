@@ -217,7 +217,7 @@ def test_tke_trigger_finds_synthetic_bursts_and_iqa_is_the_cumulative_path():
 
 
 def test_module_run_writes_the_ramps_group(tmp_path):
-    path, truth = make_hf(tmp_path / "SYN_hf_GPF_ConstDet_2023_07_06.nc")
+    path, truth = make_hf(tmp_path / "SYN_hf_GPF_ConstDet_2024_06_01.nc")
     cfg = ECConfig.from_config(modules=("ramps",), ramps={"a_max_s": 100.0, "D_min_s": 0.0})
     out = run_file(path, cfg)
     ds = ecio.read_group(out, "ramps")

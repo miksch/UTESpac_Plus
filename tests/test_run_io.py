@@ -140,7 +140,7 @@ def test_save_data_writes_run_file_and_csv_only(tmp_path):
     run = _run()
     run.site.update({"rootFolder": str(tmp_path), "date": "2024_06_03", "saveCSV": True,
                      "saveRawConditionedData": True, "PF": {"globalCalculation": "local"},
-                     "detrendingFormat": "linear", "latitude": 38.3, "longitude": -121.9})
+                     "detrendingFormat": "linear", "latitude": 41.15, "longitude": -98.92})
     paths = save_data(run)
     assert set(paths) == {"nc", "csv"}           # raw is None -> no HF file
     assert paths["nc"].endswith(os.path.join("X", "output", "X_30minAvg_LPF_LinDet_2024_06_03.nc"))

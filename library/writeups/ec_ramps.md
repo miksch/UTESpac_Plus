@@ -312,7 +312,7 @@ error contributors but "fall within the measurement error" (p. 551).
 
 Implemented as `phi_h` and `alpha_castellvi` (inertial-sublayer branch;
 the $z \le z^*$ branch and the roughness-sublayer-depth machinery of
-their eqs. 6-14 are not implemented -- our sonic sits at 10.85 m, far
+their eqs. 6-14 are not implemented -- the validation site's sonic sits far
 above any local canopy). Validation-site sanity check (advective site, same
 regime): see the validation script and task doc -- the similarity
 $\alpha$ computed from the measured $u_*$, $\zeta$ and the SR $\tau$ is
@@ -455,7 +455,7 @@ $u_{TKE,LP}$), and attributes `tke_lp_s`, `tke_a_s`, `tke_thresh`.
 | MHAT zero-crossing time as the event time | optional `refine` to the RAMP/HAAR extremum, default off | 0.35 $a_0$ lag measured on ideal ramps | ruled: `none` default for repeatability, option per site (user 2026-08-23) |
 | slope sign chosen by the analyst per signal | `slope="auto"` from the sign of $\overline{w'T'}$ | validation-site runs pass through both stabilities unattended | `[DERIVED]`, recorded per record |
 | -- | scale grid, `a_min_s`, `a_max_s` | -- | `[ASSUMED]`, config |
-| Spano: 8 Hz thermocouples over crops, lags 0.25-1.0 s | same lag set at 20 Hz sonic Ts at 10.85 m | lag sensitivity is stored per record on the `sr_lag` axis | site validation script; `[ASSUMED]` transferability |
+| Spano: 8 Hz thermocouples over crops, lags 0.25-1.0 s | same lag set at 20 Hz sonic Ts at the validation site's measurement height | lag sensitivity is stored per record on the `sr_lag` axis | site validation script; `[ASSUMED]` transferability |
 | Spano/Paw U: $\alpha$ fit against eddy covariance per site; Castellví: similarity $\alpha$ with $z^*$ machinery | `sr_alpha_mode`: `fixed` (default 1), `castellvi` (inertial branch only, `sr_d` displacement), `fit` (per lag and file) | ruled (user 2026-08-23): fixed default, other modes selectable; EC flux is the flux of record here | validation site: fixed gives ratio 2.23, castellvi 1.39 at r 0.99 (task doc) |
 | Chen: nonlinear fit of the finite-microfront model | linearized + two-lag only; $S^3(r)/r$ reported so $t_m$ is visible | fit not adopted (DECIDE, task doc); their Table I quantifies the bias | -- |
 | Mangan: $\bar A_i$ from multi-height + $u_{TKE}$ regressions (eqs. 6-11) | $\bar A$ = per-record mean wave amplitude, threshold $1.25\bar A$ | one sonic, no reference height; the threshold factor is theirs | `[SITE-TUNED]` at their sites; validation-site event counts vs u-wavelet detector |

@@ -10,7 +10,7 @@ from ec_helpers import make_hf
 
 @pytest.fixture(scope="module")
 def hf_path(tmp_path_factory):
-    p = tmp_path_factory.mktemp("ec_io") / "SYN_hf_GPF_ConstDet_2023_07_06.nc"
+    p = tmp_path_factory.mktemp("ec_io") / "SYN_hf_GPF_ConstDet_2024_06_01.nc"
     return make_hf(p, nan_block=(1, 10, 40))
 
 
@@ -26,7 +26,7 @@ def test_open_hf_reads_attrs_and_rejects_other_formats(hf_path, tmp_path):
         ecio.open_hf(other)
     old = tmp_path / "old.nc"
     xr.Dataset(attrs={"utespac_format": "utespac-hf-1"}).to_netcdf(old)
-    with pytest.raises(ValueError, match="run_vac001.py"):        # pre-rename names, no shim
+    with pytest.raises(ValueError, match="saveRawConditionedData"):        # pre-rename names, no shim
         ecio.open_hf(old)
 
 
@@ -71,8 +71,8 @@ def test_init_output_and_write_group_roundtrip(hf_path, tmp_path):
     root.close()
     back = ecio.read_group(str(out), "demo")
     assert back.attrs["note"] == "test" and float(back["x"].sum()) == 8.0
-    assert ecio.output_path("a/b/SYN_hf_GPF_ConstDet_2023_07_06.nc").endswith(
-        "SYN_coherent_GPF_ConstDet_2023_07_06.nc")
+    assert ecio.output_path("a/b/SYN_hf_GPF_ConstDet_2024_06_01.nc").endswith(
+        "SYN_coherent_GPF_ConstDet_2024_06_01.nc")
 
 
 def test_config_resolution_and_unknown_keys(tmp_path):

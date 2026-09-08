@@ -38,7 +38,7 @@ One netCDF per site and processing date, `data/<SITE>/output/<SITE>_<avgPer>minA
 
 Variable names use `[A-Za-z0-9_]` only, lowercase except the field's flux and scale symbols (`H`, `LE`, `Fc`, `Tau`, `TKE`, `L`, `Lv`), and read operands, then statistic, then qualifiers, with the frame last — `_raw` unrotated sonic axes, `_pf` planar fit + yaw, `_tilt` planar-fit frame: `w_theta_v_cov_pf`, `u_w_cov_pf`, `w_sigma_pf`, `Tau_pf`, `ustar_pf`, `LE_wpl_pf`, `Fc_wpl_pf`, `rho_air_moist`. Units and the readable formula are CF attributes (`units`, `long_name`), never part of the name. `utespac/names.py` is the single source of truth; `utespac-run-2` files are read through a rename shim.
 
-The same file carries the `wind` (direction, speed, shadow flag, sector bounds), `rotation` (period means and fit records), `sensors`, `periods/<table>` and `flags/<table>` groups. `saveCSV` writes one CSV per product group under `output/csv/`, with `<name>_<height>` headers (`w_theta_v_cov_pf_10.85`). `saveRawConditionedData` writes the high-frequency file `<SITE>_hf_<PF>_<Det>_<date>.nc` (`utespac-hf-2`), which speaks the same vocabulary (`u_pf`, `ts`, `theta_v`, `rho_h2o`, `wind_dir`).
+The same file carries the `wind` (direction, speed, shadow flag, sector bounds), `rotation` (period means and fit records), `sensors`, `periods/<table>` and `flags/<table>` groups. `saveCSV` writes one CSV per product group under `output/csv/`, with `<name>_<height>` headers (`w_theta_v_cov_pf_10`). `saveRawConditionedData` writes the high-frequency file `<SITE>_hf_<PF>_<Det>_<date>.nc` (`utespac-hf-2`), which speaks the same vocabulary (`u_pf`, `ts`, `theta_v`, `rho_h2o`, `wind_dir`).
 
 ## Coherent-structure analysis (`ec_coherent`)
 
@@ -76,8 +76,8 @@ half-hourly AmeriFlux BASE CSV to `ameriflux_output/`. One column block per soni
 `V = 1` the lowest.
 
 ```bash
-python generate_ameriflux.py                                             # data/VAC001, GPF_ConstDet
-python generate_ameriflux.py --site <SITE> --qualifier LPF_LinDet --site-id US-xVAC001
+python generate_ameriflux.py --site <SITE>                               # GPF_ConstDet
+python generate_ameriflux.py --site <SITE> --qualifier LPF_LinDet --site-id US-xSITE
 python generate_ameriflux.py --site <SITE> --met-dir <dir of 1-min met files>
 ```
 

@@ -15,7 +15,7 @@ GROUPS = ("spectra", "mrd", "quadrant", "octant", "ramps", "amplitude_mod",
 def coherent(tmp_path_factory):
     """One synthetic HF file pushed through main() with the packaged defaults."""
     d = tmp_path_factory.mktemp("ec_cli")
-    path, truth = make_hf(d / "SYN_hf_GPF_ConstDet_2023_07_06.nc")
+    path, truth = make_hf(d / "SYN_hf_GPF_ConstDet_2024_06_01.nc")
     assert cli.main([path]) == 0
     return ecio.output_path(path), truth
 
@@ -53,7 +53,7 @@ def test_closure_identities_hold_across_groups(coherent):
 
 
 def test_records_and_module_subset_and_out(tmp_path):
-    path, _ = make_hf(tmp_path / "SYN_hf_GPF_ConstDet_2023_07_08.nc")
+    path, _ = make_hf(tmp_path / "SYN_hf_GPF_ConstDet_2024_06_03.nc")
     out = str(tmp_path / "subset.nc")
     assert cli.main([path, "--modules", "spectra", "--records", "0-1,3", "--out", out]) == 0
     ds = ecio.read_group(out, "spectra")

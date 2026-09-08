@@ -19,7 +19,7 @@ from utespac.run_io import write_run
 
 HEIGHTS = [5.0, 10.85]
 N = 4
-T0 = np.datetime64("2023-07-08T00:30:00")
+T0 = np.datetime64("2024-06-03T00:30:00")
 TIMES = (T0 + np.arange(N) * np.timedelta64(30, "m")).astype("datetime64[ns]")
 
 
@@ -97,7 +97,7 @@ def _site(tmp_path, **kwargs):
     out = tmp_path / "X" / "output"
     out.mkdir(parents=True)
     (tmp_path / "X" / "siteInfo.toml").write_text("tower = 180\n")
-    write_run(_run(**kwargs), out / "X_30minAvg_GPF_ConstDet_2023_07_08.nc")
+    write_run(_run(**kwargs), out / "X_30minAvg_GPF_ConstDet_2024_06_03.nc")
     return ga.read_site(tmp_path, "X", 30, "GPF_ConstDet")
 
 
@@ -128,9 +128,9 @@ def test_timestamps_are_ameriflux_form(tmp_path):
     df = ga.ameriflux_frame(_site(tmp_path))
     for col in ("TIMESTAMP_START", "TIMESTAMP_END"):
         assert all(re.fullmatch(r"\d{12}", s) for s in df[col])
-    assert df["TIMESTAMP_END"].iloc[0] == "202307080030"
-    assert df["TIMESTAMP_START"].iloc[0] == "202307080000"      # end minus the averaging period
-    assert df["TIMESTAMP_END"].iloc[-1] == "202307080200"
+    assert df["TIMESTAMP_END"].iloc[0] == "202406030030"
+    assert df["TIMESTAMP_START"].iloc[0] == "202406030000"      # end minus the averaging period
+    assert df["TIMESTAMP_END"].iloc[-1] == "202406030200"
 
 
 def test_values_of_the_new_columns_are_taken_as_stored(tmp_path):
@@ -183,13 +183,13 @@ def test_csv_is_written_with_the_base_format(tmp_path):
     site = _site(tmp_path)
     df = ga.ameriflux_frame(site)
     path = ga.write_base_csv(df, tmp_path / "ameriflux_output", "US-xX")
-    assert path.endswith("US-xX_HH_202307080000_202307080200.csv")
+    assert path.endswith("US-xX_HH_202406030000_202406030200.csv")
     back = pd.read_csv(path, dtype={"TIMESTAMP_START": str, "TIMESTAMP_END": str})
     assert list(back.columns[:2]) == ["TIMESTAMP_START", "TIMESTAMP_END"]
     assert len(back) == N and not back.isna().any().any()          # every gap is filled
     assert back["H_1_1_1"].iloc[2] == ga.MISSING                   # the NaN covariance period
     assert (back["MO_LENGTH_1_1_1"].iloc[3] == ga.MISSING)         # inf L is missing, not inf
-    assert back["TIMESTAMP_START"].iloc[0] == "202307080000"
+    assert back["TIMESTAMP_START"].iloc[0] == "202406030000"
 
 
 def test_missing_run_files_raise(tmp_path):

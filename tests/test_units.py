@@ -150,7 +150,7 @@ def test_find_files_reads_the_units_row_and_ignores_the_units_file(tmp_path):
     inp = site / "utespac"
     (inp / "SiteU_20Hz_header.dat").write_text(HEADER_LINE)
     (inp / "SiteU_20Hz_units.dat").write_text(UNITS_LINE)
-    (inp / "SiteU_20Hz_20230706000000_20230708000000.txt").write_text("2023,187,0,0.0\n")
+    (inp / "SiteU_20Hz_20240601000000_20240603000000.txt").write_text("2024,153,0,0.0\n")
 
     headers, data_files, table_names, _ = find_files({"rootFolder": str(tmp_path)},
                                                      site="SiteU")
@@ -158,7 +158,7 @@ def test_find_files_reads_the_units_row_and_ignores_the_units_file(tmp_path):
     assert headers[0][2] == ["", "m s-1", "deg C", "kPa"]
     files = [f for row in data_files for f in row if f]
     assert [os.path.basename(f) for f in files] == \
-        ["SiteU_20Hz_20230706000000_20230708000000.txt"]
+        ["SiteU_20Hz_20240601000000_20240603000000.txt"]
 
 
 def test_sensors_from_legacy_carry_the_declared_units():

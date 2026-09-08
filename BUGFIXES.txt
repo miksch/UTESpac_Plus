@@ -324,8 +324,8 @@ Bug Fixes from the 2026-08 Code Audit
     Fix: When Tref came from the sonic, divide by (1 + 0.51*q_ref) once
          q_ref is resolved (Schotanus 1983 eq. 5), before the density
          block. Adopted from upstream commit 874f54b. Only active on
-         runs without a slow T sensor; VAC001/VAC_ADV use the HMP, so
-         their products are unchanged.
+         runs without a slow T sensor; the validation-site runs use the
+         HMP, so their products are unchanged.
 
 21. Second gas-analyser level dropped from the high-frequency product,
     first level overwritten
@@ -335,14 +335,14 @@ Bug Fixes from the 2026-08 Code Audit
     Bug: The raw rhov / rhoCO2 arrays were allocated for the first IRGA
          family found (irgaH2O before LiH2O), one column per sensor of
          that family, and a LI-7500 level kept the default column index
-         0. On a mixed tower (VAC_ADV: IRGASON at 7.44 m, LI-7500 at
-         3.07 m) the HF file had one water-vapour level, labelled
-         7.44 m, whose samples were the 3.07 m LI-7500 series (the
-         lower sonic is processed last and overwrote the column). The
-         averaged fluxes were right at both levels; only the HF export
-         was affected. One-IRGA towers (VAC001) never showed it.
+         0. On a mixed tower (IRGASON on the upper sonic, LI-7500 on the
+         lower) the HF file had one water-vapour level, labelled with
+         the upper height, whose samples were the lower LI-7500 series
+         (the lower sonic is processed last and overwrote the column).
+         The averaged fluxes were right at both levels; only the HF
+         export was affected. One-IRGA towers never showed it.
     Fix: One column per gas-analyser level across families
          (Sensors.heights_of over H2O_FIELDS / CO2_FIELDS), each level
          indexing its own column; a level without a carried analyser
-         writes nothing. VAC_ADV GPF ConstDet HF files regenerated
+         writes nothing. The two-level tower's HF files were regenerated
          2026-09-07.

@@ -12,7 +12,7 @@ here.
 
 Resolution order, shared by every ``from_config``: per-call keyword >
 explicit dataclass/dict > ``config/<name>.toml`` in the working directory >
-packaged TOML > dataclass default. Mirrors ``dopli.config``.
+packaged TOML > dataclass default.
 """
 
 import tomllib

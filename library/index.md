@@ -123,6 +123,6 @@ gitignored; project entries are curated into `references.bib`.
   turner estimator 2026-08-24).
 
 PDF extraction now goes through `testbed/scripts/extract_paper.py` (ported
-from dopli 2026-08-23): text to `library/extracted/<bibkey>.txt`
+from an in-house tooling repo 2026-08-23): text to `library/extracted/<bibkey>.txt`
 (gitignored), `--render` for the image-only scans, `--check-index` for
 directory-vs-index drift.
