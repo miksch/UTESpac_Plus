@@ -68,3 +68,10 @@ library/extracted/
 !data/fixtures/
 !data/fixtures/**
 data/fixtures/**/__pycache__/
+
+# ── Data tree, task tracker, figures: local only (user ruling 2026-09-07) ─────
+data/
+tasks/
+*.png
+*.pdf
+*.log
