@@ -326,3 +326,23 @@ Bug Fixes from the 2026-08 Code Audit
          block. Adopted from upstream commit 874f54b. Only active on
          runs without a slow T sensor; VAC001/VAC_ADV use the HMP, so
          their products are unchanged.
+
+21. Second gas-analyser level dropped from the high-frequency product,
+    first level overwritten
+    File: Python only -- utespac/stages.py _init_raw / _fill_raw_period,
+          utespac/flux/levels.py build_level
+    ----------------------------------------------------------------
+    Bug: The raw rhov / rhoCO2 arrays were allocated for the first IRGA
+         family found (irgaH2O before LiH2O), one column per sensor of
+         that family, and a LI-7500 level kept the default column index
+         0. On a mixed tower (VAC_ADV: IRGASON at 7.44 m, LI-7500 at
+         3.07 m) the HF file had one water-vapour level, labelled
+         7.44 m, whose samples were the 3.07 m LI-7500 series (the
+         lower sonic is processed last and overwrote the column). The
+         averaged fluxes were right at both levels; only the HF export
+         was affected. One-IRGA towers (VAC001) never showed it.
+    Fix: One column per gas-analyser level across families
+         (Sensors.heights_of over H2O_FIELDS / CO2_FIELDS), each level
+         indexing its own column; a level without a carried analyser
+         writes nothing. VAC_ADV GPF ConstDet HF files regenerated
+         2026-09-07.

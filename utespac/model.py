@@ -60,11 +60,26 @@ class Sensor:
     units: Optional[str] = None             # unit declared by the table's _units.dat
 
 
+# Gas-analyser families a tower may mix across levels (an EC150-style IRGA on
+# one sonic, a LI-7500 on another). The raw ``rhov`` / ``rhoCO2`` products carry
+# one column per level in ``Sensors.heights_of`` order.
+H2O_FIELDS = ("irgaH2O", "LiH2O")
+CO2_FIELDS = ("irgaCO2", "LiCO2")
+
+
 class Sensors(list):
     """The sensors of a run, with lookups by field and height."""
 
     def by_field(self, field_name: str) -> List[Sensor]:
         return [s for s in self if s.field == field_name]
+
+    def heights_of(self, field_names: Sequence[str]) -> List[float]:
+        """Distinct heights carrying any of ``field_names``, in sensor order."""
+        out: List[float] = []
+        for s in self:
+            if s.field in field_names and s.height not in out:
+                out.append(s.height)
+        return out
 
     def at(self, field_name: str, height: float, tol: float = 0.01) -> Optional[Sensor]:
         for s in self:

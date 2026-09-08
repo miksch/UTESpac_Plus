@@ -17,7 +17,7 @@ import numpy as np
 
 from ..averaging import block_average
 from ..get_virtual_pot_temp import get_virtual_pot_temp
-from ..model import COMPONENT, HEIGHT, Run, Sensor
+from ..model import CO2_FIELDS, COMPONENT, H2O_FIELDS, HEIGHT, Run, Sensor
 from ..rh_to_spec_hum import rh_to_spec_hum
 from ..site_config import sonic_for
 from .. import units
@@ -65,9 +65,9 @@ class LevelInputs:
     Vtheta_fw: Optional[np.ndarray] = None
     h2o: Optional[np.ndarray] = None          # [g/m³]
     h2o_is_kh2o: bool = False
-    h2o_sensor_index: int = 0                 # column in the raw rhov arrays
+    h2o_sensor_index: Optional[int] = None    # column in the raw rhov arrays (None: not carried)
     co2: Optional[np.ndarray] = None          # [mg/m³]
-    co2_sensor_index: int = 0
+    co2_sensor_index: Optional[int] = None
     # level pressure (per period / per sample)
     P_kPa: Optional[np.ndarray] = None
     P_raw_hf: Optional[np.ndarray] = None
@@ -256,10 +256,13 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
     # ---- H2O at this height ----
     # Resolved per height, not per run: a tower may carry an EC150-style
     # IRGA on one level and a LI-7500 (LiH2O, mmol/m³) on another.
+    # The raw rhov / rhoCO2 columns are indexed over every IRGA level of the
+    # tower (Sensors.heights_of), not within one family.
     h2o = None
     h2o_flag = np.zeros(N, dtype=bool)
     h2o_is_kh2o = False
-    h2o_si = 0
+    h2o_si = None
+    h2o_levels = run.sensors.heights_of(H2O_FIELDS)
     if (s := run.sensors.at("irgaH2O", height)) is not None:
         h2o = units.convert(run.hf(s), s.units, "h2o_density", sensor=s)
         h2o_flag = (_flags(run, s, N)
@@ -267,7 +270,7 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
                                       diag_cfg.get("H2OminSignal"), np.less_equal)
                     | _threshold_flag(run, run.sensors.at("irgaGasDiag", height), N,
                                       diag_cfg.get("meanGasDiagnosticLimit"), np.greater_equal))
-        h2o_si = run.sensors.heights("irgaH2O").index(height)
+        h2o_si = h2o_levels.index(height)
     elif (s := run.sensors.at("LiH2O", height)) is not None:
         h2o = run.hf(s) * 0.018          # mmol/m³ -> g/m³
         # LI-7500 diagnostic decreases with problems: full strength is 255,
@@ -276,6 +279,7 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
         h2o_flag = (_flags(run, s, N)
                     | _threshold_flag(run, run.sensors.at("LiGasDiag", height), N,
                                       diag_cfg.get("meanLiGasDiagnosticLimit"), np.less_equal))
+        h2o_si = h2o_levels.index(height)
     elif (s := run.sensors.at("KH2O", height)) is not None:
         h2o = units.convert(run.hf(s), s.units, "h2o_density", sensor=s)
         h2o_flag = _flags(run, s, N)
@@ -284,7 +288,8 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
     # ---- CO2 at this height (needs the hygrometer for the WPL terms) ----
     co2 = None
     co2_flag = np.zeros(N, dtype=bool)
-    co2_si = 0
+    co2_si = None
+    co2_levels = run.sensors.heights_of(CO2_FIELDS)
     if h2o is not None and (s := run.sensors.at("irgaCO2", height)) is not None:
         co2 = units.convert(run.hf(s), s.units, "co2_density", sensor=s)
         co2_flag = (_flags(run, s, N)
@@ -292,12 +297,13 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
                                       diag_cfg.get("CO2minSignal"), np.less_equal)
                     | _threshold_flag(run, run.sensors.at("irgaGasDiag", height), N,
                                       diag_cfg.get("meanGasDiagnosticLimit"), np.greater_equal))
-        co2_si = run.sensors.heights("irgaCO2").index(height)
+        co2_si = co2_levels.index(height)
     elif h2o is not None and (s := run.sensors.at("LiCO2", height)) is not None:
         co2 = run.hf(s) * 44.0           # mmol/m³ -> mg/m³
         co2_flag = (_flags(run, s, N)
                     | _threshold_flag(run, run.sensors.at("LiGasDiag", height), N,
                                       diag_cfg.get("meanLiGasDiagnosticLimit"), np.less_equal))
+        co2_si = co2_levels.index(height)
 
     # ---- temperature: block-averaged derived temperatures ----
     def _avg(series):

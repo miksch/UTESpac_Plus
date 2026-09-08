@@ -18,8 +18,8 @@ import xarray as xr
 
 from .averaging import block_average, block_last, n_periods, period_bounds
 from .condition_data import qc_table
-from .model import (COLUMN, COMPONENT, HEIGHT, TIME, TIME_HF, Run, Sensors, header_units,
-                    tables_from_legacy, to_datenum, to_datetime64)
+from .model import (CO2_FIELDS, COLUMN, COMPONENT, H2O_FIELDS, HEIGHT, TIME, TIME_HF, Run,
+                    Sensors, header_units, tables_from_legacy, to_datenum, to_datetime64)
 from .rotation import SonicSeries, rotate_sonics
 from .wind_stats import shadow_flag, wind_direction_speed
 
@@ -439,22 +439,19 @@ def _init_raw(raw, t, num_sonics: int, run: Run) -> None:
         raw[key] = np.full((n, num_sonics), np.nan)
     raw["t"] = t
     raw["z"] = np.full(num_sonics, np.nan)
-    for field_name in ("irgaH2O", "LiH2O"):
-        if run.sensors.has(field_name):
-            nh = len(run.sensors.by_field(field_name))
-            raw["rhov"] = np.full((n, nh), np.nan)
-            raw["rhovPrime"] = np.full((n, nh), np.nan)
-            raw["rhovextenalPrime"] = np.full((n, nh), np.nan)
-            raw["z_h2o"] = np.array(run.sensors.heights(field_name), dtype=float)
-            break
-    for field_name in ("irgaCO2", "LiCO2"):
-        if run.sensors.has(field_name):
-            nc = len(run.sensors.by_field(field_name))
-            raw["rhoCO2"] = np.full((n, nc), np.nan)
-            raw["rhoCO2Prime"] = np.full((n, nc), np.nan)
-            raw["rhoCO2extenalPrime"] = np.full((n, nc), np.nan)
-            raw["z_co2"] = np.array(run.sensors.heights(field_name), dtype=float)
-            break
+    # One column per gas-analyser level across families (a mixed tower has an
+    # EC150-style IRGA on one sonic and a LI-7500 on another); build_level
+    # indexes its rhov / rhoCO2 column over the same list.
+    z_h2o = run.sensors.heights_of(H2O_FIELDS)
+    if z_h2o:
+        for key in ("rhov", "rhovPrime", "rhovextenalPrime"):
+            raw[key] = np.full((n, len(z_h2o)), np.nan)
+        raw["z_h2o"] = np.array(z_h2o, dtype=float)
+    z_co2 = run.sensors.heights_of(CO2_FIELDS)
+    if z_co2:
+        for key in ("rhoCO2", "rhoCO2Prime", "rhoCO2extenalPrime"):
+            raw[key] = np.full((n, len(z_co2)), np.nan)
+        raw["z_co2"] = np.array(z_co2, dtype=float)
 
 
 def _fill_raw_level(raw, lev, ii: int) -> None:
@@ -477,9 +474,9 @@ def _fill_raw_period(raw, lev, ii: int, s0: int, s1: int, samples, t) -> None:
                 raw[key] = np.full((len(t), raw["uPF"].shape[1]), np.nan)
         for key in ("fwThPrime", "fwTh", "fwT"):
             raw[key][s0:s1, ii] = samples[key]
-    if "rhov" in raw and "rhov" in samples:
+    if "rhov" in raw and "rhov" in samples and lev.h2o_sensor_index is not None:
         for key in ("rhov", "rhovPrime", "rhovextenalPrime"):
             raw[key][s0:s1, lev.h2o_sensor_index] = samples[key]
-    if "rhoCO2" in raw and "rhoCO2" in samples:
+    if "rhoCO2" in raw and "rhoCO2" in samples and lev.co2_sensor_index is not None:
         for key in ("rhoCO2", "rhoCO2Prime", "rhoCO2extenalPrime"):
             raw[key][s0:s1, lev.co2_sensor_index] = samples[key]
