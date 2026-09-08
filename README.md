@@ -1,24 +1,72 @@
-# UTESpac Python
+# UTESpac_Plus
 
-Python port of UTESpac (Utah Turbulence in Environmental Studies Process and Analysis Code).  
-Original MATLAB code by Derek Jensen & Eric Pardyjak, modified by Diane Wang.
+Python port of UTESpac (Utah Turbulence in Environmental Studies Process and Analysis
+Code), with a coherent-structure analysis package (`ec_coherent`) and AmeriFlux exporters
+built on the same run files.  
+Original MATLAB code by Derek Jensen & Eric Pardyjak. Ported to Python by Diane Wang.
+
+Currently being made more python-friendly by Matt Miksch. This fork is still under development and should not be used for processing.
 
 ## Installation
 
+Python 3.10 or newer.
+
 ```bash
-pip3 install numpy scipy matplotlib
-pip3 install xarray netCDF4
+pip install -e .                # numpy, scipy, matplotlib, xarray, netCDF4
+pip install -e ".[raw,test]"    # + pandas (raw_processing, AmeriFlux) and pytest
 ```
+
+`pyproject.toml` is the authoritative dependency list; `requirements.txt` is the older
+minimal pin set kept for the MATLAB-era workflow.
+
+## Repository layout
+
+| Path | What lives there |
+|---|---|
+| `utespac/` | the processing pipeline — stages, flux kernels, run-file I/O, `names.py` |
+| `ec_coherent/` | coherent-structure analysis over the high-frequency products |
+| `raw_processing/` | logger-side scripts that turn raw TOA5/CSV into UTESpac inputs |
+| `tests/` | pytest suite (`pytest`, or `pytest tests/test_flux_engine.py`) |
+| `testbed/` | exploratory scripts and gameplans, not part of the package |
+| `library/` | reference notes and bibliography — `writeups/*.md`, `references.bib`, `index.md` |
+| `UTESpac_MATLAB/` | the original MATLAB source, kept for reference |
+| `BUGFIXES.txt` | numbered log of fixes and behaviour changes against the MATLAB original |
+| `data/` | the per-site data tree (untracked; see below) |
+
+## The data tree
+
+`data/` holds one folder per site and is gitignored — nothing under it ships with the
+repo. A site folder carries:
+
+```
+data/<SITE>/
+  siteInfo.toml   site facts: sonics, heights, bearings, slope geometry, elevation, latitude
+  scripts/        per-site raw_processing wrappers (column maps, date spans)
+  raw/            as logged, one folder per raw table; read-only to the pipeline
+  utespac/        formatted 48-h inputs written by raw_processing:
+                  <PREFIX>_<table>_header.dat + <PREFIX>_<table>_<d1>000000_<d2>000000.txt
+  output/         the netCDF products (run files, high-frequency files, csv/ on request)
+  PFinfo.json     global planar-fit coefficients (utespac.pf_info.PFTable)
+```
+
+A site is discovered by the presence of `siteInfo.toml` (a legacy `siteInfo.py` still
+loads). `data/fixtures/` holds the mini site trees the regression tests build against.
 
 ## Running the pipeline
 
-`raw_processing` provides sample code for generating formatted input for UTESpac package. Each site lives under `data/<SITE>/` with its `siteInfo.toml` (site facts: sonics, heights, bearings, slope geometry, elevation, latitude) and the 48-h inputs in `data/<SITE>/utespac/` (see `data/README.md`). Processing settings are packaged TOMLs in `utespac/config/` (`run.toml`, `qc.toml`, `pf.toml`, `flux.toml`); a `config/<stage>.toml` in the working directory overrides them, and the command-line flags override both.
+Processing settings are packaged TOMLs in `utespac/config/` (`run.toml`, `qc.toml`,
+`pf.toml`, `flux.toml`); a `config/<stage>.toml` in the working directory overrides them,
+and the command-line flags override both.
 
 ```bash
 python utespac_main.py                                  # prompts for site and dates, GPF with the planar-fit prompts
 python utespac_main.py --site <SITE> --pf local --dates all --detrend constant
 python utespac_main.py --site <SITE> --pf global --reuse-pf --no-prompts
 ```
+
+Other flags: `--root` (data root, default `<repo>/data`), `--avg-per` (averaging period in
+minutes), `--run-config` (a `run.toml` replacing the packaged one), `-q/--quiet`.
+`--dates` takes `all` or row selectors like `1 3 4:7`.
 
 The local planar fit (`--pf local`) has to be run before the global one for a site: `find_global_pf` reads the LPF products. From Python:
 
@@ -38,7 +86,10 @@ One netCDF per site and processing date, `data/<SITE>/output/<SITE>_<avgPer>minA
 
 Variable names use `[A-Za-z0-9_]` only, lowercase except the field's flux and scale symbols (`H`, `LE`, `Fc`, `Tau`, `TKE`, `L`, `Lv`), and read operands, then statistic, then qualifiers, with the frame last — `_raw` unrotated sonic axes, `_pf` planar fit + yaw, `_tilt` planar-fit frame: `w_theta_v_cov_pf`, `u_w_cov_pf`, `w_sigma_pf`, `Tau_pf`, `ustar_pf`, `LE_wpl_pf`, `Fc_wpl_pf`, `rho_air_moist`. Units and the readable formula are CF attributes (`units`, `long_name`), never part of the name. `utespac/names.py` is the single source of truth; `utespac-run-2` files are read through a rename shim.
 
-The same file carries the `wind` (direction, speed, shadow flag, sector bounds), `rotation` (period means and fit records), `sensors`, `periods/<table>` and `flags/<table>` groups. `saveCSV` writes one CSV per product group under `output/csv/`, with `<name>_<height>` headers (`w_theta_v_cov_pf_10`). `saveRawConditionedData` writes the high-frequency file `<SITE>_hf_<PF>_<Det>_<date>.nc` (`utespac-hf-2`), which speaks the same vocabulary (`u_pf`, `ts`, `theta_v`, `rho_h2o`, `wind_dir`).
+`scaling` carries the Monin-Obukhov scales alongside the integrated stability functions
+`psi_m` and `psi_h`.
+
+The same file carries the `wind` (direction, speed, shadow flag, sector bounds), `rotation` (period means and fit records), `sensors`, `periods/<table>` and `flags/<table>` groups. `saveCSV` writes one CSV per product group under `output/csv/`, with `<name>_<height>` headers (`w_theta_v_cov_pf_10`). `saveRawConditionedData` writes the high-frequency file `<SITE>_hf_<PF>_<Det>_<date>.nc` (`utespac-hf-2`), which speaks the same vocabulary (`u_pf`, `ts`, `theta_v`, `rho_h2o`, `wind_dir`) and carries one column per gas-analyser level, ordered by `Sensors.heights_of`.
 
 ## Coherent-structure analysis (`ec_coherent`)
 
@@ -55,16 +106,20 @@ python -m ec_coherent.cli data/<SITE>/output/<SITE>_hf_*.nc --records 0-5 --modu
 
 ### Convert siteInfo.m → siteInfo.py
 
-Converts a MATLAB `siteInfo.m` site configuration file into the Python equivalent that
-`find_files()` expects.  Run from the `UTESpac_Python/` directory.
+A migration helper for sites that still only exist as MATLAB configuration: it converts a
+`siteInfo.m` into the legacy `siteInfo.py` form, which `utespac.site_config` still loads.
+New sites should be written as `siteInfo.toml` directly. Run from the repository root.
 
 ```bash
-# Convert an explicit .m file
-python3 convert_siteinfo.py UTESpac_MATLAB/siteGill/siteInfo.m
-
+python convert_siteinfo.py UTESpac_MATLAB/siteGill/siteInfo.m   # explicit .m file
+python convert_siteinfo.py siteGill/                            # folder holding siteInfo.m
+python convert_siteinfo.py                                      # every site*/siteInfo.m under UTESpac_MATLAB/
+python convert_siteinfo.py --dry-run siteGill/                  # print instead of writing
 ```
+
 The script handles scalar values, numeric arrays (`[1 2 3]` or `[1, 2, 3]`), string cell
-arrays (`{'name'}`), and preserves inline `%` comments as `#` comments.
+arrays (`{'name'}`), and preserves inline `%` comments as `#` comments. It asks before
+overwriting an existing `siteInfo.py` unless `--force` is given.
 
 ---
 
@@ -106,3 +161,57 @@ the script); without it only `PA` and the turbulence columns are written.
 **Note on SSITC flags:** SSITC flags are interpreted as diagnostic indicators of nonstationarity
 and similarity-theory departure, rather than as direct indicators of instrument failure or
 unusable observations over forested complex terrain.
+
+---
+
+### Generate AmeriFlux high-frequency data
+
+`generate_ameriflux_hf.py` reads the `*_hf_*.nc` high-frequency files and writes the
+[AmeriFlux HF upload format](https://ameriflux.lbl.gov/data/how-to-upload-data/uploading-high-frequency-data/):
+one CSV per 30-min period, `<SITE_ID>_HF_<start>_<end>.csv`, zipped flat per site type into
+`ameriflux_hf_output/` with the individual CSVs removed afterwards. Columns are
+`TIMESTAMP` (`YYYYMMDDHHMMSS.cc`, local standard time), the planar-fit `U/V/W_1_{V}_1`,
+`T_SONIC_1_{V}_1`, `H2O_IU_1_{V}_1`, `CO2_IU_1_{V}_1` and `PA_1_1_1`; `V = 1` is the lowest
+level. `SITE_ID` and `PF_TYPE` are constants at the top of the script.
+
+H2O and CO2 carry the `_IU` qualifier because they are submitted as densities (g m⁻³,
+mg m⁻³) rather than AmeriFlux's standard mole fractions — per AmeriFlux, `_IU` in an HF
+upload should be cleared with the data team before submission.
+
+---
+
+## Tests
+
+```bash
+pytest                              # the whole suite
+pytest tests/test_flux_engine.py    # one module
+```
+
+`tests/KNOWN_DIVERGENCES.md` records where the Python results intentionally differ from
+the MATLAB original; `BUGFIXES.txt` is the numbered change log behind those differences.
+The pinned-fixture test runs only when a fixture tree is present under `data/fixtures/`
+and skips otherwise.
+
+---
+
+## Terms of use
+
+**There is no license on this repository, and the absence of a `LICENSE` file is
+deliberate.** UTESpac_Plus is not licensed for use, redistribution, or modification by
+others at this time.
+
+The code has three layers of authorship: the MATLAB original by Derek Jensen and Eric
+Pardyjak, the Python port by Diane Wang, and the continued development here. The MATLAB
+original carries no copyright notice and no statement of terms, so it is treated as all
+rights reserved by its authors and possibly their institution; the port under `utespac/`
+is a derivative work of it. `ec_coherent/` and the AmeriFlux exporters are original to
+this repository, but they read the products the ported pipeline writes and are not usable
+independently of it. None of this is one party's alone to license.
+
+The intent is a permissive open-source release, most likely BSD 3-Clause, once terms are
+settled with the MATLAB authors and with Diane Wang. Until then, contact them before
+using any part of this. See [`NOTICE`](NOTICE) for the full provenance, copyright, and
+third-party statement.
+
+`library/` (published literature) and `data/` are excluded from version control and are
+not redistributed here.
