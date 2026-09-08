@@ -57,81 +57,103 @@ def test_keys_are_known_table_columns():
         spec_keys = {k for k, _ in TABLE_SPECS[table].columns}
         unknown = set(vals) - spec_keys
         assert not unknown, (table, unknown)
-    assert {"H", "tau", "tke", "sigma", "LHflux", "CO2flux", "fluxQC", "L"} <= set(r.values)
+    assert {"sensible_heat", "momentum", "tke", "sigma", "latent_heat", "co2_flux",
+            "flux_qc", "obukhov"} <= set(r.values)
     assert {"rhov", "rhovPrime", "rhoCO2", "fwThPrime"} <= set(r.samples)
 
 
 def test_covariances_have_the_built_in_signs():
     r = _run(_level())
-    assert r.values["H"]["Ts_w"] > 0
-    assert r.values["LHflux"]["E_wPF"] > 0
-    assert r.values["CO2flux"]["Fc_wPF"] < 0
-    assert r.values["L"]["L"] < 0                     # unstable
-    assert r.values["tau"]["wPF_wPF"] == pytest.approx(np.nanvar(_level().w[:N_SAMP]), rel=1e-6)
+    assert r.values["sensible_heat"]["w_ts_cov_raw"] > 0
+    assert r.values["latent_heat"]["w_h2o_cov_pf"] > 0
+    assert r.values["co2_flux"]["w_co2_cov_pf"] < 0
+    assert r.values["obukhov"]["L"] < 0                     # unstable
+    assert r.values["momentum"]["w_var_pf"] == pytest.approx(np.nanvar(_level().w[:N_SAMP]), rel=1e-6)
 
 
 def test_schotanus_temperature_flux_is_below_the_buoyancy_flux():
     r = _run(_level())
     # w'T' = w'Ts' - 0.51 T w'q' with a positive moisture flux: smaller than w'Ts'
-    assert r.values["H"]["Tair_wPF"] < r.values["H"]["Ts_w"]
+    assert r.values["sensible_heat"]["w_t_air_cov_pf"] < r.values["sensible_heat"]["w_ts_cov_raw"]
     # the WPL LE is driven by that w'T', so it sits below the buoyancy-driven form
     ref_T = 295.0
     rho_v, rho_d = 0.0095, 1.18
-    Lv = r.values["LHflux"]["Lv"]
+    Lv = r.values["latent_heat"]["Lv"]
     wpl = 1.0 + 28.97 / 18.0153 * rho_v / rho_d
-    le_buoy = 1000.0 * Lv * wpl * (r.values["LHflux"]["E_wPF"] / 1000.0
-                                   + rho_v / ref_T * r.values["H"]["Thv_wPF"])
-    assert r.values["LHflux"]["LE_WPL_wPF"] < le_buoy
+    le_buoy = 1000.0 * Lv * wpl * (r.values["latent_heat"]["w_h2o_cov_pf"] / 1000.0
+                                   + rho_v / ref_T * r.values["sensible_heat"]["w_theta_v_cov_pf"])
+    assert r.values["latent_heat"]["LE_wpl_pf"] < le_buoy
 
 
 def test_flags_blank_the_right_columns():
     lev = _level()
     lev.rot_flag[:] = True
     r = _run(lev)
-    assert np.isnan(r.values["tau"]["tau_PF"]) and np.isnan(r.values["tke"]["tke"])
-    assert np.isnan(r.values["sigma"]["sigma_u"])
-    assert not np.isnan(r.values["sigma"]["sigma_w"])      # w flag only
-    assert not np.isnan(r.values["H"]["Ts_w"])             # unrotated flux survives a rotation flag
-    assert np.isnan(r.values["H"]["Thv_wPF"])
+    assert np.isnan(r.values["momentum"]["Tau_pf"]) and np.isnan(r.values["tke"]["TKE"])
+    assert np.isnan(r.values["sigma"]["u_sigma_raw"])
+    assert not np.isnan(r.values["sigma"]["w_sigma_raw"])   # w flag only
+    assert not np.isnan(r.values["sensible_heat"]["w_ts_cov_raw"])   # unrotated flux survives
+    assert np.isnan(r.values["sensible_heat"]["w_theta_v_cov_pf"])
+    assert np.isnan(r.values["transport"]["ts_var_transport_pf"])
     lev2 = _level()
     lev2.Ts_flag[:] = True
     r2 = _run(lev2)
-    assert np.isnan(r2.values["sigma"]["sigma_Tson"]) and np.isnan(r2.values["H"]["Ts_w"])
-    assert not np.isnan(r2.values["sigma"]["sigma_u"])
+    assert np.isnan(r2.values["sigma"]["ts_sigma"])
+    assert np.isnan(r2.values["sensible_heat"]["w_ts_cov_raw"])
+    assert not np.isnan(r2.values["sigma"]["u_sigma_raw"])
     lev3 = _level()
     lev3.h2o_flag[:] = True
     r3 = _run(lev3)
-    assert np.isnan(r3.values["LHflux"]["E_wPF"]) and not np.isnan(r3.values["LHflux"]["Lv"])
+    assert np.isnan(r3.values["latent_heat"]["w_h2o_cov_pf"])
+    assert not np.isnan(r3.values["latent_heat"]["Lv"])
 
 
 def test_surface_layer_scales():
     r = _run(_level())
-    ustar = np.sqrt(r.values["tau"]["tau_PF"])
-    # theta*_SL = -w'theta_v'/u*, q*_SL = -(E_wPF/rho_moist)/u* (Stull 1988)
-    assert r.values["scaling"]["theta_star_SL"] == pytest.approx(
-        -r.values["H"]["Thv_wPF"] / ustar)
-    assert r.values["scaling"]["q_star_SL"] == pytest.approx(
-        -(r.values["LHflux"]["E_wPF"] / (1.18 + 0.0095)) / ustar)
-    assert r.values["scaling"]["theta_star_SL"] < 0        # upward heat flux
-    assert r.values["scaling"]["q_star_SL"] < 0            # upward moisture flux
+    ustar = np.sqrt(r.values["momentum"]["Tau_pf"])
+    # theta* = -w'theta_v'/u*, q* = -(w'h2o'/rho_moist)/u* (Stull 1988)
+    assert r.values["scaling"]["ustar_pf"] == pytest.approx(ustar)
+    assert r.values["scaling"]["theta_star"] == pytest.approx(
+        -r.values["sensible_heat"]["w_theta_v_cov_pf"] / ustar)
+    assert r.values["scaling"]["q_star"] == pytest.approx(
+        -(r.values["latent_heat"]["w_h2o_cov_pf"] / (1.18 + 0.0095)) / ustar)
+    assert r.values["scaling"]["theta_star"] < 0        # upward heat flux
+    assert r.values["scaling"]["q_star"] < 0            # upward moisture flux
     lev_rot = _level()
     lev_rot.rot_flag[:] = True
     r_rot = _run(lev_rot)
-    assert np.isnan(r_rot.values["scaling"]["theta_star_SL"])
-    assert np.isnan(r_rot.values["scaling"]["q_star_SL"])
+    assert np.isnan(r_rot.values["scaling"]["theta_star"])
+    assert np.isnan(r_rot.values["scaling"]["ustar_pf"])
+
+
+def test_sensible_heat_in_watts_matches_its_defining_products():
+    r = _run(_level())
+    rho_cp = (1.18 + 0.0095) * 1004.67 * (1 + 0.84 * 0.008)   # rho and cp(q) of _ref()
+    h = r.values["sensible_heat"]
+    assert h["H_raw"] == pytest.approx(rho_cp * h["w_t_air_cov_raw"])
+    assert h["H_pf"] == pytest.approx(rho_cp * h["w_t_air_cov_pf"])
+    assert h["H_buoyancy_pf"] == pytest.approx(rho_cp * h["w_theta_v_cov_pf"])
+    assert h["H_pf"] > 0 and h["H_pf"] < h["H_buoyancy_pf"]   # Schotanus below buoyancy
+    lev_rot = _level()
+    lev_rot.rot_flag[:] = True
+    assert np.isnan(_run(lev_rot).values["sensible_heat"]["H_pf"])
+
+
+def test_wpl_water_vapour_covariance_is_stored():
+    r = _run(_level())
+    lh = r.values["latent_heat"]
+    # the WPL density term adds to the raw covariance behind LE_wpl_pf
+    assert lh["w_h2o_wpl_cov_pf"] != lh["w_h2o_cov_pf"]
+    assert abs(lh["w_h2o_wpl_cov_pf"] - lh["w_h2o_cov_pf"]) < abs(lh["w_h2o_cov_pf"])
     lev_h2o = _level()
     lev_h2o.h2o_flag[:] = True
-    r_h2o = _run(lev_h2o)
-    assert np.isnan(r_h2o.values["scaling"]["q_star_SL"])
-    assert not np.isnan(r_h2o.values["scaling"]["theta_star_SL"])
-    r_dry = _run(_level(with_h2o=False, with_co2=False, with_fw=False))
-    assert "q_star_SL" not in r_dry.values["scaling"]
+    assert np.isnan(_run(lev_h2o).values["latent_heat"]["w_h2o_wpl_cov_pf"])
 
 
 def test_stability_functions_follow_L():
     r = _run(_level())
     from utespac.stability import psi_h, psi_m
-    zeta = 10.0 / r.values["L"]["L"]                  # z = sonic height
+    zeta = 10.0 / r.values["obukhov"]["L"]                  # z = sonic height
     assert r.values["scaling"]["psi_m"] == pytest.approx(psi_m(zeta))
     assert r.values["scaling"]["psi_h"] == pytest.approx(psi_h(zeta))
     assert zeta < 0 and r.values["scaling"]["psi_m"] > 0     # unstable period
@@ -140,11 +162,19 @@ def test_stability_functions_follow_L():
     r_rot = _run(lev_rot)
     assert np.isnan(r_rot.values["scaling"]["psi_m"])
     assert np.isnan(r_rot.values["scaling"]["psi_h"])
+    assert np.isnan(r_rot.values["scaling"]["q_star"])
+    lev_h2o = _level()
+    lev_h2o.h2o_flag[:] = True
+    r_h2o = _run(lev_h2o)
+    assert np.isnan(r_h2o.values["scaling"]["q_star"])
+    assert not np.isnan(r_h2o.values["scaling"]["theta_star"])
+    r_dry = _run(_level(with_h2o=False, with_co2=False, with_fw=False))
+    assert "q_star" not in r_dry.values["scaling"]
 
 
 def test_without_hygrometer_no_h2o_or_co2_tables():
     r = _run(_level(with_h2o=False, with_co2=False, with_fw=False))
-    assert "LHflux" not in r.values and "CO2flux" not in r.values
-    assert "sigma_TFW" not in r.values["sigma"]
-    assert r.values["fluxQC"]["LE_SSITC"] == 9 or np.isnan(r.values["fluxQC"]["LE_SSITC"]) \
-        or r.values["fluxQC"]["LE_SSITC"] >= 0
+    assert "latent_heat" not in r.values and "co2_flux" not in r.values
+    assert "t_fw_sigma" not in r.values["sigma"]
+    assert r.values["flux_qc"]["LE_ssitc"] == 9 or np.isnan(r.values["flux_qc"]["LE_ssitc"]) \
+        or r.values["flux_qc"]["LE_ssitc"] >= 0

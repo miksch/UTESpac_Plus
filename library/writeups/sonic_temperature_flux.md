@@ -48,7 +48,7 @@ Implemented by `air_temperature_perturbation` in
 $T' = T_s' - 0.51\,\bar T\,q'$ sample by sample, with $q' = \rho_v'/\bar\rho$
 from the high-frequency hygrometer (IRGASON/LI-7500/KH2O) at the level and
 $\bar T$ the period-mean air temperature. `utespac/flux/engine.py` applies it inside the
-H2O block so the `T_air'w'` / `T_air'wPF'` columns of `H` are
+H2O block so the `w_t_air_cov_raw` / `w_t_air_cov_pf` columns of `sensible_heat` are
 $\overline{w'T'}$; where no high-frequency humidity exists they fall back
 to the mean-humidity rescale (`theta_son_air`), which corrects the mean but
 not the covariance. Deviation: the crosswind term is not applied (heads
@@ -70,11 +70,11 @@ $$ F = F_{raw} + \frac{\bar\rho_c}{\bar\rho_a}\,\frac{\mu}{1+\mu\sigma}\,E + \fr
 
 $T'$ here is the air temperature: the heat term is the thermal expansion of
 dry air. Implemented in [utespac/flux/engine.py](../../utespac/flux/engine.py) by
-`kin_sen_flux` (the `T_air'wPF'` column above) feeding the `LHflux` W/m²
-columns, the KH2O O₂ correction and the `CO2flux` WPL column, and by
+`kin_sen_flux` (the `w_t_air_cov_pf` column above) feeding the `latent_heat` W/m²
+columns, the KH2O O₂ correction and the `co2_flux` WPL column, and by
 `rhov_ext` / `rhoc_ext` (sample-wise external fluctuations using `TairP`).
 MATLAB `fluxes.m:1073` drove these with the buoyancy flux
-$\overline{w'\theta_v'}$ (`Theta_v'wPF'`), which embeds the humidity term
+$\overline{w'\theta_v'}$ (`w_theta_v_cov_pf`), which embeds the humidity term
 of eq. 8 a second time; that path was retired with MATLAB parity on 2026-08-22.
 
 ## Field check
@@ -83,7 +83,7 @@ The validation site's campaign vs EddyPro (which consumed the logger's humidity-
 `T_SONIC_corr`), GPF, block averaging, 712 periods: before this change the
 UTESpac−EddyPro H difference regressed on LE with slope 0.060 (theory
 $0.51\,\bar T c_p/L_v$ = 0.062) and the buoyancy-flux column had bias
-+11.1 W/m², RMSE 15.7. With the correction in code the `T_air'wPF'` column
++11.1 W/m², RMSE 15.7. With the correction in code the `w_t_air_cov_pf` column
 has bias −0.03 W/m², RMSE 0.75, slope 1.001; split by sign (the site is
 advective, H < 0 in 63 % of periods): −0.16 / 0.52 for H < 0, +0.18 / 1.03
 for H > 0. Driving the WPL terms with w′T′ moved the CO₂ flux slope from

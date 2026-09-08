@@ -1,4 +1,4 @@
-"""Run the ec_coherent modules over one or more ``utespac-hf-1`` files.
+"""Run the ec_coherent modules over one or more ``utespac-hf-2`` files.
 
     python -m ec_coherent.cli data/MySite/output/MySite_hf_GPF_ConstDet_2023_07_06.nc
     python -m ec_coherent.cli <files...> --modules spectra --records 0-5 --config my.toml
@@ -54,7 +54,7 @@ def run_file(path: str, cfg: ECConfig, records: Optional[Sequence[int]] = None,
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="ec_coherent", description=__doc__.splitlines()[0])
-    ap.add_argument("files", nargs="+", help="utespac-hf-1 netCDF files")
+    ap.add_argument("files", nargs="+", help="utespac-hf-2 netCDF files")
     ap.add_argument("--modules", help="comma-separated subset of the configured modules")
     ap.add_argument("--records", help="record indices, e.g. 0-5,10")
     ap.add_argument("--config", help="ec_coherent TOML (default: cwd config/ or packaged)")

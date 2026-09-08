@@ -22,9 +22,9 @@ def save_data(run: Run) -> Dict[str, str]:
     """Write the products of *run* to ``<rootFolder>/<siteFolder>/output``.
 
     Produces:
-    - the run netCDF ``<base>.nc`` (``utespac-run-2``, :mod:`utespac.run_io`) — always
+    - the run netCDF ``<base>.nc`` (``utespac-run-3``, :mod:`utespac.run_io`) — always
     - the high-frequency netCDF ``<Site>_hf_<PF>_<Det>_<date>.nc``
-      (``utespac-hf-1``, :mod:`utespac.export_hf`) when ``saveRawConditionedData``
+      (``utespac-hf-2``, :mod:`utespac.export_hf`) when ``saveRawConditionedData``
       is on and the flux stage kept the raw products
     - CSV files under ``output/csv/`` when ``saveCSV`` is on
 

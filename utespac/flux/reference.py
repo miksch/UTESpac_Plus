@@ -18,6 +18,7 @@ from ..averaging import block_average, n_periods
 from ..model import Run, Sensor
 from ..rh_to_spec_hum import rh_to_spec_hum
 from ..sonic_temperature import air_temperature_from_sonic
+from .. import units
 
 log = logging.getLogger("utespac")
 
@@ -47,6 +48,11 @@ class ReferenceState:
     raw_P: Optional[np.ndarray] = None      # (t, P) columns for the raw product
 
     @property
+    def cp(self) -> np.ndarray:
+        """[J kg-1 K-1] specific heat of moist air, ``1004.67 (1 + 0.84 q)``."""
+        return 1004.67 * (1.0 + 0.84 * self.q)
+
+    @property
     def n(self) -> int:
         return len(self.P_kPa)
 
@@ -74,6 +80,7 @@ def _interp_to_fast(q_avg, t_avg, t_fast):
 
 def reference_state(run: Run) -> ReferenceState:
     """Build the :class:`ReferenceState` for one run."""
+    units.reset_warnings()   # one fallback warning per sensor per run
     info = run.site
     avg_per = info["avgPer"]
     t = run.time_hf_datenum
@@ -86,10 +93,8 @@ def reference_state(run: Run) -> ReferenceState:
     P_raw_hf = P_t_hf = raw_P = None
     if run.sensors.has("P"):
         sP = nearest(run, "P", z_ref)
-        P_raw = run.hf(sP).copy()
+        P_raw = units.convert(run.hf(sP), sP.units, "pressure", sensor=sP)
         P_t = run.hf_time(sP.table)
-        if np.nanmedian(P_raw) > 200:
-            P_raw /= 10.0
         P_kPa_avg, _ = _period_means(P_raw, P_t, avg_per)
         raw_P = np.column_stack([P_t, P_raw])
         # Always keep raw samples for the ppm conversion (MATLAB: Pson = data(:,PCol) always)
@@ -110,8 +115,7 @@ def reference_state(run: Run) -> ReferenceState:
     if run.sensors.has("T"):
         sT = nearest(run, "T", z_ref)
         T_ref_K_avg, _ = _period_means(run.hf(sT), run.hf_time(sT.table), avg_per)
-        if np.nanmedian(T_ref_K_avg) < 200:
-            T_ref_K_avg += 273.15
+        T_ref_K_avg = units.convert(T_ref_K_avg, sT.units, "temperature", "K", sensor=sT)
         log.info(f"Slow-response T found. Median T_ref = {np.nanmedian(T_ref_K_avg) - 273.15:.3g} °C")
 
     T_ref_is_sonic = False
@@ -119,8 +123,7 @@ def reference_state(run: Run) -> ReferenceState:
         if run.sensors.has("Tson"):
             sTs = nearest(run, "Tson", z_ref)
             T_ref_K_avg, _ = _period_means(run.hf(sTs), t, avg_per)
-            if np.nanmedian(T_ref_K_avg) < 200:
-                T_ref_K_avg += 273.15
+            T_ref_K_avg = units.convert(T_ref_K_avg, sTs.units, "temperature", "K", sensor=sTs)
             T_ref_is_sonic = True
             log.info(f"Using sonic T as Tref. Median = {np.nanmedian(T_ref_K_avg) - 273.15:.3g} °C")
         else:
@@ -132,6 +135,7 @@ def reference_state(run: Run) -> ReferenceState:
     if run.sensors.has("RH"):
         sRH = nearest(run, "RH", z_ref)
         RH_avg, RH_avg_t = _period_means(run.hf(sRH), run.hf_time(sRH.table), avg_per)
+        RH_avg = units.convert(RH_avg, sRH.units, "humidity", sensor=sRH)
         q_ref_avg = rh_to_spec_hum(RH_avg, P_kPa_avg, T_ref_K_avg)
         if (~np.isnan(q_ref_avg)).any():
             q_ref_fast = _interp_to_fast(q_ref_avg, RH_avg_t, t)
@@ -143,7 +147,8 @@ def reference_state(run: Run) -> ReferenceState:
         # q = rho_v / (rho_d + rho_v) with rho_d from P - e.
         h2o_key = "irgaH2O" if run.sensors.has("irgaH2O") else "KH2O"
         sH = nearest(run, h2o_key, z_ref)
-        h2o_avg, h2o_avg_t = _period_means(run.hf(sH).copy(), run.hf_time(sH.table), avg_per)  # g/m³
+        h2o_hf = units.convert(run.hf(sH), sH.units, "h2o_density", sensor=sH)     # g/m³
+        h2o_avg, h2o_avg_t = _period_means(h2o_hf, run.hf_time(sH.table), avg_per)
         rho_v_ref = h2o_avg / 1000.0                                             # kg/m³
         e_ref_Pa = rho_v_ref * Rv * T_ref_K_avg
         rho_d_ref = (P_kPa_avg * 1000.0 - e_ref_Pa) / (Rd * T_ref_K_avg)
@@ -172,7 +177,7 @@ def reference_state(run: Run) -> ReferenceState:
     T_virt_ref_K_avg = T_ref_K_avg * (1.0 + 0.61 * q_ref_avg)
 
     # Manual zRef override — a single high sonic run wanting virtual theta /
-    # specificHum relative to the lowest sonic of the full tower.
+    # humidity products relative to the lowest sonic of the full tower.
     if info.get("shiftzRef", False):
         z_ref = float(info["zRefLowestSon"])
 

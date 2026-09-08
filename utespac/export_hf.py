@@ -21,39 +21,36 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
+from . import names
 from .labeled import _require_netcdf4, _time_to_ms, parse_label, run_attrs, tables
 from .model import TIME_HF, Run, raw_to_legacy, to_legacy_output
 
 log = logging.getLogger("utespac")
 
-FORMAT = "utespac-hf-1"
+FORMAT = "utespac-hf-2"
 _TIME_UNITS = "milliseconds since 1970-01-01 00:00:00"
 
 # netCDF name, raw key, units, long_name  -- (time, height) variables
 _HF_VARS = [
-    ("u", "uPF", "m s-1", "streamwise wind, planar fit + per-period yaw rotation"),
-    ("v", "vPF", "m s-1", "crosswind, planar fit + per-period yaw rotation"),
-    ("w", "wPF", "m s-1", "vertical wind, planar fit + per-period yaw rotation"),
+    ("u_pf", "uPF", "m s-1", "streamwise wind, planar fit + per-period yaw rotation"),
+    ("v_pf", "vPF", "m s-1", "crosswind, planar fit + per-period yaw rotation"),
+    ("w_pf", "wPF", "m s-1", "vertical wind, planar fit + per-period yaw rotation"),
     ("u_tilt", "u_tilt", "m s-1", "u after planar fit only (no yaw)"),
     ("v_tilt", "v_tilt", "m s-1", "v after planar fit only (no yaw)"),
     ("w_tilt", "w_tilt", "m s-1", "w after planar fit only (no yaw)"),
-    ("Ts", "sonTs", "degC", "sonic temperature"),
+    ("ts", "sonTs", "degC", "sonic temperature"),
     ("theta_v", "Theta_v_son", "degC", "sonic virtual potential temperature (dry-adiabatic offset to the reference height)"),
-    ("WD", "WD", "degree", "wind direction from the unrotated sonic components and boom azimuth"),
-    ("spd", "spd", "m s-1", "horizontal wind speed from the unrotated sonic components"),
-    ("T_fw", "fwT", "degC", "fine-wire thermocouple temperature"),
+    ("wind_dir", "WD", "degree", "wind direction from the unrotated sonic components and boom azimuth"),
+    ("wind_speed", "spd", "m s-1", "horizontal wind speed from the unrotated sonic components"),
+    ("t_fw", "fwT", "degC", "fine-wire thermocouple temperature"),
     ("theta_fw", "fwTh", "degC", "fine-wire potential temperature"),
 ]
+# netCDF name, raw key, raw height key, height dimension, units, long_name
 _SCALAR_VARS = [
-    ("rhov", "rhov", "z_h2o", "g m-3", "water vapour density (not specific humidity)"),
-    ("rhoCO2", "rhoCO2", "z_co2", "mg m-3", "CO2 density"),
+    ("rho_h2o", "rhov", "z_h2o", "height_h2o", "g m-3", "water vapour density (not specific humidity)"),
+    ("rho_co2", "rhoCO2", "z_co2", "height_co2", "mg m-3", "CO2 density"),
 ]
 _LPF_RE = re.compile(r"([\d.]+)m b0=([-+\d.eE]+|nan) b1=([-+\d.eE]+|nan) b2=([-+\d.eE]+|nan)")
-
-
-def _sanitize(label: str) -> str:
-    s = re.sub(r"[^0-9A-Za-z]+", "_", label).strip("_")
-    return s or "x"
 
 
 def _col_for_height(tab, z: float, pred) -> Optional[int]:
@@ -132,7 +129,7 @@ def write_hf(run: Run, out_path, output: Optional[Dict] = None, attrs: Optional[
             "detrend_upstream": g.get("detrend", ""),
             "rotation": "planar_fit+yaw (applied upstream by UTESpac sonic_rotation)",
             "despiking": "Vickers & Mahrt spikes interpolated in place upstream (condition_data)",
-            "humidity_note": "rhov is a vapour density [g m-3], not a specific humidity",
+            "humidity_note": "rho_h2o is a vapour density [g m-3], not a specific humidity",
             "dataInfo": json.dumps(run.notes, default=str),
         })
         g.setdefault("sampling_frequency_hz", fs)
@@ -177,7 +174,7 @@ def write_hf(run: Run, out_path, output: Optional[Dict] = None, attrs: Optional[
             _hf_var(name, arr[:, order], ("time", "height"), units, long_name,
                     (chunk_t, len(z_sorted)))
 
-        for name, key, zkey, units, long_name in _SCALAR_VARS:
+        for name, key, zkey, dim, units, long_name in _SCALAR_VARS:
             if key not in raw:
                 continue
             arr = np.asarray(raw[key], dtype=float)
@@ -190,7 +187,6 @@ def write_hf(run: Run, out_path, output: Optional[Dict] = None, attrs: Optional[
             else:
                 warnings.warn(f"{key}: heights unknown (no {zkey} on the raw products); written as NaN")
                 zs = np.full(arr.shape[1], np.nan)
-            dim = f"height_{name}"
             o = np.argsort(zs) if np.all(np.isfinite(zs)) else np.arange(len(zs))
             ds.createDimension(dim, len(zs))
             zv = ds.createVariable(dim, "f8", (dim,), fill_value=np.nan)
@@ -218,7 +214,7 @@ def write_hf(run: Run, out_path, output: Optional[Dict] = None, attrs: Optional[
                     ok = np.isfinite(pt) & np.isfinite(pv)
                     p_on_t = np.interp(t_dn, pt[ok], pv[ok], left=np.nan, right=np.nan) \
                         if ok.any() else np.full(n, np.nan)
-                pvar = ds.createVariable("P", dtype, ("time",), fill_value=np.nan, zlib=True,
+                pvar = ds.createVariable("p", dtype, ("time",), fill_value=np.nan, zlib=True,
                                          complevel=complevel, chunksizes=(chunk_t,))
                 pvar.units = "kPa"
                 pvar.long_name = "air pressure (barometer nearest the reference height, interpolated to time)"
@@ -252,25 +248,25 @@ def write_hf(run: Run, out_path, output: Optional[Dict] = None, attrs: Optional[
                 v.long_name = long_name
                 v[:] = data
 
-            tau = tabs.get("tau")
+            tau = tabs.get("momentum")
             if tau is not None:
                 def _ustar(zz):
-                    j = _col_for_height(tau, zz, lambda s: s.startswith("sqrt(uPF'wPF'"))
+                    j = _col_for_height(tau, zz, lambda s: s == "Tau_pf")
                     return np.sqrt(tau.values[:, j]) if j is not None else None
-                _rec_var("ustar", "m s-1", "friction velocity from the rotated covariances", _ustar)
-            Lt = tabs.get("L")
+                _rec_var("ustar_pf", "m s-1", "friction velocity from the rotated covariances", _ustar)
+            Lt = tabs.get("obukhov")
             if Lt is not None:
                 _rec_var("L", "m", "Obukhov length", lambda zz: (
-                    Lt.values[:, _col_for_height(Lt, zz, lambda s: s.startswith("L"))]
-                    if _col_for_height(Lt, zz, lambda s: s.startswith("L")) is not None else None))
+                    Lt.values[:, _col_for_height(Lt, zz, lambda s: s == "L")]
+                    if _col_for_height(Lt, zz, lambda s: s == "L") is not None else None))
             sd = tabs.get("spdAndDir")
             if sd is not None:
                 _rec_var("wdir", "degree", "mean wind direction", lambda zz: (
-                    sd.values[:, _col_for_height(sd, zz, lambda s: s == "direction")]
-                    if _col_for_height(sd, zz, lambda s: s == "direction") is not None else None))
+                    sd.values[:, _col_for_height(sd, zz, lambda s: s == "wind_dir")]
+                    if _col_for_height(sd, zz, lambda s: s == "wind_dir") is not None else None))
                 _rec_var("wind_flag", "1", "wind-direction (tower shadow) flag", lambda zz: (
-                    sd.values[:, _col_for_height(sd, zz, lambda s: s.startswith("flag"))]
-                    if _col_for_height(sd, zz, lambda s: s.startswith("flag")) is not None else None))
+                    sd.values[:, _col_for_height(sd, zz, lambda s: s == "shadow_flag")]
+                    if _col_for_height(sd, zz, lambda s: s == "shadow_flag") is not None else None))
             for flag_name, suffix, desc in (("spike_flag", "SpikeFlag", "spike test failed"),
                                             ("nan_flag", "NanFlag", "too many missing samples")):
                 flag_tabs = [tb for k, tb in tabs.items() if k.endswith(suffix)]
@@ -284,13 +280,12 @@ def write_hf(run: Run, out_path, output: Optional[Dict] = None, attrs: Optional[
                             cols.append(tb.values[:, idx].any(axis=1))
                     return np.any(cols, axis=0).astype(float) if cols else None
                 _rec_var(flag_name, "1", f"any column at this height: {desc}", _flag)
-            qc = tabs.get("fluxQC")
+            qc = tabs.get("flux_qc")
             if qc is not None:
-                for kind in sorted({parse_label(s)[1] for s in qc.labels}):   # "TAU_SSITC_TEST", ...
-                    _rec_var("ssitc_" + _sanitize(kind).lower(), "1",
-                             f"SSITC quality flag {kind} (Foken 0/1/2 scale)", lambda zz, kind=kind: (
-                                 qc.values[:, _col_for_height(qc, zz, lambda s: s == kind)]
-                                 if _col_for_height(qc, zz, lambda s: s == kind) is not None else None))
+                for var in names.VARIABLES["flux_qc"]:
+                    _rec_var(var.name, var.units, var.long_name, lambda zz, key=var.name: (
+                        qc.values[:, _col_for_height(qc, zz, lambda s: s == key)]
+                        if _col_for_height(qc, zz, lambda s: s == key) is not None else None))
 
         # -- planar-fit coefficients ----------------------------------------------------
         recs: List[Dict] = []

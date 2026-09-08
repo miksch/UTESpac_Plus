@@ -52,9 +52,9 @@ $1/T$ = 1/1800 Hz, which the ogive needs, and closes Parseval exactly.
 Welch is available through `nperseg`, a Hann taper through `taper`.
 Measured 2026-08-23 on six validation-site windows (GPF ConstDet reference
 day, records 0-5, block detrend): boxcar closes to 1.000 for every series; a
-single-segment Hann taper returns 0.74-1.03 of the variance for `Ts`
+single-segment Hann taper returns 0.74-1.03 of the variance for `ts`
 (0.96-1.09 for `u`, `w`) because its variance correction holds only in
-expectation and these nighttime `Ts` windows carry a residual trend. With
+expectation and these nighttime `ts` windows carry a residual trend. With
 linear detrend the Hann ratios tighten to 0.94-1.06. Neither the taper
 nor the bin count is sourced; both are `[ASSUMED]` and stored in the
 output attributes (`taper`, `n_bins_per_decade`, `nperseg`). Decision
@@ -85,7 +85,7 @@ the spectra validation script under `testbed/scripts/` (development
 tree); never an input to any estimate.
 The overlay is drawn for $0.01 < f < 4$ only. The validation site is flat with
 the sonic at 10.85 m, so $z$ is the sonic height; $u_*$ is the per-record
-`ustar` ancillary, $T_*$ is formed from the window's own $\overline{w'T'}$.
+`ustar_pf` ancillary, $T_*$ is formed from the window's own $\overline{w'T'}$.
 
 ## Ogive -- Foken & Wichura (1996) eq. 10, p. 89 [@Foken1996]; Desjardins et al. (1989) pp. 61-62 [@Desjardins1989]
 
@@ -128,7 +128,7 @@ FFT grid (`log_bins`), so every bin holds at least one line, its width is
 $n_b\,\Delta f$, and the band sum $\sum_b S_b\,\Delta f_b$ equals the
 variance exactly -- the closure survives the binning (validation-site check
 2026-08-23: band-sum/variance 1.000 for u, w, Ts on all 96 records).
-`S_u, S_v, S_w, S_Ts, S_rhov, S_rhoCO2`; `Co_uw, Co_wTs, Co_wrhov,
+`S_u, S_v, S_w, S_ts, S_rho_h2o, S_rho_co2`; `Co_uw, Co_wTs, Co_wrhov,
 Co_wrhoCO2` and the matching `Qu_*`; `ogive_*` for the same pairs;
 `U_mean`, `var_*`, `cov_*` (the closure targets); `n_valid`,
 `nan_filled_frac`, `taylor_ratio`; attributes `taper`, `nperseg`,

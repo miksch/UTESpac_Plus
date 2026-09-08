@@ -30,9 +30,19 @@ result = run_utespac(config, site="MySite", dates="all", prompter=ScriptedPFSele
 result.ok, [d.paths for d in result.dates]
 ```
 
+## Outputs
+
+One netCDF per site and processing date, `data/<SITE>/output/<SITE>_<avgPer>minAvg_<PF>_<Det>_<date>.nc` (format `utespac-run-3`). The averaged products are groups under `products/`, on `(time, height)`:
+
+`sensible_heat`, `sensible_heat_lateral`, `sensible_heat_snsp`, `momentum`, `tke`, `sigma`, `correlation`, `obukhov`, `scaling`, `eta`, `delta_flux`, `delta_time`, `transport`, `dissipation`, `skewness`, `scalar_flux_lateral`, `latent_heat`, `co2_flux`, `flux_qc`, `temperature`, `humidity`.
+
+Variable names use `[A-Za-z0-9_]` only, lowercase except the field's flux and scale symbols (`H`, `LE`, `Fc`, `Tau`, `TKE`, `L`, `Lv`), and read operands, then statistic, then qualifiers, with the frame last — `_raw` unrotated sonic axes, `_pf` planar fit + yaw, `_tilt` planar-fit frame: `w_theta_v_cov_pf`, `u_w_cov_pf`, `w_sigma_pf`, `Tau_pf`, `ustar_pf`, `LE_wpl_pf`, `Fc_wpl_pf`, `rho_air_moist`. Units and the readable formula are CF attributes (`units`, `long_name`), never part of the name. `utespac/names.py` is the single source of truth; `utespac-run-2` files are read through a rename shim.
+
+The same file carries the `wind` (direction, speed, shadow flag, sector bounds), `rotation` (period means and fit records), `sensors`, `periods/<table>` and `flags/<table>` groups. `saveCSV` writes one CSV per product group under `output/csv/`, with `<name>_<height>` headers (`w_theta_v_cov_pf_10.85`). `saveRawConditionedData` writes the high-frequency file `<SITE>_hf_<PF>_<Det>_<date>.nc` (`utespac-hf-2`), which speaks the same vocabulary (`u_pf`, `ts`, `theta_v`, `rho_h2o`, `wind_dir`).
+
 ## Coherent-structure analysis (`ec_coherent`)
 
-A sibling package that reads the `utespac-hf-1` high-frequency netCDF the pipeline writes with `saveRawConditionedData` and adds one analysis netCDF per file (`<Site>_coherent_<PF>_<Det>_<date>.nc`, a group per module). Settings: `ec_coherent/config/ec_coherent.toml` (overridable like the pipeline TOMLs); science notes: the `library/writeups/ec_*.md` topic notes (`ec_preprocess`, `ec_spectra`, `ec_mrd`, `ec_quadrant`, `ec_ramps`, `ec_ampmod`, `ec_scales`, `ec_coherent_flux`), one per module.
+A sibling package that reads the `utespac-hf-2` high-frequency netCDF the pipeline writes with `saveRawConditionedData` and adds one analysis netCDF per file (`<Site>_coherent_<PF>_<Det>_<date>.nc`, a group per module). Settings: `ec_coherent/config/ec_coherent.toml` (overridable like the pipeline TOMLs); science notes: the `library/writeups/ec_*.md` topic notes (`ec_preprocess`, `ec_spectra`, `ec_mrd`, `ec_quadrant`, `ec_ramps`, `ec_ampmod`, `ec_scales`, `ec_coherent_flux`), one per module.
 
 ```bash
 python -m ec_coherent.cli data/<SITE>/output/<SITE>_hf_GPF_ConstDet_<date>.nc      # all records
@@ -60,34 +70,38 @@ arrays (`{'name'}`), and preserves inline `%` comments as `#` comments.
 
 ### Generate AmeriFlux BASE data
 
-`generate_ameriflux.py` loads the GPF run files (`*_30minAvg_GPF_LinDet_*.nc`) from `siteIRGA` and `siteGill`,
-aggregates slow meteorology and radiation from the 1-min data files, and writes a
-half-hourly AmeriFlux BASE CSV.  Edit the path constants at the top of the script before
-running.
+`generate_ameriflux.py` is a supported standardized output: it reads a site's run files
+through `utespac.run_io`, addressing the products by group and variable name, and writes a
+half-hourly AmeriFlux BASE CSV to `ameriflux_output/`. One column block per sonic height,
+`V = 1` the lowest.
 
 ```bash
-python3 generate_ameriflux.py
+python generate_ameriflux.py                                             # data/VAC001, GPF_ConstDet
+python generate_ameriflux.py --site <SITE> --qualifier LPF_LinDet --site-id US-xVAC001
+python generate_ameriflux.py --site <SITE> --met-dir <dir of 1-min met files>
 ```
 
-The output CSV is written to `ameriflux_output/` and follows the
+The CSV follows the
 [AmeriFlux BASE format](https://ameriflux.lbl.gov/half-hourly-hourly-data-upload-format/):
 comma-delimited, `TIMESTAMP_START` / `TIMESTAMP_END` in `YYYYMMDDHHMM` local standard time,
-missing values as `-9999`.
-
-Variables included:
+missing values as `-9999`. The column names are AmeriFlux's; the module docstring lists the
+`group/variable` each is built from.
 
 | Group | Variables |
 |---|---|
-| Turbulent fluxes | `H`, `LE`, `FC`, `TAU`, `USTAR` (×5 EC heights) |
-| Wind | `WS`, `WD` (×5 heights) |
-| Stability | `MO_LENGTH`, `ZL`, `TKE` (×5 heights) |
-| Sonic temperature | `T_SONIC`, `T_SONIC_SIGMA` (×5 heights) |
-| Gas scalars | `CO2`, `CO2_SIGMA`, `H2O`, `H2O_SIGMA`, `FH2O` (×5 heights) |
-| Velocity variances | `U_SIGMA`, `V_SIGMA`, `W_SIGMA` (×5 heights) |
-| Wind direction QC | `WD_FILTER` (×5 heights): 0=clean sector, 1=tower-disturbed |
-| Quality flags | `TAU_SSITC_TEST`, `H_SSITC_TEST`, `LE_SSITC_TEST`, `FC_SSITC_TEST` (×5 heights) |
-| Slow met | `TA`, `RH`, `VPD` (×4 HMP heights), `PA` |
-| Radiation | `SW_IN`, `SW_OUT`, `LW_IN`, `LW_OUT`, `NETRAD`, `ALB` (×2 rad heights) |
+| Turbulent fluxes | `H`, `LE`, `FC`, `TAU`, `USTAR` |
+| Wind | `WS`, `WD` |
+| Stability | `MO_LENGTH`, `ZL`, `TKE` |
+| Sonic temperature | `T_SONIC`, `T_SONIC_SIGMA` |
+| Gas scalars | `CO2`, `CO2_SIGMA`, `H2O`, `H2O_SIGMA`, `FH2O` |
+| Velocity variances | `U_SIGMA`, `V_SIGMA`, `W_SIGMA` |
+| Wind direction QC | `WD_FILTER`: 0=clean sector, 1=tower-disturbed |
+| Quality flags | `TAU_SSITC_TEST`, `H_SSITC_TEST`, `LE_SSITC_TEST`, `FC_SSITC_TEST` |
+| Slow met | `PA` (from the run file); `TA`, `RH`, `VPD` with `--met-dir` |
+| Radiation | `SW_IN`, `SW_OUT`, `LW_IN`, `LW_OUT`, `NETRAD`, `ALB` with `--met-dir` |
+
+The 1-min met path also needs the site's column mapping (`HMP_COLS`, `RAD_COLS` at the top of
+the script); without it only `PA` and the turbulence columns are written.
 
 **Note on SSITC flags:** SSITC flags are interpreted as diagnostic indicators of nonstationarity
 and similarity-theory departure, rather than as direct indicators of instrument failure or

@@ -43,23 +43,23 @@ def main(argv):
 
     rec = ds.record.values
     scales = ds.scale.values
-    D_T, D_u = ds.D_Ts.values[:, 0], ds.D_u.values[:, 0]
-    n_T, n_u = ds.n_events_Ts.values[:, 0], ds.n_events_u.values[:, 0]
-    sp_T, sp_u = ds.mean_spacing_Ts.values[:, 0], ds.mean_spacing_u.values[:, 0]
+    D_T, D_u = ds.D_ts.values[:, 0], ds.D_u.values[:, 0]
+    n_T, n_u = ds.n_events_ts.values[:, 0], ds.n_events_u.values[:, 0]
+    sp_T, sp_u = ds.mean_spacing_ts.values[:, 0], ds.mean_spacing_u.values[:, 0]
     ok = np.isfinite(D_T)
-    print(f"{os.path.basename(out)}: {ok.sum()} records; D_Ts median {np.nanmedian(D_T):.1f} s "
+    print(f"{os.path.basename(out)}: {ok.sum()} records; D_ts median {np.nanmedian(D_T):.1f} s "
           f"(range {np.nanmin(D_T):.1f}-{np.nanmax(D_T):.1f}), D_u median {np.nanmedian(D_u):.1f} s; "
           f"events/30 min Ts median {np.nanmedian(n_T):.0f}, u {np.nanmedian(n_u):.0f}; "
           f"mean spacing Ts {np.nanmedian(sp_T):.0f} s, u {np.nanmedian(sp_u):.0f} s; "
-          f"slope_Ts negative in {np.mean(ds.slope_Ts.values[:, 0] == -1) * 100:.0f}% of records")
+          f"slope_ts negative in {np.mean(ds.slope_ts.values[:, 0] == -1) * 100:.0f}% of records")
 
     fig, axes = plt.subplots(2, 3, figsize=(14, 8))
     ax = axes[0, 0]
-    W = ds.W_Ts.values[:, 0, :]
+    W = ds.W_ts.values[:, 0, :]
     for i in range(len(rec)):
         if np.isfinite(W[i]).any():
             ax.semilogx(scales, W[i] / np.nanmax(W[i]), "-", color=C_T, alpha=0.15, lw=0.8)
-    ax.semilogx(ds.a0_Ts.values[:, 0], np.ones(len(rec)), "|", color=C_REF, ms=12, label="a0 per record")
+    ax.semilogx(ds.a0_ts.values[:, 0], np.ones(len(rec)), "|", color=C_REF, ms=12, label="a0 per record")
     ax.set_xlabel("dilation a [s]"); ax.set_ylabel("W_1(a) / max")
     ax.set_title("(a) MHAT wavelet variance of Ts', all records", fontsize=10)
     ax.legend(fontsize=7, frameon=False)
@@ -88,12 +88,12 @@ def main(argv):
     ax.legend(fontsize=7, frameon=False)
 
     # one window in detail
-    win = next(ecio.iter_windows(hf, variables=("u", "v", "w", "Ts"), records=[rec_show]))
-    prep = pp.prepare(win, 0, ("u", "v", "w", "Ts"), method=cfg.preprocess.detrend)
-    x = prep.prime["Ts"]
+    win = next(ecio.iter_windows(hf, variables=("u_pf", "v_pf", "w_pf", "ts"), records=[rec_show]))
+    prep = pp.prepare(win, 0, ("u_pf", "v_pf", "w_pf", "ts"), method=cfg.preprocess.detrend)
+    x = prep.prime["ts"]
     t = np.arange(x.size) / hf.fs
     sc = ramps.log_scales(cfg.ramps.a_min_s, cfg.ramps.a_max_s, cfg.ramps.n_scales_per_decade)
-    slope = ramps._slope_for("Ts", cfg.ramps.slope_Ts, float(np.nanmean(prep.prime["w"] * x)))
+    slope = ramps._slope_for("ts", cfg.ramps.slope_ts, float(np.nanmean(prep.prime["w_pf"] * x)))
     ev = ramps.detect(x, hf.fs, sc, slope=slope, peak=cfg.ramps.peak, edge_scales=cfg.ramps.edge_scales,
                        D_min_s=cfg.ramps.D_min_s)
     evr = ramps.detect(x, hf.fs, sc, slope=slope, peak=cfg.ramps.peak, edge_scales=cfg.ramps.edge_scales,
@@ -123,7 +123,7 @@ def main(argv):
     ax = axes[1, 2]
     ax.semilogx(ev.scales_s, ev.W, "-", color=C_T, label="Ts'")
     ax.axvline(ev.a0, color=C_REF, lw=1, label=f"a0 = {ev.a0:.1f} s")
-    xu = prep.prime["u"]
+    xu = prep.prime["u_pf"]
     evu = ramps.detect(xu, hf.fs, sc, slope="positive", peak=cfg.ramps.peak, D_min_s=cfg.ramps.D_min_s)
     ax.semilogx(evu.scales_s, evu.W / evu.W.max() * ev.W.max(), "-", color=C_U, label="u' (rescaled)")
     ax.axvline(evu.a0, color=C_U, lw=1, ls="--", label=f"a0(u) = {evu.a0:.1f} s")

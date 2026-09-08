@@ -4,7 +4,7 @@
 the high-frequency series (raw, planar-fit and tilt winds, sonic and
 derived temperatures, fine-wire, hygrometer, CO2), the per-period quality
 flags, the level's own pressure and humidity, and the block-averaged
-columns that go to the ``specificHum`` and ``derivedT`` outputs, into a
+columns that go to the ``humidity`` and ``temperature`` outputs, into a
 :class:`LevelInputs`. The per-period engine (:mod:`.engine`) then works on
 slices of it.
 """
@@ -20,8 +20,10 @@ from ..get_virtual_pot_temp import get_virtual_pot_temp
 from ..model import COMPONENT, HEIGHT, Run, Sensor
 from ..rh_to_spec_hum import rh_to_spec_hum
 from ..site_config import sonic_for
+from .. import units
 from ..sonic_temperature import SONIC_HUMIDITY_COEFF
 from .reference import ReferenceState
+from .tables import height_label
 
 log = logging.getLogger("utespac")
 
@@ -104,6 +106,7 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
     diag_cfg = info.get("diagnosticTest", {})
     su = run.sensors.by_field("u")[ii]
     height = su.height
+    hn = height_label(height)
     sv = run.sensors.at("v", height)
     sw = run.sensors.at("w", height)
     sTs = run.sensors.at("Tson", height)
@@ -133,9 +136,7 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
     Ts_flag = np.zeros(N, dtype=bool)
     T_son = np.full(n, np.nan)
     if sTs is not None:
-        T_son = run.hf(sTs).copy()
-        if np.nanmedian(T_son) > 250:
-            T_son -= 273.15
+        T_son = units.convert(run.hf(sTs), sTs.units, "temperature", sensor=sTs)
         Ts_flag = _flags(run, sTs, N)
 
     # ---- rotated and PF-only wind columns ----
@@ -162,10 +163,8 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
     P_kPa_lev, P_raw_hf_lev, P_t_hf_lev = ref.P_kPa, ref.P_raw_hf, ref.P_t_hf
     sP = next((s for s in run.sensors.by_field("P") if abs(s.height - height) < 0.5), None)
     if sP is not None:
-        P_raw_lev = run.hf(sP).copy()
+        P_raw_lev = units.convert(run.hf(sP), sP.units, "pressure", sensor=sP)
         P_t_lev = run.hf_time(sP.table)
-        if np.nanmedian(P_raw_lev) > 200:
-            P_raw_lev /= 10.0
         _, P_lev_check = block_average(P_t_lev, P_raw_lev, avg_per)
         P_lev_check = P_lev_check[:, 0]
         if (np.nansum(~np.isnan(P_lev_check)) > 0 and
@@ -182,10 +181,12 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
         RH_lev, T_lev = run.hf(sRH), run.hf(sT)
         t_lev = run.hf_time(sRH.table)
 
-        # slow-frequency averages for the virtual theta computation
+        # slow-frequency averages for the virtual theta computation, in the
+        # units get_virtual_pot_temp documents (T in K, RH in percent)
         ts1, T1 = block_average(t_lev, T_lev, freq_slow)
         _, RH1 = block_average(t_lev, RH_lev, freq_slow)
-        T1, RH1 = T1[:, 0], RH1[:, 0]
+        T1 = units.convert(T1[:, 0], sT.units, "temperature", "K", sensor=sT)
+        RH1 = units.convert(RH1[:, 0], sRH.units, "humidity", sensor=sRH)
         P_slow = np.interp(ts1, np.linspace(t.min(), t.max(), len(P_kPa_lev)), P_kPa_lev)
         # paired physical HMP height for the altitude correction, if configured
         level_height = height
@@ -211,10 +212,9 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
         # 30-min q from the HMP at this level -> q_fast_local (MATLAB qRefFastLocal)
         _, T30 = block_average(t_lev, T_lev, avg_per)
         t_q, RH30 = block_average(t_lev, RH_lev, avg_per)
-        T30_K = T30[:, 0].copy()
-        if np.nanmedian(T30_K) < 200:
-            T30_K = T30_K + 273.15
-        q30 = rh_to_spec_hum(RH30[:, 0], P_kPa_lev, T30_K)      # kg/kg per period
+        T30_K = units.convert(T30[:, 0], sT.units, "temperature", "K", sensor=sT)
+        RH30_pct = units.convert(RH30[:, 0], sRH.units, "humidity", sensor=sRH)
+        q30 = rh_to_spec_hum(RH30_pct, P_kPa_lev, T30_K)        # kg/kg per period
         valid_q = ~np.isnan(q30)
         if valid_q.any():
             x_q = np.concatenate([[np.floor(t_q[valid_q][0])], t_q[valid_q]])
@@ -226,15 +226,16 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
                 return arr[:N]
             return np.concatenate([arr, np.full(N - len(arr), np.nan)])
 
+        # q is g/kg; the all-NaN fallback keeps the kg/kg array, which carries
+        # no value (units come from names.py, DECIDE 6).
         q_col = _pad(q30 * 1000.0) if valid_q.any() else _pad(q30)
-        q_hdr = f"{height} m: q(g/kg)" if valid_q.any() else f"{height} m: q(g/g)"
         specific_hum_cols = [
-            (q_hdr, q_col),
-            (f"{height} m: virtualThetaAvg(K)", _pad(vt_avg30)),
-            (f"{height} m: rAvg(g/kg)", _pad(_avg30(r_slow))),
-            (f"{height} m: rho_airmoistAvg(kg/m^3)", _pad(_avg30(rho_moist_slow))),
-            (f"{height} m: rho_airdryAvg(kg/m^3)", _pad(_avg30(rho_dry_slow))),
-            (f"{height} m: rho_H2OAvg(kg/m^3)", _pad(_avg30(rho_H2O_slow))),
+            (f"q_{hn}", q_col),
+            (f"theta_v_slow_{hn}", _pad(vt_avg30)),
+            (f"r_{hn}", _pad(_avg30(r_slow))),
+            (f"rho_air_moist_{hn}", _pad(_avg30(rho_moist_slow))),
+            (f"rho_air_dry_{hn}", _pad(_avg30(rho_dry_slow))),
+            (f"rho_h2o_{hn}", _pad(_avg30(rho_H2O_slow))),
         ]
 
     # Mean-humidity rescale of the sonic temperature, T = T_s/(1 + 0.51 q)
@@ -260,7 +261,7 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
     h2o_is_kh2o = False
     h2o_si = 0
     if (s := run.sensors.at("irgaH2O", height)) is not None:
-        h2o = run.hf(s).copy()
+        h2o = units.convert(run.hf(s), s.units, "h2o_density", sensor=s)
         h2o_flag = (_flags(run, s, N)
                     | _threshold_flag(run, run.sensors.at("irgaH2OsigStrength", height), N,
                                       diag_cfg.get("H2OminSignal"), np.less_equal)
@@ -276,7 +277,7 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
                     | _threshold_flag(run, run.sensors.at("LiGasDiag", height), N,
                                       diag_cfg.get("meanLiGasDiagnosticLimit"), np.less_equal))
     elif (s := run.sensors.at("KH2O", height)) is not None:
-        h2o = run.hf(s).copy()           # already g/m³
+        h2o = units.convert(run.hf(s), s.units, "h2o_density", sensor=s)
         h2o_flag = _flags(run, s, N)
         h2o_is_kh2o = True
 
@@ -285,7 +286,7 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
     co2_flag = np.zeros(N, dtype=bool)
     co2_si = 0
     if h2o is not None and (s := run.sensors.at("irgaCO2", height)) is not None:
-        co2 = run.hf(s).copy()           # mg/m³
+        co2 = units.convert(run.hf(s), s.units, "co2_density", sensor=s)
         co2_flag = (_flags(run, s, N)
                     | _threshold_flag(run, run.sensors.at("irgaCO2sigStrength", height), N,
                                       diag_cfg.get("CO2minSignal"), np.less_equal)
@@ -298,19 +299,19 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
                     | _threshold_flag(run, run.sensors.at("LiGasDiag", height), N,
                                       diag_cfg.get("meanLiGasDiagnosticLimit"), np.less_equal))
 
-    # ---- derivedT: block-averaged derived temperatures ----
+    # ---- temperature: block-averaged derived temperatures ----
     def _avg(series):
         return block_average(t, series, avg_per)[1][:, 0]
     derived: List[Tuple[str, np.ndarray]] = []
     has_fw_here = fw is not None and theta_fw is not None
     if has_fw_here:
-        derived.append((f"{height} m: theta_fw", _avg(theta_fw)))
-    derived.append((f"{height} m: theta_v_son", _avg(theta_son)))
+        derived.append((f"theta_fw_{hn}", _avg(theta_fw)))
+    derived.append((f"theta_v_{hn}", _avg(theta_son)))
     if has_fw_here:
-        derived.append((f"{height} m: theta_v_fw", _avg(Vtheta_fw)))
-    derived.append((f"{height} m: T_son_air", _avg(theta_son_air)))
+        derived.append((f"theta_v_fw_{hn}", _avg(Vtheta_fw)))
+    derived.append((f"t_air_{hn}", _avg(theta_son_air)))
 
-    # ---- period-mean wind direction (H_SNSP) ----
+    # ---- period-mean wind direction (slope-normal heat flux) ----
     direction_avg = np.zeros(N)
     if run.wind is not None:
         hts = [float(h) for h in run.wind[HEIGHT].values]

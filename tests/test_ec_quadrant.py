@@ -131,18 +131,19 @@ def test_run_on_synthetic_file(tmp_path):
     assert np.allclose(ex[np.isfinite(ex)], eta[np.isfinite(eta)] - 1.0, atol=1e-12)
     assert ds.attrs["hole_norm"] == "rms"
     # octants: both default triplets, tagged variables, closure per component
-    assert do.attrs["octant_triplets"] == "u,w,Ts; w,Ts,rhov"
-    for name in ("flux_frac_uwTs_uw", "flux_frac_uwTs_uTs", "flux_frac_uwTs_wTs",
-                 "flux_frac_wTsrhov_wTs", "flux_frac_wTsrhov_wrhov", "flux_frac_wTsrhov_Tsrhov"):
+    assert do.attrs["octant_triplets"] == "u,w,ts; w,ts,rho_h2o"
+    for name in ("flux_frac_u_w_ts_uw", "flux_frac_u_w_ts_uts", "flux_frac_u_w_ts_wts",
+                 "flux_frac_w_ts_rho_h2o_wts", "flux_frac_w_ts_rho_h2o_wrho_h2o",
+                 "flux_frac_w_ts_rho_h2o_tsrho_h2o"):
         f = do[name].values.sum(axis=-1)
         assert np.allclose(f[np.isfinite(f)], 1.0, atol=1e-9), name
 
 
 def test_run_octant_single_triplet_and_missing_signal(tmp_path):
     path, _ = make_hf(tmp_path / "hf2.nc", fs=FS, window_s=300.0, n_records=2,
-                      with_scalars=False)                 # no rhov in the file
+                      with_scalars=False)                 # no rho_h2o in the file
     cfg = ECConfig.from_config({})
     with open_hf(path) as hf:
         do = qd.run_octant(hf, cfg)
-    assert do.attrs["octant_triplets"] == "u,w,Ts"        # rhov triplet skipped
-    assert "flux_frac_uwTs_uw" in do and "flux_frac_wTsrhov_wTs" not in do
+    assert do.attrs["octant_triplets"] == "u,w,ts"   # rho_h2o triplet skipped
+    assert "flux_frac_u_w_ts_uw" in do and "flux_frac_w_ts_rho_h2o_wts" not in do

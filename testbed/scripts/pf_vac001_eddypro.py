@@ -1,7 +1,7 @@
 """Planar-fit coefficients for VAC001: UTESpac vs EddyPro, plus the 3D
 validation figure (binned (u,v,w) means against the fitted plane).
 
-Reads the LPF 30-min run files (utespac-run-2 netCDF; the same means
+Reads the LPF 30-min run files (utespac-run-3 netCDF; the same means
 find_global_pf regresses on), fits b0,b1,b2 with utespac.pf_coefficients over (a) the
 EddyPro planar-fit period 2023-07-06..07-08 and (b) the whole IOP, and
 prints them next to EddyPro's B0/B1/B2 from its planar_fit_*.txt. The
@@ -51,8 +51,8 @@ def load_means():
         df = pd.DataFrame({"u": tbl[:, hdr.index("Ux_10.85")],
                            "v": tbl[:, hdr.index("Uy_10.85")],
                            "w": tbl[:, hdr.index("Uz_10.85")],
-                           "spd": sd[:, sdh.index("10.85m speed")],
-                           "dir": sd[:, sdh.index("10.85m direction")]}, index=t)
+                           "spd": sd[:, sdh.index("wind_speed_10.85")],
+                           "dir": sd[:, sdh.index("wind_dir_10.85")]}, index=t)
         frames.append(df)
     return pd.concat(frames).sort_index()
 

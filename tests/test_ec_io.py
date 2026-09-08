@@ -24,6 +24,10 @@ def test_open_hf_reads_attrs_and_rejects_other_formats(hf_path, tmp_path):
     xr.Dataset(attrs={"utespac_format": "utespac-run-2"}).to_netcdf(other)
     with pytest.raises(ValueError):
         ecio.open_hf(other)
+    old = tmp_path / "old.nc"
+    xr.Dataset(attrs={"utespac_format": "utespac-hf-1"}).to_netcdf(old)
+    with pytest.raises(ValueError, match="run_vac001.py"):        # pre-rename names, no shim
+        ecio.open_hf(old)
 
 
 def test_windows_cover_exact_samples_and_join_ancillaries(hf_path):
@@ -34,17 +38,17 @@ def test_windows_cover_exact_samples_and_join_ancillaries(hf_path):
         assert [w.index for w in wins] == [0, 1, 2, 3]
         for w in wins:
             assert w.n == n_win
-            assert w.data["u"].shape == (n_win, 2)
+            assert w.data["u_pf"].shape == (n_win, 2)
             assert w.record - w.start == np.timedelta64(int((n_win - 1) * 100), "ms")
-            assert set(w.ancillary) >= {"ustar", "L", "spike_flag"}
-            assert w.ancillary["ustar"].shape == (2,) and w.ancillary["ustar"][0] == 0.45
+            assert set(w.ancillary) >= {"ustar_pf", "L", "spike_flag", "H_ssitc"}
+            assert w.ancillary["ustar_pf"].shape == (2,) and w.ancillary["ustar_pf"][0] == 0.45
         # exact sample slicing against the truth arrays (float32 storage)
         w1 = wins[1]
-        assert np.allclose(w1.data["w"], truth["w"][n_win:2 * n_win], atol=1e-5)
-        assert np.isnan(w1.data["u"][10:40]).all() and np.isfinite(w1.data["u"][40:]).all()
+        assert np.allclose(w1.data["w_pf"], truth["w_pf"][n_win:2 * n_win], atol=1e-5)
+        assert np.isnan(w1.data["u_pf"][10:40]).all() and np.isfinite(w1.data["u_pf"][40:]).all()
         # rhov lives on its own height dim and is mapped onto the sonic heights
-        assert w1.data["rhov"].shape == (n_win, 2)
-        assert np.allclose(w1.scalar_heights["rhov"], [3.0, 10.0])
+        assert w1.data["rho_h2o"].shape == (n_win, 2)
+        assert np.allclose(w1.scalar_heights["rho_h2o"], [3.0, 10.0])
         sub = list(ecio.iter_windows(hf, records=[3]))
         assert len(sub) == 1 and sub[0].index == 3
 
@@ -77,7 +81,7 @@ def test_config_resolution_and_unknown_keys(tmp_path):
                            "coherent_flux") \
         and cfg.spectra.taper == "boxcar"
     assert cfg.mrd.grid == "trim" and cfg.quadrant.hole_norm == "rms"
-    assert cfg.ramps.wavelet == "mhat" and cfg.ramps.signals == ("Ts", "u", "e")
+    assert cfg.ramps.wavelet == "mhat" and cfg.ramps.signals == ("ts", "u_pf", "e")
     assert cfg.spectra.nperseg is None
     cfg2 = ECConfig.from_config({"spectra": {"nperseg": 1024, "taper": "hann"}},
                                 preprocess={"detrend": "linear"})

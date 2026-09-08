@@ -52,7 +52,7 @@ def test_run_closure_on_synthetic_file(tmp_path):
                                            "z_mult_small": 3.0, "z_mult_vlsm": 30.0})
     with open_hf(path) as hf:
         ds = scales.run(hf, cfg)
-    for name in ("var_frac_u", "var_frac_w", "var_frac_Ts", "flux_frac_uw", "flux_frac_wTs"):
+    for name in ("var_frac_u", "var_frac_w", "var_frac_ts", "flux_frac_uw", "flux_frac_wTs"):
         arr = ds[name].values
         s = arr.sum(axis=-1)
         assert np.allclose(s[np.isfinite(s)], 1.0, atol=1e-9), name

@@ -54,9 +54,10 @@ def test_pinned_co2_ppm_is_ambient(config_name):
     BUGFIXES.txt item 10). Guards a re-pin that pins a broken conversion."""
     import numpy as np
     expected, meta = load_expected(config_name)
-    header = meta["headers"]["CO2flux"]
-    (idx,) = [i for i, h in enumerate(header) if "ppm" in h]
-    ppm = expected["avg/CO2flux"][:, idx]
+    field = "co2_flux" if "co2_flux" in meta["headers"] else "CO2flux"   # pinned before the rename
+    header = meta["headers"][field]
+    (idx,) = [i for i, h in enumerate(header) if "ppm" in h or "co2_mole_fraction" in h]
+    ppm = expected[f"avg/{field}"][:, idx]
     valid = ppm[~np.isnan(ppm)]
     assert valid.size and np.all((valid > 350.0) & (valid < 500.0))
 
@@ -95,13 +96,13 @@ def test_products_on_disk_are_the_runs_view(tmp_path_factory):
     raw = raw_to_legacy(date.run.raw)
     with xr.open_dataset(date.paths["hf"], engine="netcdf4") as hf:
         hf = hf.load()
-    assert hf.attrs["utespac_format"] == "utespac-hf-1" and hf.attrs["pf_type"] == "LPF"
+    assert hf.attrs["utespac_format"] == "utespac-hf-2" and hf.attrs["pf_type"] == "LPF"
     assert hf["time"].values[0] == date.run.raw["time_hf"].values[0]
-    for nc_name, raw_key in (("u", "uPF"), ("w", "wPF"), ("Ts", "sonTs"), ("rhov", "rhov")):
+    for nc_name, raw_key in (("u_pf", "uPF"), ("w_pf", "wPF"), ("ts", "sonTs"), ("rho_h2o", "rhov")):
         got, exp = hf[nc_name].values, np.asarray(raw[raw_key], dtype=float)
         assert got.shape == exp.shape, nc_name
         m = ~np.isnan(exp)
         assert np.array_equal(np.isnan(got), ~m), nc_name
         assert np.allclose(got[m], exp[m], rtol=2e-7, atol=0), nc_name     # float32 storage
-    assert {"ustar", "L", "wdir", "spike_flag", "nan_flag"} <= set(hf.data_vars)
-    assert hf["ustar"].dims == ("record", "height") and hf.sizes["record"] == 48
+    assert {"ustar_pf", "L", "wdir", "spike_flag", "nan_flag"} <= set(hf.data_vars)
+    assert hf["ustar_pf"].dims == ("record", "height") and hf.sizes["record"] == 48

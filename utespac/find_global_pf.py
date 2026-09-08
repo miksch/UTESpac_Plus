@@ -9,6 +9,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
+from .flux.tables import height_label
 from .get_data import get_data
 from .pf_coefficients import pf_coefficients
 from .site_config import list_sites
@@ -144,7 +145,7 @@ def find_global_pf(info: Dict, template: Dict, sensor_info: Dict,
 
         wind_flag_col = next(
             (j for j, h in enumerate(hdr)
-             if str(h).startswith(f"{z}m flag")), None)
+             if str(h) == f"shadow_flag_{height_label(z)}"), None)
         wind_flag = data["spdAndDir"][:, wind_flag_col].astype(bool) \
                     if wind_flag_col is not None else np.zeros(n_periods, dtype=bool)
 
@@ -173,7 +174,7 @@ def find_global_pf(info: Dict, template: Dict, sensor_info: Dict,
                 else np.full(keep.sum(), np.nan)
         t_raw = data[local_table][keep, 0].copy()
 
-        spd_col_idx = next((j for j, h in enumerate(hdr) if h == f"{z}m speed"), None)
+        spd_col_idx = next((j for j, h in enumerate(hdr) if h == f"wind_speed_{height_label(z)}"), None)
         spd_raw = data["spdAndDir"][keep, spd_col_idx].copy() if spd_col_idx is not None \
                   else np.full(keep.sum(), np.nan)
 

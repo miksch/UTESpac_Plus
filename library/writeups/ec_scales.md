@@ -87,7 +87,7 @@ boxcar periodogram/cross-periodogram over the three wavelength bands --
 the same estimator whose Parseval closure is exact in
 [ec_spectra.md](ec_spectra.md), so the band fractions of variance and
 covariance sum to 1 exactly: the module's invariant test), `run` (the
-`/scale_separation` group: `var_frac_<x>` for u, w, Ts and
+`/scale_separation` group: `var_frac_<x>` for u, w, ts and
 `flux_frac_uw`, `flux_frac_wTs` on a `scale_band` axis of small | lsm |
 vlsm, plus the band-edge wavelengths and frequencies, cutoff source,
 `zeta`, `U_mean`). Frequency-to-wavelength per window by Taylor

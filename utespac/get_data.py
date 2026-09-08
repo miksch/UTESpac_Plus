@@ -19,7 +19,7 @@ def get_data(
 ) -> Dict:
     """Load and vertically concatenate processed UTESpac output files.
 
-    ``fmt="nc"`` (default) reads the netCDF products (a ``utespac-run-2`` run
+    ``fmt="nc"`` (default) reads the netCDF products (a ``utespac-run-3`` run
     file through :mod:`utespac.run_io`, or the older ``utespac-averaged-1`` file
     through :func:`utespac.labeled.read_netcdf`); ``fmt="pkl"`` the pickles of
     runs before 2026-08-22 (no longer written); both give the same dict.
@@ -255,13 +255,14 @@ def get_frames(root_folder: str, site=None, avg_per: int = None, qualifier: str 
 
 
 def _read_nc_as_legacy(path: str) -> Dict:
-    """A netCDF product as the legacy output dict: a ``utespac-run-2`` run file
+    """A netCDF product as the legacy output dict: a ``utespac-run-3``/``-2`` run file
     through :func:`utespac.run_io.read_run_legacy`, else the older
     ``utespac-averaged-1`` file through :func:`utespac.labeled.read_netcdf`."""
     import xarray as xr
+    from .run_io import READABLE_FORMATS
     with xr.open_dataset(path, engine="netcdf4") as ds:
         fmt = ds.attrs.get("utespac_format")
-    if fmt == "utespac-run-2":
+    if fmt in READABLE_FORMATS:
         from .run_io import read_run_legacy
         return read_run_legacy(path)
     from .labeled import read_netcdf

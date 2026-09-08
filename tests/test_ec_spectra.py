@@ -86,8 +86,8 @@ def test_module_run_on_synthetic_file_closes_and_writes(tmp_path):
     n_win = truth["n_win"]
     for r in (0, 1, 3):
         for ih in (0, 1):
-            u = truth["u"][r * n_win:(r + 1) * n_win, ih]
-            w = truth["w"][r * n_win:(r + 1) * n_win, ih]
+            u = truth["u_pf"][r * n_win:(r + 1) * n_win, ih]
+            w = truth["w_pf"][r * n_win:(r + 1) * n_win, ih]
             up, wp = u - u.mean(), w - w.mean()
             assert float(ds["var_u"][r, ih]) == pytest.approx(np.var(up), rel=1e-4)
             assert float(ds["cov_uw"][r, ih]) == pytest.approx(np.mean(up * wp), rel=1e-3)
@@ -99,4 +99,4 @@ def test_module_run_on_synthetic_file_closes_and_writes(tmp_path):
     assert np.isfinite(ds["S_w"][2, 0]).any()
     assert float(ds["nan_filled_frac"][2, 0]) == pytest.approx(2000 / n_win)
     # scalars on their own height dim came through the nearest-height map
-    assert np.isfinite(ds["S_rhov"][0, 1]).any() and np.isfinite(ds["Co_wTs"][0, 0]).any()
+    assert np.isfinite(ds["S_rho_h2o"][0, 1]).any() and np.isfinite(ds["Co_wTs"][0, 0]).any()

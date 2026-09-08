@@ -9,7 +9,8 @@ from utespac.campbell_date import MATLAB_EPOCH
 
 DAY = 739406.0
 HEADERS = [[["TIMESTAMP", "Ux_10.85", "Uy_10.85", "Uz_10.85", "T_Sonic_10.85", "H2O_10.85"],
-            [None, 10.85, 10.85, 10.85, 10.85, 10.85]],
+            [None, 10.85, 10.85, 10.85, 10.85, 10.85],
+            ["", "m s-1", "m s-1", "m s-1", "deg C", "g m-3"]],
            [["TIMESTAMP", "Temp_10.85", "RH_10.85"], [None, 10.85, 10.85]]]
 TABLES = ["X_1Hz", "X_30min"]
 SENSOR_INFO = {"u": np.array([[0, 1, 10.85, 215.0, 1.0]]), "v": np.array([[0, 2, 10.85]]),
@@ -32,6 +33,9 @@ def test_sensors_from_and_to_legacy():
     assert u.column == "Ux_10.85" and u.orientation == 215.0 and u.manufacturer == 1
     assert s.at("T", 10.85).table == "X_30min"
     assert s.heights("u") == [10.85] and s.has("irgaH2O") and not s.has("fw")
+    # units come from the header's third row; the slow table declares none
+    assert u.units == "m s-1" and s.at("Tson", 10.85).units == "deg C"
+    assert s.at("T", 10.85).units is None
     back = s.to_legacy(HEADERS, TABLES)
     for k, v in SENSOR_INFO.items():
         assert np.array_equal(back[k], np.asarray(v, dtype=float))
@@ -50,32 +54,50 @@ def test_tables_round_trip_and_datetime64_axis():
         assert np.abs(a[:, 0] - b[:, 0]).max() < 1e-9        # datenum <-> datetime64[ms], sub-microsecond
 
 
-def test_wind_round_trip_keeps_sector_header():
+def test_wind_round_trip_keeps_the_column_labels():
     t = DAY + np.arange(1, 3) * 1800 / 86400.0
     out = {"spdAndDir": np.column_stack([t, [200.0, 210.0], [3.0, 4.0], [0.0, 1.0]]),
-           "spdAndDirHeader": ["timeStamp", "10.85m direction", "10.85m speed", "10.85m flag 15<dir<55"]}
+           "spdAndDirHeader": ["timeStamp", "wind_dir_10.85", "wind_speed_10.85", "shadow_flag_10.85"]}
     w = M.wind_from_legacy(out, [10.85])
     assert w["direction"].dims == (M.TIME, M.HEIGHT)
-    assert w["sector_min"].values.tolist() == [15.0] and w["sector_max"].values.tolist() == [55.0]
+    # the sector bounds are not in the labels any more; they live in the wind group
+    assert np.isnan(w["sector_min"].values).all() and np.isnan(w["sector_max"].values).all()
     back = M.wind_to_legacy(w)
     assert back["spdAndDirHeader"] == out["spdAndDirHeader"]
     assert np.array_equal(back["spdAndDir"], out["spdAndDir"])
 
 
+def test_rotation_labels_name_the_frame():
+    t = DAY + np.arange(1, 3) * 1800 / 86400.0
+    hf = DAY + np.arange(1, 5) / 86400.0
+    rot = M.rotation_from_legacy(np.ones((4, 3)), np.full((4, 3), 2.0),
+                                 {"rotatedSonic": np.ones((2, 3)), "PFSonic": np.full((2, 3), 2.0)},
+                                 [10.85], M.to_datetime64(hf), M.to_datetime64(t))
+    _, _, out = M.rotation_to_legacy(rot)
+    assert out["rotatedSonicHeader"] == ["u_pf_10.85", "v_pf_10.85", "w_pf_10.85"]
+    assert out["PFSonicHeader"] == ["u_tilt_10.85", "v_tilt_10.85", "w_tilt_10.85"]
+
+
 def test_products_round_trip_with_fixed_columns_and_trim():
     t = DAY + np.arange(1, 3) * 1800 / 86400.0
     H = np.column_stack([t, [1.2, 1.2], [1005.0, 1005.0], [0.1, 0.2], [0.05, np.nan]])
-    out = {"H": H, "Hheader": ["time", "rho", "cp", "10.85m son:Ts'w'", "10.85m son:Theta_v'wPF'"],
-           "derivedT": np.column_stack([t, [20.0, 21.0]]),
-           "derivedTheader": ["time", "10.85 m: theta_v_son"],
-           "specificHum": np.column_stack([t, [7.5, 7.6], [295.0, 295.1]]),
-           "specificHumHeader": ["time", "10.85 m: q(g/kg)", "10.85 m: virtualThetaAvg(K)"]}
+    out = {"sensible_heat": H,
+           "sensible_heatHeader": ["time", "rho_air_ref", "cp_ref",
+                                   "w_ts_cov_raw_10.85", "w_theta_v_cov_pf_10.85"],
+           "temperature": np.column_stack([t, [20.0, 21.0]]),
+           "temperatureHeader": ["time", "theta_v_10.85"],
+           "humidity": np.column_stack([t, [7.5, 7.6], [295.0, 295.1]]),
+           "humidityHeader": ["time", "q_10.85", "theta_v_slow_10.85"]}
     p = M.products_from_legacy(out, [10.85])
-    assert p["H"]["Ts_w"].dims == (M.TIME, M.HEIGHT) and p["H"]["rho"].dims == (M.TIME,)
-    assert p["H"]["Ts_w"].attrs["label"] == "{hn}m son:Ts'w'"
-    assert p["specificHum"]["q"].attrs["units"] == "g/kg"
+    sh = p["sensible_heat"]
+    assert sh["w_ts_cov_raw"].dims == (M.TIME, M.HEIGHT) and sh["rho_air_ref"].dims == (M.TIME,)
+    assert sh["w_ts_cov_raw"].attrs["legacy_label"] == "{hn}m son:Ts'w'"
+    assert sh["w_ts_cov_raw"].attrs["units"] == "K m s-1"
+    assert sh["rho_air_ref"].attrs["units"] == "kg m-3"
+    assert p["humidity"]["q"].attrs["units"] == "g kg-1"
+    assert p["temperature"]["theta_v"].attrs["long_name"].startswith("sonic virtual")
     back = M.products_to_legacy(p)
-    for k in ("H", "Hheader", "derivedT", "derivedTheader", "specificHum", "specificHumHeader"):
+    for k in out:
         if k.endswith(("Header", "header")):
             assert back[k] == out[k], k
         else:
@@ -84,7 +106,7 @@ def test_products_round_trip_with_fixed_columns_and_trim():
 
 def test_products_drop_all_nan_columns_like_the_legacy_trim():
     t = DAY + np.arange(1, 3) * 1800 / 86400.0
-    out = {"tke": np.column_stack([t, [0.5, 0.6]]), "tkeHeader": ["time", "10.85m :0.5(u'^2+v'^2+w'^2)"]}
+    out = {"tke": np.column_stack([t, [0.5, 0.6]]), "tkeHeader": ["time", "TKE_10.85"]}
     p = M.products_from_legacy(out, [10.85, 2.0])        # second sonic has no data
     back = M.products_to_legacy(p)
     assert back["tkeHeader"] == out["tkeHeader"]
@@ -108,7 +130,7 @@ def test_run_from_legacy_and_to_legacy_output():
     out = {"X_1Hz": np.column_stack([t, np.ones((2, 5))]), "X_1HzHeader": HEADERS[0],
            "X_1HzSpikeFlag": np.zeros((2, 6), bool), "X_1HzNanFlag": np.zeros((2, 6), bool),
            "spdAndDir": np.column_stack([t, [200.0, 210.0], [3.0, 4.0], [0.0, 1.0]]),
-           "spdAndDirHeader": ["timeStamp", "10.85m direction", "10.85m speed", "10.85m flag 15<dir<55"],
+           "spdAndDirHeader": ["timeStamp", "wind_dir_10.85", "wind_speed_10.85", "shadow_flag_10.85"],
            "warnings": ["w1"]}
     run = M.run_from_legacy({"tableScanFrequency": [1.0, 1 / 1800]}, data, HEADERS, TABLES, SENSOR_INFO,
                             out, data_info=[["file: x"]])
@@ -117,6 +139,7 @@ def test_run_from_legacy_and_to_legacy_output():
     assert len(run.time_hf) == 120
     back = M.to_legacy_output(run)
     assert set(back) >= set(out)
-    assert np.array_equal(back["X_1Hz"], out["X_1Hz"]) and back["X_1HzHeader"] == HEADERS[0]
+    # the legacy <name>Header stays (labels, heights); units travel on the Run
+    assert np.array_equal(back["X_1Hz"], out["X_1Hz"]) and back["X_1HzHeader"] == HEADERS[0][:2]
     assert np.array_equal(back["X_1HzSpikeFlag"], out["X_1HzSpikeFlag"])
     assert back["warnings"] == ["w1"]

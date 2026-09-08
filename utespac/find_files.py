@@ -5,7 +5,7 @@ import glob
 import warnings
 from typing import Dict, List, Optional, Tuple
 import numpy as np
-from .import_header import import_header
+from .import_header import import_header, import_units
 from .campbell_date import datetime_to_matlab_datenum
 from .site_config import (load_site_info, list_sites, resolve_site_dir,
                           site_input_dir)
@@ -32,7 +32,7 @@ def find_files(
 
     Returns
     -------
-    headers_cell : list of [names, heights]
+    headers_cell : list of [names, heights, units]
     data_files   : list of lists, shape [n_dates × n_tables], full paths
     table_names  : list of str
     info         : dict (updated with siteFolder and date)
@@ -71,6 +71,7 @@ def find_files(
 
     for hf in header_files:
         hdr = import_header(hf)
+        hdr.append(import_units(hf))     # third row: declared units, "" where none
         headers_cell.append(hdr)
 
         base = os.path.basename(hf)
@@ -78,11 +79,11 @@ def find_files(
         table_name = base[:tname_end] if tname_end >= 0 else base.split(".")[0]
         table_names.append(table_name)
 
-        # CSV or TXT files for this table (exclude header files)
+        # CSV or TXT files for this table (exclude the header and units files)
         csv_glob = os.path.join(input_path, f"*{table_name}*")
         csv_files_raw = [
             f for f in sorted(glob.glob(csv_glob))
-            if "header" not in os.path.basename(f).lower()
+            if not any(tag in os.path.basename(f).lower() for tag in ("header", "units"))
             and os.path.splitext(f)[1].lower() in (".csv", ".txt", ".dat", "")
         ]
 

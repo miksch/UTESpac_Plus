@@ -153,7 +153,7 @@ def prepare(window, ih: int, names, method: str = "block", tau_s: float = 300.0,
         acc[name] = g.accepted
         prime[name] = detrend(g.x, method, fs=window.fs, tau_s=tau_s) if g.accepted \
             else np.full_like(x, np.nan)
-    u, v, w = (window.series(k, ih) for k in ("u", "v", "w"))
+    u, v, w = (window.series(k, ih) for k in ("u_pf", "v_pf", "w_pf"))
     diag = {}
     diag.update(taylor_check(u, v, taylor_max_ratio))
     diag.update(rotation_check(u, v, w))

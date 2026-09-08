@@ -62,7 +62,7 @@ def check_file(path):
     q.close()
 
     oc = ecio.read_group(path, "octant")
-    err["oct_sum"] = worst(oc["flux_frac_uwTs_uw"].sum("octant", skipna=False) - 1)
+    err["oct_sum"] = worst(oc["flux_frac_u_w_ts_uw"].sum("octant", skipna=False) - 1)
     oc.close()
 
     sc = ecio.read_group(path, "scale_separation")

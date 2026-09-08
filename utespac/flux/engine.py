@@ -3,7 +3,7 @@
 :func:`compute_period` takes a :class:`~.levels.LevelInputs`, the
 :class:`~.reference.ReferenceState`, the run :class:`FluxOptions` and one
 period's sample range and returns a :class:`PeriodResult`: the named
-values of every output table (keys as in :mod:`.tables`) and the
+values of every output group (names as in :mod:`.tables`) and the
 per-sample series the raw product stores. Formulas and flag masking are
 those of ``fluxes.m`` with the audit corrections (Schotanus temperature
 flux, WPL on w'T', slope geometry from SiteInfo).
@@ -105,76 +105,78 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
     # ---- sigma ----
     # Population std (ddof=0); MATLAB std uses N-1 (< 2e-5 relative at
     # n ~ 36 000; recorded divergence). Per-column flagging as fluxes.m
-    # 775-799: sigma_w by the w flag only, sigma_Tson by the Tson flag only.
-    r.put("sigma", "sigma_u", np.nanstd(lev.u[s0:s1]))
-    r.put("sigma", "sigma_v", np.nanstd(lev.v[s0:s1]))
-    r.put("sigma", "sigma_w", np.nanstd(lev.w[s0:s1]))
-    r.put("sigma", "sigma_uPF", np.nanstd(lev.u_pf[s0:s1]))
-    r.put("sigma", "sigma_vPF", np.nanstd(lev.v_pf[s0:s1]))
-    r.put("sigma", "sigma_wPF", np.nanstd(lev.w_pf[s0:s1]))
-    r.put("sigma", "sigma_Tson", np.nanstd(lev.T_son[s0:s1]))
-    r.put("sigma", "wPFP_TsonP_TsonP", np.nanmean(wPF_P * TsP ** 2))
+    # 775-799: w_sigma_raw by the w flag only, ts_sigma by the Tson flag only.
+    r.put("sigma", "u_sigma_raw", np.nanstd(lev.u[s0:s1]))
+    r.put("sigma", "v_sigma_raw", np.nanstd(lev.v[s0:s1]))
+    r.put("sigma", "w_sigma_raw", np.nanstd(lev.w[s0:s1]))
+    r.put("sigma", "u_sigma_pf", np.nanstd(lev.u_pf[s0:s1]))
+    r.put("sigma", "v_sigma_pf", np.nanstd(lev.v_pf[s0:s1]))
+    r.put("sigma", "w_sigma_pf", np.nanstd(lev.w_pf[s0:s1]))
+    r.put("sigma", "ts_sigma", np.nanstd(lev.T_son[s0:s1]))
+    r.put("transport", "ts_var_transport_pf", np.nanmean(wPF_P * TsP ** 2))
     if rot:
-        r.blank("sigma", "sigma_u", "sigma_v", "sigma_uPF", "sigma_vPF", "sigma_wPF", "wPFP_TsonP_TsonP")
+        r.blank("sigma", "u_sigma_raw", "v_sigma_raw", "u_sigma_pf", "v_sigma_pf", "w_sigma_pf")
+        r.blank("transport", "ts_var_transport_pf")
     if unrot:
-        r.blank("sigma", "sigma_w")
+        r.blank("sigma", "w_sigma_raw")
     if tsf:
-        r.blank("sigma", "sigma_Tson", "wPFP_TsonP_TsonP")
+        r.blank("sigma", "ts_sigma")
+        r.blank("transport", "ts_var_transport_pf")
     if lev.fw is not None:
-        r.put("sigma", "sigma_TFW", np.nan if fwf else np.nanstd(lev.fw[s0:s1]))
-    r.put("sigma", "sigma_Theta_v", np.nanstd(lev.theta_son[s0:s1]))
+        r.put("sigma", "t_fw_sigma", np.nan if fwf else np.nanstd(lev.fw[s0:s1]))
+    r.put("sigma", "theta_v_sigma", np.nanstd(lev.theta_son[s0:s1]))
 
     # ---- R(uPF'wPF', wPF'Thetav') ----
-    r.put("R", "R_uPFwPF_wPFThetav", np.nan if (tsf or rot) else _corr(uPF_P * wPF_P, ThvP * wPF_P))
+    r.put("correlation", "u_w__w_theta_v_corr_pf", np.nan if (tsf or rot) else _corr(uPF_P * wPF_P, ThvP * wPF_P))
 
     # ---- eta, delta_flux, delta_time: momentum and heat ----
     if tsf or rot:
-        r.blank("eta", "eta_wPFuPF", "eta_wPFThetav")
-        r.blank("delta_flux_ctrb", "S_wPFuPF", "S_wPFThetav")
-        r.blank("delta_time_ctrb", "D_wPFuPF", "D_wPFThetav")
+        r.blank("eta", "u_w_eta_pf", "w_theta_v_eta_pf")
+        r.blank("delta_flux", "u_w_delta_flux_pf", "w_theta_v_delta_flux_pf")
+        r.blank("delta_time", "u_w_delta_time_pf", "w_theta_v_delta_time_pf")
     else:
-        r.put("eta", "eta_wPFuPF", find_eta(wPF_P, uPF_P))
-        r.put("eta", "eta_wPFThetav", find_eta(wPF_P, ThvP))
-        r.put("delta_flux_ctrb", "S_wPFuPF", find_delta_flux(wPF_P, uPF_P))
-        r.put("delta_flux_ctrb", "S_wPFThetav", find_delta_flux(wPF_P, ThvP))
-        r.put("delta_time_ctrb", "D_wPFuPF", find_delta_time(wPF_P, uPF_P))
-        r.put("delta_time_ctrb", "D_wPFThetav", find_delta_time(wPF_P, ThvP))
+        r.put("eta", "u_w_eta_pf", find_eta(wPF_P, uPF_P))
+        r.put("eta", "w_theta_v_eta_pf", find_eta(wPF_P, ThvP))
+        r.put("delta_flux", "u_w_delta_flux_pf", find_delta_flux(wPF_P, uPF_P))
+        r.put("delta_flux", "w_theta_v_delta_flux_pf", find_delta_flux(wPF_P, ThvP))
+        r.put("delta_time", "u_w_delta_time_pf", find_delta_time(wPF_P, uPF_P))
+        r.put("delta_time", "w_theta_v_delta_time_pf", find_delta_time(wPF_P, ThvP))
 
     # ---- tau ----
     tau_pf = np.sqrt(np.nanmean(uPF_P * wPF_P) ** 2 + np.nanmean(vPF_P * wPF_P) ** 2)
     tau_vals = {
-        "tau_raw": np.sqrt(np.nanmean(uP * wP) ** 2 + np.nanmean(vP * wP) ** 2),
-        "tau_PF": tau_pf,
-        "uPF_uPF": np.nanmean(uPF_P * uPF_P), "vPF_vPF": np.nanmean(vPF_P * vPF_P),
-        "wPF_wPF": np.nanmean(wPF_P * wPF_P), "uPF_vPF": np.nanmean(uPF_P * vPF_P),
-        "uPF_wPF": np.nanmean(uPF_P * wPF_P), "vPF_wPF": np.nanmean(vPF_P * wPF_P),
-        "uT_uT": np.nanmean(uTP * uTP), "vT_vT": np.nanmean(vTP * vTP), "wT_wT": np.nanmean(wTP * wTP),
-        "uT_vT": np.nanmean(uTP * vTP), "uT_wT": np.nanmean(uTP * wTP), "vT_wT": np.nanmean(vTP * wTP),
+        "Tau_raw": np.sqrt(np.nanmean(uP * wP) ** 2 + np.nanmean(vP * wP) ** 2),
+        "Tau_pf": tau_pf,
+        "u_var_pf": np.nanmean(uPF_P * uPF_P), "v_var_pf": np.nanmean(vPF_P * vPF_P),
+        "w_var_pf": np.nanmean(wPF_P * wPF_P), "u_v_cov_pf": np.nanmean(uPF_P * vPF_P),
+        "u_w_cov_pf": np.nanmean(uPF_P * wPF_P), "v_w_cov_pf": np.nanmean(vPF_P * wPF_P),
+        "u_var_tilt": np.nanmean(uTP * uTP), "v_var_tilt": np.nanmean(vTP * vTP), "w_var_tilt": np.nanmean(wTP * wTP),
+        "u_v_cov_tilt": np.nanmean(uTP * vTP), "u_w_cov_tilt": np.nanmean(uTP * wTP), "v_w_cov_tilt": np.nanmean(vTP * wTP),
     }
     if rot:
         tau_vals = {k: np.nan for k in tau_vals}
         tau_pf = np.nan
-    r.values["tau"] = tau_vals
+    r.values["momentum"] = tau_vals
 
     # ---- TKE ----
-    r.put("tke", "tke", np.nan if rot else
+    r.put("tke", "TKE", np.nan if rot else
           0.5 * (np.nanmean(uP ** 2) + np.nanmean(vP ** 2) + np.nanmean(wP ** 2)))
 
-    # ---- turbulent transport: w'e', w'u'w', w'Thv'w' ----
+    # ---- turbulent transport: w'e', w'u'w', w'theta_v'w' ----
     if rot:
-        r.blank("turbtr", "w_e", "w_uw", "w_thvw")
+        r.blank("transport", "TKE_transport_pf", "u_w_transport_pf", "w_theta_v_transport_pf")
     else:
-        r.put("turbtr", "w_e", np.nanmean(wPF_P * 0.5 * (uPF_P ** 2 + vPF_P ** 2 + wPF_P ** 2)))
-        r.put("turbtr", "w_uw", np.nanmean(wPF_P * (uPF_P * wPF_P)))
-        r.put("turbtr", "w_thvw", np.nanmean(wPF_P * (ThvP * wPF_P)))
+        r.put("transport", "TKE_transport_pf", np.nanmean(wPF_P * 0.5 * (uPF_P ** 2 + vPF_P ** 2 + wPF_P ** 2)))
+        r.put("transport", "u_w_transport_pf", np.nanmean(wPF_P * (uPF_P * wPF_P)))
+        r.put("transport", "w_theta_v_transport_pf", np.nanmean(wPF_P * (ThvP * wPF_P)))
 
     # ---- dissipation ----
     if opts.calc_dissipation:
         u_mean_jj = np.nanmean(lev.u_pf[s0:s1])
         eps = calc_dissipation_rate(uPF_P, u_mean_jj, 1.0 / opts.scan_freq)
-        r.put("epsilon", "epsilon", np.nan if rot else eps)
+        r.put("dissipation", "epsilon", np.nan if rot else eps)
 
-    # ---- H_SNSP (slope-normal heat flux) ----
+    # ---- slope-normal heat flux ----
     uTHv = np.nanmean(uTP * ThvP)
     vTHv = np.nanmean(vTP * ThvP)
     wTHv = np.nanmean(wTP * ThvP)
@@ -186,13 +188,15 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
                      - vTHv * np.sin(np.radians(a2)))
     if rot or tsf:
         uTHv = vTHv = wTHv = wTHv_vert = np.nan
-    r.values["H_SNSP"] = {"uTHv": uTHv, "vTHv": vTHv, "wTHv": wTHv, "wTHv_vert": wTHv_vert}
+    r.values["sensible_heat_snsp"] = {
+        "u_theta_v_cov_snsp": uTHv, "v_theta_v_cov_snsp": vTHv,
+        "w_theta_v_cov_snsp": wTHv, "w_theta_v_cov_vertical": wTHv_vert}
 
-    # ---- H: Ts'w', Thetav'wPF' ----
-    Ts_w = np.nanmean(wP * TsP)
-    Thv_wPF = np.nanmean(wPF_P * ThvP)          # buoyancy flux (MATLAB kinSenFlux)
-    r.put("H", "Ts_w", np.nan if (unrot or tsf) else Ts_w)
-    r.put("H", "Thv_wPF", np.nan if (rot or tsf) else Thv_wPF)
+    # ---- kinematic heat flux: w'Ts', w'theta_v' ----
+    w_ts_cov = np.nanmean(wP * TsP)
+    w_theta_v_cov = np.nanmean(wPF_P * ThvP)    # buoyancy flux (MATLAB kinSenFlux)
+    r.put("sensible_heat", "w_ts_cov_raw", np.nan if (unrot or tsf) else w_ts_cov)
+    r.put("sensible_heat", "w_theta_v_cov_pf", np.nan if (rot or tsf) else w_theta_v_cov)
 
     # ---- Obukhov length ----
     T0_L = (lev.virtual_theta_avg[jj]
@@ -204,13 +208,14 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
         L_val = -u_star_cubed / (KAPPA * G / T0_L * wTHv_vert)
     if rot or tsf:
         L_val = np.nan
-    r.put("L", "L", L_val)
+    r.put("obukhov", "L", L_val)
 
     # ---- surface-layer scales (Stull 1988 pp. 356-357) ----
-    # theta*_SL = -w'theta_v'/u* [K]; q*_SL below once E_wPF exists.
+    # theta_star = -w'theta_v'/u* [K]; q_star below, once w'h2o' exists.
     ustar = np.sqrt(tau_pf) if (not np.isnan(tau_pf) and tau_pf > 0) else np.nan
-    r.put("scaling", "theta_star_SL",
-          np.nan if (rot or tsf or np.isnan(ustar)) else -Thv_wPF / ustar)
+    r.put("scaling", "ustar_pf", ustar)
+    r.put("scaling", "theta_star",
+          np.nan if (rot or tsf or np.isnan(ustar)) else -w_theta_v_cov / ustar)
 
     # ---- integrated stability functions psi_m(z/L), psi_h(z/L) ----
     # (Foken 2008 eqs. 2.85-2.89); NaN wherever L is (rot/tsf masks included)
@@ -218,51 +223,53 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
     r.put("scaling", "psi_m", psi_m(zeta, opts.stability_source))
     r.put("scaling", "psi_h", psi_h(zeta, opts.stability_source))
 
-    # ---- H: T_air'w', T_air'wPF' (mean-humidity rescale; replaced below
+    # ---- w'T_air' (mean-humidity rescale; replaced below
     #      by the Schotanus form where high-frequency humidity exists) ----
-    r.put("H", "Tair_w", np.nan if (unrot or tsf) else np.nanmean(wP * TairP))
-    r.put("H", "Tair_wPF", np.nan if (rot or tsf) else np.nanmean(wPF_P * TairP))
+    r.put("sensible_heat", "w_t_air_cov_raw", np.nan if (unrot or tsf) else np.nanmean(wP * TairP))
+    r.put("sensible_heat", "w_t_air_cov_pf", np.nan if (rot or tsf) else np.nanmean(wPF_P * TairP))
 
-    # ---- H: Th_s'w', Th_s'wPF' ----
-    r.put("H", "Ths_w", np.nan if (unrot or tsf) else np.nanmean(wP * ThvP))
-    r.put("H", "Ths_wPF", np.nan if (rot or tsf) else np.nanmean(wPF_P * ThvP))
+    # ---- w'theta_s' ----
+    r.put("sensible_heat", "w_theta_s_cov_raw", np.nan if (unrot or tsf) else np.nanmean(wP * ThvP))
+    r.put("sensible_heat", "w_theta_s_cov_pf", np.nan if (rot or tsf) else np.nanmean(wPF_P * ThvP))
 
-    # ---- Hlat: Ts'u', Ts'uPF', Ts'v', Ts'vPF'; Th_s'... ----
-    hl = {"Ts_u": np.nanmean(uP * TsP), "Ts_uPF": np.nanmean(uPF_P * TsP),
-          "Ts_v": np.nanmean(vP * TsP), "Ts_vPF": np.nanmean(vPF_P * TsP),
-          "Ths_u": np.nanmean(uP * ThvP), "Ths_uPF": np.nanmean(uPF_P * ThvP),
-          "Ths_v": np.nanmean(vP * ThvP), "Ths_vPF": np.nanmean(vPF_P * ThvP)}
+    # ---- lateral heat flux: u'Ts', v'Ts', u'theta_s', v'theta_s' ----
+    hl = {"u_ts_cov_raw": np.nanmean(uP * TsP), "u_ts_cov_pf": np.nanmean(uPF_P * TsP),
+          "v_ts_cov_raw": np.nanmean(vP * TsP), "v_ts_cov_pf": np.nanmean(vPF_P * TsP),
+          "u_theta_s_cov_raw": np.nanmean(uP * ThvP), "u_theta_s_cov_pf": np.nanmean(uPF_P * ThvP),
+          "v_theta_s_cov_raw": np.nanmean(vP * ThvP), "v_theta_s_cov_pf": np.nanmean(vPF_P * ThvP)}
     if rot or tsf:
         hl = {k: np.nan for k in hl}
-    r.values["Hlat"] = hl
+    r.values["sensible_heat_lateral"] = hl
 
     # ---- fine-wire fluxes ----
     if lev.fw is not None:
         fwP = nandetrend(lev.fw[s0:s1], det)
         thFwP = nandetrend(lev.theta_fw[s0:s1], det)
         VthFwP = nandetrend(lev.Vtheta_fw[s0:s1], det)
-        r.put("H", "fwT_w", np.nanmean(wP * fwP))
-        r.put("H", "fwT_wPF", np.nanmean(wPF_P * fwP))
-        r.put("H", "fwTh_w", np.nanmean(wP * thFwP))
-        r.put("H", "fwTh_wPF", np.nanmean(wPF_P * thFwP))
-        r.put("H", "fwVTh_w", np.nanmean(wP * VthFwP))
-        r.put("H", "fwVTh_wPF", np.nanmean(wPF_P * VthFwP))
+        r.put("sensible_heat", "w_t_fw_cov_raw", np.nanmean(wP * fwP))
+        r.put("sensible_heat", "w_t_fw_cov_pf", np.nanmean(wPF_P * fwP))
+        r.put("sensible_heat", "w_theta_fw_cov_raw", np.nanmean(wP * thFwP))
+        r.put("sensible_heat", "w_theta_fw_cov_pf", np.nanmean(wPF_P * thFwP))
+        r.put("sensible_heat", "w_theta_v_fw_cov_raw", np.nanmean(wP * VthFwP))
+        r.put("sensible_heat", "w_theta_v_fw_cov_pf", np.nanmean(wPF_P * VthFwP))
         if unrot or fwf:
-            r.blank("H", "fwT_w", "fwTh_w", "fwVTh_w")
+            r.blank("sensible_heat", "w_t_fw_cov_raw", "w_theta_fw_cov_raw", "w_theta_v_fw_cov_raw")
         if rot or fwf:
-            r.blank("H", "fwT_wPF", "fwTh_wPF", "fwVTh_wPF")
-        r.put("Hlat", "fwTh_u", np.nanmean(uP * thFwP))
-        r.put("Hlat", "fwTh_uPF", np.nanmean(uPF_P * thFwP))
-        r.put("Hlat", "fwTh_v", np.nanmean(vP * thFwP))
-        r.put("Hlat", "fwTh_vPF", np.nanmean(vPF_P * thFwP))
+            r.blank("sensible_heat", "w_t_fw_cov_pf", "w_theta_fw_cov_pf", "w_theta_v_fw_cov_pf")
+        r.put("sensible_heat_lateral", "u_theta_fw_cov_raw", np.nanmean(uP * thFwP))
+        r.put("sensible_heat_lateral", "u_theta_fw_cov_pf", np.nanmean(uPF_P * thFwP))
+        r.put("sensible_heat_lateral", "v_theta_fw_cov_raw", np.nanmean(vP * thFwP))
+        r.put("sensible_heat_lateral", "v_theta_fw_cov_pf", np.nanmean(vPF_P * thFwP))
         if rot or fwf:
-            r.blank("Hlat", "fwTh_u", "fwTh_uPF", "fwTh_v", "fwTh_vPF")
+            r.blank("sensible_heat_lateral", "u_theta_fw_cov_raw", "u_theta_fw_cov_pf",
+                    "v_theta_fw_cov_raw", "v_theta_fw_cov_pf")
         r.samples["fwThPrime"] = thFwP
         r.samples["fwTh"] = lev.theta_fw[s0:s1]
         r.samples["fwT"] = lev.fw[s0:s1]
 
     # ====================================================================
-    # H2O-based fluxes (LH, H2O sigma/eta/R, skew, Flux_lat, turbtr)
+    # H2O-based fluxes (latent_heat, sigma/eta/correlation, skewness,
+    # scalar_flux_lateral, transport)
     # ====================================================================
     H2Op = rhov_ext = rho_CO2p = rhoc_ext = None
     if lev.h2o is not None:
@@ -278,34 +285,35 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
         qP = (H2Op / 1000.0) / (rho_d_j + rho_v_j)                       # kg/kg
         T_air_mean_K = np.nanmean(lev.theta_son_air[s0:s1]) + 273.15
         TairP = air_temperature_perturbation(TsP, qP, T_air_mean_K)
-        r.put("H", "Tair_w", np.nan if (unrot or tsf or h2of) else np.nanmean(wP * TairP))
-        r.put("H", "Tair_wPF", np.nan if (rot or tsf or h2of) else np.nanmean(wPF_P * TairP))
+        r.put("sensible_heat", "w_t_air_cov_raw", np.nan if (unrot or tsf or h2of) else np.nanmean(wP * TairP))
+        r.put("sensible_heat", "w_t_air_cov_pf", np.nan if (rot or tsf or h2of) else np.nanmean(wPF_P * TairP))
 
         # WPL external H2O fluctuation
         rhov_ext = (Md / Mv * (rho_v_j / rho_d_j) * (H2Op / 1000.0)
                     + rho_v_j * (1.0 + Md / Mv * rho_v_j / rho_d_j) * TairP / T_ref_j)
 
-        r.put("sigma", "sigma_H2O", np.nan if (tsf or rot) else np.nanstd(lev.h2o[s0:s1]))
+        r.put("sigma", "h2o_sigma", np.nan if (tsf or rot) else np.nanstd(lev.h2o[s0:s1]))
 
         if tsf or rot:
-            r.blank("R", "R_uPFwPF_wPFH2O", "R_wPFH2O_wPFThetav", "R_wPF_uPF", "R_wPF_Theta_v", "R_wPF_H2O")
-            r.blank("eta", "eta_wPFH2O", "eta_wPFH2O_WPL")
-            r.blank("delta_flux_ctrb", "S_wPFH2O", "S_wPFH2O_WPL")
-            r.blank("delta_time_ctrb", "D_wPFH2O", "D_wPFH2O_WPL")
+            r.blank("correlation", "u_w__w_h2o_corr_pf", "w_h2o__w_theta_v_corr_pf",
+                    "w_u_corr_pf", "w_theta_v_corr_pf", "w_h2o_corr_pf")
+            r.blank("eta", "w_h2o_eta_pf", "w_h2o_wpl_eta_pf")
+            r.blank("delta_flux", "w_h2o_delta_flux_pf", "w_h2o_wpl_delta_flux_pf")
+            r.blank("delta_time", "w_h2o_delta_time_pf", "w_h2o_wpl_delta_time_pf")
         else:
-            r.put("R", "R_uPFwPF_wPFH2O", _corr(uPF_P * wPF_P, H2Op * wPF_P))
-            r.put("R", "R_wPFH2O_wPFThetav", _corr(H2Op * wPF_P, ThvP * wPF_P))
-            r.put("R", "R_wPF_uPF", _corr(wPF_P, uPF_P))
-            r.put("R", "R_wPF_Theta_v", _corr(wPF_P, ThvP))
-            r.put("R", "R_wPF_H2O", _corr(wPF_P, H2Op))
-            r.put("eta", "eta_wPFH2O", find_eta(wPF_P, H2Op))
-            r.put("eta", "eta_wPFH2O_WPL", find_eta(wPF_P, H2Op + rhov_ext * 1e3))
-            r.put("delta_flux_ctrb", "S_wPFH2O", find_delta_flux(wPF_P, H2Op))
-            r.put("delta_flux_ctrb", "S_wPFH2O_WPL", find_delta_flux(wPF_P, H2Op + rhov_ext * 1e3))
-            r.put("delta_time_ctrb", "D_wPFH2O", find_delta_time(wPF_P, H2Op))
-            r.put("delta_time_ctrb", "D_wPFH2O_WPL", find_delta_time(wPF_P, H2Op + rhov_ext * 1e3))
+            r.put("correlation", "u_w__w_h2o_corr_pf", _corr(uPF_P * wPF_P, H2Op * wPF_P))
+            r.put("correlation", "w_h2o__w_theta_v_corr_pf", _corr(H2Op * wPF_P, ThvP * wPF_P))
+            r.put("correlation", "w_u_corr_pf", _corr(wPF_P, uPF_P))
+            r.put("correlation", "w_theta_v_corr_pf", _corr(wPF_P, ThvP))
+            r.put("correlation", "w_h2o_corr_pf", _corr(wPF_P, H2Op))
+            r.put("eta", "w_h2o_eta_pf", find_eta(wPF_P, H2Op))
+            r.put("eta", "w_h2o_wpl_eta_pf", find_eta(wPF_P, H2Op + rhov_ext * 1e3))
+            r.put("delta_flux", "w_h2o_delta_flux_pf", find_delta_flux(wPF_P, H2Op))
+            r.put("delta_flux", "w_h2o_wpl_delta_flux_pf", find_delta_flux(wPF_P, H2Op + rhov_ext * 1e3))
+            r.put("delta_time", "w_h2o_delta_time_pf", find_delta_time(wPF_P, H2Op))
+            r.put("delta_time", "w_h2o_wpl_delta_time_pf", find_delta_time(wPF_P, H2Op + rhov_ext * 1e3))
 
-        # LHflux (all-NaN periods produce nan silently)
+        # latent heat (all-NaN periods produce nan silently)
         with np.errstate(all="ignore"):
             E = np.nanmean(wP * H2Op)
             EPF = np.nanmean(wPF_P * H2Op)
@@ -313,22 +321,24 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
         # Temperature flux for the WPL terms (Webb et al. 1980 eqs. 24-25, 44):
         # w'T', i.e. the Schotanus-corrected T_air'wPF' column. MATLAB
         # (fluxes.m:1073) used the buoyancy flux Theta_v'wPF'.
-        kin_sen_flux = r.get("H", "Tair_wPF")
+        kin_sen_flux = r.get("sensible_heat", "w_t_air_cov_pf")
         wpl = 1.0 + Md / Mv * rho_v_j / rho_d_j
 
-        r.put("LHflux", "Lv", Lv)
-        r.put("LHflux", "E_w", np.nan if (unrot or h2of) else E)
-        r.put("LHflux", "E_wPF", np.nan if (rot or h2of) else EPF)
-        r.put("LHflux", "wPF_qWPL", np.nan if (rot or h2of) else
+        r.put("latent_heat", "Lv", Lv)
+        r.put("latent_heat", "w_h2o_cov_raw", np.nan if (unrot or h2of) else E)
+        r.put("latent_heat", "w_h2o_cov_pf", np.nan if (rot or h2of) else EPF)
+        r.put("latent_heat", "w_h2o_wpl_cov_pf", np.nan if (rot or h2of) else
+              np.nanmean(wPF_P * (H2Op + rhov_ext * 1e3)))
+        r.put("latent_heat", "w_q_wpl_cov_pf", np.nan if (rot or h2of) else
               wpl * (np.nanmean(wPF_P * H2Op) / 1e3 + rho_v_j / T_ref_j * np.nanmean(wPF_P * TairP)))
         LE_w = 1000.0 * Lv * wpl * (E / 1000.0 + rho_v_j / T_ref_j * kin_sen_flux)
-        LE_wPF = 1000.0 * Lv * wpl * (EPF / 1000.0 + rho_v_j / T_ref_j * kin_sen_flux)
-        r.put("LHflux", "LE_WPL_w", np.nan if (unrot or h2of) else LE_w)
-        r.put("LHflux", "LE_WPL_wPF", np.nan if (unrot or h2of) else LE_wPF)
+        LE_pf = 1000.0 * Lv * wpl * (EPF / 1000.0 + rho_v_j / T_ref_j * kin_sen_flux)
+        r.put("latent_heat", "LE_wpl_raw", np.nan if (unrot or h2of) else LE_w)
+        r.put("latent_heat", "LE_wpl_pf", np.nan if (unrot or h2of) else LE_pf)
 
-        # q*_SL = -w'q'/u* [g/kg] with w'q' = E_wPF / rho_moist (specific
+        # q_star = -w'q'/u* [g/kg] with w'q' = w'h2o'_pf / rho_moist (specific
         # humidity from the raw wPF'' covariance; Stull 1988 pp. 356-357)
-        r.put("scaling", "q_star_SL",
+        r.put("scaling", "q_star",
               np.nan if (rot or h2of or np.isnan(ustar)) else
               -(EPF / (rho_d_j + rho_v_j)) / ustar)
 
@@ -340,8 +350,8 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
             O2_corr = CkO * rho_d_j / T_ref_j * kin_sen_flux * 1000.0
             E += O2_corr
             EPF += O2_corr
-            r.put("LHflux", "LE_O2_w", Lv * E)
-            r.put("LHflux", "LE_O2_wPF", Lv * EPF)
+            r.put("latent_heat", "LE_o2_raw", Lv * E)
+            r.put("latent_heat", "LE_o2_pf", Lv * EPF)
 
         r.samples["rhov"] = lev.h2o[s0:s1]
         r.samples["rhovPrime"] = H2Op
@@ -354,7 +364,7 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
             rho_CO2_seg = lev.co2[s0:s1]                      # mg/m³
             rho_CO2p = nandetrend(rho_CO2_seg, det) / 1e6     # kg/m³
             rho_CO2_avg = np.nanmean(rho_CO2_seg) / 1e6       # kg/m³
-            evap_flux = r.get("LHflux", "LE_WPL_wPF") / Lv / 1000.0   # WPL wPF'' (kg/m²/s)
+            evap_flux = r.get("latent_heat", "LE_wpl_pf") / Lv / 1000.0   # WPL wPF'' (kg/m²/s)
 
             # WPL external CO2 fluctuation
             rhoc_ext = (Md / Mv * (rho_CO2_avg / rho_d_j) * (H2Op / 1000.0)
@@ -371,76 +381,87 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
                                  * (lev.theta_son_air[s0:s1] + 273.15)
                                  / (44.01 * P_seg_kPa * 1e3))
 
-            r.put("sigma", "sigma_CO2", np.nanstd(rho_CO2_seg))
-            r.put("sigma", "sigma_CO2_WPL", np.nanstd(rho_CO2_seg / 1e6 + rhoc_ext) * 1e6)
+            r.put("sigma", "co2_sigma", np.nanstd(rho_CO2_seg))
+            r.put("sigma", "co2_wpl_sigma", np.nanstd(rho_CO2_seg / 1e6 + rhoc_ext) * 1e6)
             if tsf or rot:
-                r.blank("sigma", "sigma_CO2", "sigma_CO2_WPL")
+                r.blank("sigma", "co2_sigma", "co2_wpl_sigma")
 
             # R CO2 (MATLAB cols 5-17 order)
             if tsf or rot:
-                r.blank("R", "R_uPFwPF_wPFCO2_WPL", "R_wPFCO2_WPL_wPFThetav", "R_wPF_CO2", "R_wPF_CO2_WPL",
-                        "R_uPFwPF_wPFCO2", "R_wPFCO2_wPFThetav",
-                        "R_uPFwPF_wPFH2O_WPL", "R_wPFH2O_WPL_wPFThetav", "R_wPF_H2O_WPL")
-                r.blank("eta", "eta_wPFCO2_WPL", "eta_wPFCO2")
-                r.blank("delta_flux_ctrb", "S_wPFCO2_WPL", "S_wPFCO2")
-                r.blank("delta_time_ctrb", "D_wPFCO2_WPL", "D_wPFCO2")
+                r.blank("correlation", "u_w__w_co2_wpl_corr_pf", "w_co2_wpl__w_theta_v_corr_pf",
+                        "w_co2_corr_pf", "w_co2_wpl_corr_pf",
+                        "u_w__w_co2_corr_pf", "w_co2__w_theta_v_corr_pf",
+                        "u_w__w_h2o_wpl_corr_pf", "w_h2o_wpl__w_theta_v_corr_pf", "w_h2o_wpl_corr_pf")
+                r.blank("eta", "w_co2_wpl_eta_pf", "w_co2_eta_pf")
+                r.blank("delta_flux", "w_co2_wpl_delta_flux_pf", "w_co2_delta_flux_pf")
+                r.blank("delta_time", "w_co2_wpl_delta_time_pf", "w_co2_delta_time_pf")
             else:
-                r.put("R", "R_uPFwPF_wPFCO2_WPL", _corr(uPF_P * wPF_P, (rho_CO2p + rhoc_ext) * wPF_P))
-                r.put("R", "R_wPFCO2_WPL_wPFThetav", _corr((rho_CO2p + rhoc_ext) * wPF_P, ThvP * wPF_P))
-                r.put("R", "R_wPF_CO2", _corr(wPF_P, rho_CO2p))
-                r.put("R", "R_wPF_CO2_WPL", _corr(wPF_P, rho_CO2p + rhoc_ext))
-                r.put("R", "R_uPFwPF_wPFCO2", _corr(uPF_P * wPF_P, rho_CO2p * wPF_P))
-                r.put("R", "R_wPFCO2_wPFThetav", _corr(rho_CO2p * wPF_P, ThvP * wPF_P))
-                r.put("R", "R_uPFwPF_wPFH2O_WPL", _corr(uPF_P * wPF_P, (H2Op + rhov_ext * 1e3) * wPF_P))
-                r.put("R", "R_wPFH2O_WPL_wPFThetav", _corr((H2Op + rhov_ext * 1e3) * wPF_P, ThvP * wPF_P))
-                r.put("R", "R_wPF_H2O_WPL", _corr(wPF_P, H2Op + rhov_ext * 1e3))
-                r.put("eta", "eta_wPFCO2_WPL", find_eta(wPF_P, rho_CO2p + rhoc_ext))
-                r.put("eta", "eta_wPFCO2", find_eta(wPF_P, rho_CO2p))
-                r.put("delta_flux_ctrb", "S_wPFCO2_WPL", find_delta_flux(wPF_P, rho_CO2p + rhoc_ext))
-                r.put("delta_flux_ctrb", "S_wPFCO2", find_delta_flux(wPF_P, rho_CO2p))
-                r.put("delta_time_ctrb", "D_wPFCO2_WPL", find_delta_time(wPF_P, rho_CO2p + rhoc_ext))
-                r.put("delta_time_ctrb", "D_wPFCO2", find_delta_time(wPF_P, rho_CO2p))
+                r.put("correlation", "u_w__w_co2_wpl_corr_pf", _corr(uPF_P * wPF_P, (rho_CO2p + rhoc_ext) * wPF_P))
+                r.put("correlation", "w_co2_wpl__w_theta_v_corr_pf", _corr((rho_CO2p + rhoc_ext) * wPF_P, ThvP * wPF_P))
+                r.put("correlation", "w_co2_corr_pf", _corr(wPF_P, rho_CO2p))
+                r.put("correlation", "w_co2_wpl_corr_pf", _corr(wPF_P, rho_CO2p + rhoc_ext))
+                r.put("correlation", "u_w__w_co2_corr_pf", _corr(uPF_P * wPF_P, rho_CO2p * wPF_P))
+                r.put("correlation", "w_co2__w_theta_v_corr_pf", _corr(rho_CO2p * wPF_P, ThvP * wPF_P))
+                r.put("correlation", "u_w__w_h2o_wpl_corr_pf", _corr(uPF_P * wPF_P, (H2Op + rhov_ext * 1e3) * wPF_P))
+                r.put("correlation", "w_h2o_wpl__w_theta_v_corr_pf", _corr((H2Op + rhov_ext * 1e3) * wPF_P, ThvP * wPF_P))
+                r.put("correlation", "w_h2o_wpl_corr_pf", _corr(wPF_P, H2Op + rhov_ext * 1e3))
+                r.put("eta", "w_co2_wpl_eta_pf", find_eta(wPF_P, rho_CO2p + rhoc_ext))
+                r.put("eta", "w_co2_eta_pf", find_eta(wPF_P, rho_CO2p))
+                r.put("delta_flux", "w_co2_wpl_delta_flux_pf", find_delta_flux(wPF_P, rho_CO2p + rhoc_ext))
+                r.put("delta_flux", "w_co2_delta_flux_pf", find_delta_flux(wPF_P, rho_CO2p))
+                r.put("delta_time", "w_co2_wpl_delta_time_pf", find_delta_time(wPF_P, rho_CO2p + rhoc_ext))
+                r.put("delta_time", "w_co2_delta_time_pf", find_delta_time(wPF_P, rho_CO2p))
 
             # skewness, lateral flux contributions, turbulent transport
             if rot:
-                r.blank("skew", "skew_uPF", "skew_vPF", "skew_wPF", "skew_Theta_v",
-                        "skew_H2O", "skew_H2O_WPL", "skew_CO2", "skew_CO2_WPL")
-                r.blank("Flux_lat", "uPF_thv", "uPF_H2O", "uPF_H2O_WPL", "uPF_CO2", "uPF_CO2_WPL")
-                r.blank("turbtr", "w_H2Ow", "w_H2OWPLw", "w_CO2w", "w_CO2WPLw")
+                r.blank("skewness", "u_skew_pf", "v_skew_pf", "w_skew_pf", "theta_v_skew",
+                        "h2o_skew", "h2o_wpl_skew", "co2_skew", "co2_wpl_skew")
+                r.blank("scalar_flux_lateral", "u_theta_v_cov_pf", "u_h2o_cov_pf",
+                        "u_h2o_wpl_cov_pf", "u_co2_cov_pf", "u_co2_wpl_cov_pf")
+                r.blank("transport", "w_h2o_transport_pf", "w_h2o_wpl_transport_pf",
+                        "w_co2_transport_pf", "w_co2_wpl_transport_pf")
             else:
-                r.values["skew"] = {
-                    "skew_uPF": _skew(uPF_P), "skew_vPF": _skew(vPF_P), "skew_wPF": _skew(wPF_P),
-                    "skew_Theta_v": _skew(ThvP), "skew_H2O": _skew(H2Op),
-                    "skew_H2O_WPL": _skew(H2Op + rhov_ext * 1e3),
-                    "skew_CO2": _skew(rho_CO2p), "skew_CO2_WPL": _skew(rho_CO2p + rhoc_ext)}
-                r.values["Flux_lat"] = {
-                    "uPF_thv": np.nanmean(uPF_P * ThvP), "uPF_H2O": np.nanmean(uPF_P * H2Op),
-                    "uPF_H2O_WPL": np.nanmean(uPF_P * (H2Op + rhov_ext * 1e3)),
-                    "uPF_CO2": np.nanmean(uPF_P * rho_CO2p),
-                    "uPF_CO2_WPL": np.nanmean(uPF_P * (rho_CO2p + rhoc_ext))}
-                r.put("turbtr", "w_H2Ow", np.nanmean(wPF_P * (H2Op * wPF_P)))
-                r.put("turbtr", "w_H2OWPLw", np.nanmean(wPF_P * ((H2Op + rhov_ext * 1e3) * wPF_P)))
-                r.put("turbtr", "w_CO2w", np.nanmean(wPF_P * (rho_CO2p * wPF_P)))
-                r.put("turbtr", "w_CO2WPLw", np.nanmean(wPF_P * ((rho_CO2p + rhoc_ext) * wPF_P)))
+                r.values["skewness"] = {
+                    "u_skew_pf": _skew(uPF_P), "v_skew_pf": _skew(vPF_P), "w_skew_pf": _skew(wPF_P),
+                    "theta_v_skew": _skew(ThvP), "h2o_skew": _skew(H2Op),
+                    "h2o_wpl_skew": _skew(H2Op + rhov_ext * 1e3),
+                    "co2_skew": _skew(rho_CO2p), "co2_wpl_skew": _skew(rho_CO2p + rhoc_ext)}
+                r.values["scalar_flux_lateral"] = {
+                    "u_theta_v_cov_pf": np.nanmean(uPF_P * ThvP), "u_h2o_cov_pf": np.nanmean(uPF_P * H2Op),
+                    "u_h2o_wpl_cov_pf": np.nanmean(uPF_P * (H2Op + rhov_ext * 1e3)),
+                    "u_co2_cov_pf": np.nanmean(uPF_P * rho_CO2p),
+                    "u_co2_wpl_cov_pf": np.nanmean(uPF_P * (rho_CO2p + rhoc_ext))}
+                r.put("transport", "w_h2o_transport_pf", np.nanmean(wPF_P * (H2Op * wPF_P)))
+                r.put("transport", "w_h2o_wpl_transport_pf", np.nanmean(wPF_P * ((H2Op + rhov_ext * 1e3) * wPF_P)))
+                r.put("transport", "w_co2_transport_pf", np.nanmean(wPF_P * (rho_CO2p * wPF_P)))
+                r.put("transport", "w_co2_wpl_transport_pf", np.nanmean(wPF_P * ((rho_CO2p + rhoc_ext) * wPF_P)))
 
             # CO2 flux
-            Fc_w = np.nanmean(wP * rho_CO2p)
-            Fc_wPF = np.nanmean(wPF_P * rho_CO2p)
-            r.put("CO2flux", "Fc_w", np.nan if (unrot or co2f) else Fc_w)
-            r.put("CO2flux", "Fc_wPF", np.nan if (rot or co2f) else Fc_wPF)
-            Fc_wPF_stored = r.get("CO2flux", "Fc_wPF")
-            r.put("CO2flux", "Fc_WPL", np.nan if (rot or co2f) else
-                  (Fc_wPF_stored + Md / Mv * (rho_CO2_avg / rho_d_j) * evap_flux
+            w_co2_cov_raw = np.nanmean(wP * rho_CO2p)
+            w_co2_cov_pf = np.nanmean(wPF_P * rho_CO2p)
+            r.put("co2_flux", "w_co2_cov_raw", np.nan if (unrot or co2f) else w_co2_cov_raw)
+            r.put("co2_flux", "w_co2_cov_pf", np.nan if (rot or co2f) else w_co2_cov_pf)
+            w_co2_cov_pf_stored = r.get("co2_flux", "w_co2_cov_pf")
+            r.put("co2_flux", "Fc_wpl_pf", np.nan if (rot or co2f) else
+                  (w_co2_cov_pf_stored + Md / Mv * (rho_CO2_avg / rho_d_j) * evap_flux
                    + (1.0 + Md / Mv * rho_v_j / rho_d_j) * (rho_CO2_avg / T_ref_j) * kin_sen_flux))
-            r.put("CO2flux", "wPF_CO2WPL", np.nan if (rot or co2f) else
-                  Fc_wPF_stored + np.nanmean(wPF_P * rhoc_ext))
-            r.put("CO2flux", "ppm", ppm_CO2)
+            r.put("co2_flux", "w_co2_wpl_cov_pf", np.nan if (rot or co2f) else
+                  w_co2_cov_pf_stored + np.nanmean(wPF_P * rhoc_ext))
+            r.put("co2_flux", "co2_mole_fraction", ppm_CO2)
 
             # raw CO2: stored in mg/m³ (rhoCO2Prime = rho_CO2p * 1e6), unlike
             # MATLAB which left the kg/m³ of the WPL arithmetic (fluxes.m:1212).
             r.samples["rhoCO2"] = rho_CO2_seg
             r.samples["rhoCO2Prime"] = rho_CO2p * 1e6
             r.samples["rhoCO2extenalPrime"] = rhoc_ext * 1e6
+
+    # ---- H in W m-2 (DECIDE 10): rho cp times the temperature covariance,
+    #      with the reference-level rho and cp the group also stores ----
+    rho_cp = ((ref.rho[jj] if jj < len(ref.rho) else np.nan)
+              * (ref.cp[jj] if jj < len(ref.cp) else np.nan))
+    r.put("sensible_heat", "H_raw", rho_cp * r.get("sensible_heat", "w_t_air_cov_raw"))
+    r.put("sensible_heat", "H_pf", rho_cp * r.get("sensible_heat", "w_t_air_cov_pf"))
+    r.put("sensible_heat", "H_buoyancy_pf", rho_cp * r.get("sensible_heat", "w_theta_v_cov_pf"))
 
     # ---- SSITC + SS-only quality flags (ForestComplexTerrain) ----
     has_co2 = lev.h2o is not None and lev.co2 is not None
@@ -455,6 +476,6 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
         use_canopy_itc=opts.use_canopy_itc,
         latitude=opts.latitude,
     )
-    r.values["fluxQC"] = {"TAU_SSITC": tau_ssitc, "TAU_SS": tau_ss, "H_SSITC": H_ssitc, "H_SS": H_ss,
-                          "LE_SSITC": LE_ssitc, "LE_SS": LE_ss, "FC_SSITC": FC_ssitc, "FC_SS": FC_ss}
+    r.values["flux_qc"] = {"Tau_ssitc": tau_ssitc, "Tau_ss": tau_ss, "H_ssitc": H_ssitc, "H_ss": H_ss,
+                           "LE_ssitc": LE_ssitc, "LE_ss": LE_ss, "Fc_ssitc": FC_ssitc, "Fc_ss": FC_ss}
     return r

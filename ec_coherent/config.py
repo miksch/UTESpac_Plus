@@ -31,26 +31,26 @@ class SpectraConfig:
     taper: str = "boxcar"           # boxcar closes Parseval exactly; hann available  [ASSUMED]
     nperseg: Optional[int] = None   # None: full-record periodogram; int: Welch segments
     n_bins_per_decade: int = 10     # log-binning density [ASSUMED]
-    scalars: Tuple[str, ...] = ("Ts", "rhov", "rhoCO2")
+    scalars: Tuple[str, ...] = ("ts", "rho_h2o", "rho_co2")
 
 
 @dataclass(frozen=True)
 class RampsConfig:
     """Ramp detection, wavelet path (``[ramps]``; library/writeups/ec_ramps.md)."""
-    signals: Tuple[str, ...] = ("Ts", "u", "e")   # wavelet detector: Ts, u; "e" runs the TKE trigger (Mangan 2022)
+    signals: Tuple[str, ...] = ("ts", "u_pf", "e")   # wavelet detector: ts, u_pf; "e" runs the TKE trigger (Mangan 2022)
     wavelet: str = "mhat"                    # [CITED] CB 1993 zero-crossing method
     peak: str = "smallest_scale"             # smallest_scale (Thomas & Foken 2007) | global (CB 1993)
     D_min_s: float = 6.2                     # variance-peak search from this event duration up  [CITED] Thomas & Foken 2007 §3.1 (their site)
     a_min_s: float = 1.0                     # scale grid [s]  [ASSUMED]
     a_max_s: float = 300.0
     n_scales_per_decade: int = 16
-    slope_Ts: str = "auto"                   # negative | positive | both | auto (sign of w'Ts')
+    slope_ts: str = "auto"                   # negative | positive | both | auto (sign of w'ts')
     slope_u: str = "positive"                # CB 1993 I p. 375
     edge_scales: float = 3.0                 # drop detections within edge_scales*a0 of the ends  [ASSUMED]
     refine: str = "none"                     # none | ramp | haar: re-time at the first-derivative wavelet extremum (DECIDE, task doc)
     max_events: int = 300                    # padding of the event axis
     # structure-function (surface renewal) detector
-    sr_signals: Tuple[str, ...] = ("Ts", "u")  # series the Van Atta cubic runs on; flux for Ts only
+    sr_signals: Tuple[str, ...] = ("ts", "u_pf")  # series the Van Atta cubic runs on; flux for ts only
     sr_lags_s: Tuple[float, ...] = (0.25, 0.5, 0.75, 1.0)  # time lags r [CITED] Spano 1997 p. 261
     sr_min_period_lags: float = 10.0         # drop lags with l+s < this * r  [CITED] Spano 1997 p. 261
     sr_alpha: float = 1.0                    # weighting factor, 1 well above the canopy [CITED] Spano 1997 eq. 2
@@ -65,7 +65,7 @@ class RampsConfig:
 @dataclass(frozen=True)
 class MrdConfig:
     """Multiresolution decomposition (``[mrd]``; library/writeups/ec_mrd.md)."""
-    signals: Tuple[str, ...] = ("u", "w", "Ts")    # MR variance spectra D_xx
+    signals: Tuple[str, ...] = ("u_pf", "w_pf", "ts")    # MR variance spectra D_xx
     fluxes: Tuple[str, ...] = ("uw", "vw", "wTs")  # MR cospectra D_xy; vw feeds the momentum gap scan
     grid: str = "trim"              # trim | interp -- map the window onto 2^M samples (DECIDE, task doc);
                                     # both sources interpolate (Howell 1997 eq. 8 up, Vickers 2003 eq. 8 down)
@@ -80,16 +80,16 @@ class QuadrantConfig:
                                      5.0, 6.0, 8.0, 10.0, 15.0, 20.0)  # range [CITED] Raupach 1981 figs. 6-7; spacing [ASSUMED]
     hole_norm: str = "rms"          # rms (H*sigma_x*sigma_w, Lu & Willmarth 1973; Li & Bo 2019) |
                                     # flux (H*|mean flux|, Willmarth & Lu 1972; Raupach 1981)
-    octant_triplets: Tuple[Tuple[str, ...], ...] = (("u", "w", "Ts"), ("w", "Ts", "rhov"))
-    # (u, w, Ts) [CITED] Li & Bo 2019 eq. 11; (w, Ts, rhov) scalar-dissimilarity [ASSUMED]
-    # (ruled in 2026-08-23); any signal names accepted (v, rhoCO2, ...)
+    octant_triplets: Tuple[Tuple[str, ...], ...] = (("u_pf", "w_pf", "ts"), ("w_pf", "ts", "rho_h2o"))
+    # (u_pf, w_pf, ts) [CITED] Li & Bo 2019 eq. 11; (w_pf, ts, rho_h2o) scalar-dissimilarity [ASSUMED]
+    # (ruled in 2026-08-23); any signal names accepted (v_pf, rho_co2, ...)
 
 
 @dataclass(frozen=True)
 class AmpmodConfig:
     """Amplitude modulation (``[ampmod]``; library/writeups/ec_ampmod.md)."""
-    modulators: Tuple[str, ...] = ("u", "w")       # large-scale signals b_l [CITED] Salesky & Anderson 2018 §1.3
-    signals: Tuple[str, ...] = ("u", "w", "Ts")    # small-scale signals a_s
+    modulators: Tuple[str, ...] = ("u_pf", "w_pf")       # large-scale signals b_l [CITED] Salesky & Anderson 2018 §1.3
+    signals: Tuple[str, ...] = ("u_pf", "w_pf", "ts")    # small-scale signals a_s
     fluxes: Tuple[str, ...] = ("uw", "wTs")        # instantaneous-flux series decomposed like signals [CITED] SA18
     cutoff_mode: str = "spectral_gap"   # spectral_gap | delta | scaled (locked decision 3; ec_ampmod.md register)
     delta_m: float = 1000.0             # [m] assumed outer scale for 'delta' and the gap fallback [ASSUMED] (Salesky 2020 AHATS)
@@ -99,7 +99,7 @@ class AmpmodConfig:
 @dataclass(frozen=True)
 class ScalesConfig:
     """LSM/VLSM separation (``[scales]``; library/writeups/ec_scales.md)."""
-    signals: Tuple[str, ...] = ("u", "w", "Ts")    # per-band variance fractions
+    signals: Tuple[str, ...] = ("u_pf", "w_pf", "ts")    # per-band variance fractions
     fluxes: Tuple[str, ...] = ("uw", "wTs")        # per-band covariance fractions
     cutoff_mode: str = "spectral_gap"   # spectral_gap | delta | scaled (shared register entry, ec_ampmod.md)
     delta_m: float = 1000.0             # [m] 'delta': cuts at 0.1*pi*delta and pi*delta [CITED ratios] Balakumar 2007
@@ -110,7 +110,7 @@ class ScalesConfig:
 @dataclass(frozen=True)
 class CoherentFluxConfig:
     """Coherent-structure flux fractions (``[coherent_flux]``; library/writeups/ec_coherent_flux.md)."""
-    event_signals: Tuple[str, ...] = ("u", "Ts")   # ramp event sets conditioned on; u default, Ts alongside (ruling 2026-08-23)
+    event_signals: Tuple[str, ...] = ("u_pf", "ts")   # ramp event sets conditioned on; u default, Ts alongside (ruling 2026-08-23)
     pairs: Tuple[str, ...] = ("uw", "wTs", "wrhov")  # flux pairs, keys of quadrant.PAIRS
     window: str = "duration"        # duration (half-width D_e, Thomas & Foken 2007 eq. 5) | fixed (window_s)
     window_s: float = 30.0          # [s] full width of the 'fixed' window [CITED] Collineau & Brunet 1993 II p. 62

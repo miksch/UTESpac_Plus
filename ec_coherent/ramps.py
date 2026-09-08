@@ -15,7 +15,7 @@ import xarray as xr
 from scipy import signal as sig
 
 from . import preprocess as pp
-from .io import HFFile, iter_windows
+from .io import HFFile, iter_windows, token
 
 GROUP = "ramps"
 D_G = {"mhat": np.pi / np.sqrt(2.0)}       # Collineau & Brunet 1993 I, Table I p. 359
@@ -379,7 +379,7 @@ def _slope_for(name: str, cfg_slope: str, wT: float) -> str:
     """Slope sign per signal: config value, or 'auto' from the sign of w'T' (ec_ramps.md)."""
     if cfg_slope != "auto":
         return cfg_slope
-    if name == "u":
+    if name == "u_pf":
         return "positive"
     if not np.isfinite(wT) or wT == 0:
         return "negative"
@@ -410,18 +410,18 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
     tke_sweep = np.full((nr, nh, ne), np.nan)
     tke_A = np.full((nr, nh), np.nan)
     wT_all = np.full((nr, nh), np.nan)
-    need = sorted(set(signals) | set(sr_signals) | {"u", "v", "w", "Ts"})
+    need = sorted(set(signals) | set(sr_signals) | {"u_pf", "v_pf", "w_pf", "ts"})
 
     for win in iter_windows(hf, variables=need, records=records):
         i = win.index
         for ih in range(nh):
-            if not win.has("w", ih):
+            if not win.has("w_pf", ih):
                 continue
             prep = pp.prepare(win, ih, need, method=pc.detrend, tau_s=pc.filter_tau_s,
                               nan_max_frac=pc.nan_max_frac, taylor_max_ratio=pc.taylor_max_ratio)
             wT = np.nan
-            if prep.accepted.get("w") and prep.accepted.get("Ts"):
-                wT = float(np.nanmean(prep.prime["w"] * prep.prime["Ts"]))
+            if prep.accepted.get("w_pf") and prep.accepted.get("ts"):
+                wT = float(np.nanmean(prep.prime["w_pf"] * prep.prime["ts"]))
             wT_all[i, ih] = wT
             for s in signals:
                 if not prep.accepted.get(s):
@@ -429,7 +429,7 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
                 x = prep.prime[s]
                 if not np.isfinite(x).all():
                     continue
-                slope = _slope_for(s, getattr(rc, f"slope_{s}", "auto"), wT)
+                slope = _slope_for(s, getattr(rc, f"slope_{token(s)}", "auto"), wT)
                 ev = detect(x, hf.fs, scales, slope=slope, wavelet=rc.wavelet, peak=rc.peak,
                             edge_scales=rc.edge_scales, refine=rc.refine, D_min_s=rc.D_min_s)
                 a0[s][i, ih], D[s][i, ih] = ev.a0, ev.D
@@ -449,8 +449,8 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
                     sm = vanatta(x, hf.fs, r, min_period_lags=rc.sr_min_period_lags)
                     for f in ("a", "period", "d", "s", "a2", "S3_rate"):
                         sr[s][f][i, ih, il] = getattr(sm, f)
-            if do_tke and all(prep.accepted.get(c) for c in ("u", "v", "w")):
-                up, vp, wp = (prep.prime[c] for c in ("u", "v", "w"))
+            if do_tke and all(prep.accepted.get(c) for c in ("u_pf", "v_pf", "w_pf")):
+                up, vp, wp = (prep.prime[c] for c in ("u_pf", "v_pf", "w_pf"))
                 if np.isfinite(up).all() and np.isfinite(vp).all() and np.isfinite(wp).all():
                     ev = detect_tke(up, vp, wp, hf.fs, a_s=rc.tke_a_s, lp_s=rc.tke_lp_s,
                                     thresh=rc.tke_thresh, edge_scales=rc.edge_scales)
@@ -467,13 +467,14 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
     ds["scale"].attrs.update(units="s", long_name="wavelet dilation a (seconds)")
     ds["sr_lag"].attrs.update(units="s", long_name="structure-function time lag r (Spano 1997)")
     for s in signals:
-        ds[f"a0_{s}"] = (("record", "height"), a0[s], {"units": "s", "long_name": f"wavelet-variance peak scale of {s}'"})
-        ds[f"D_{s}"] = (("record", "height"), D[s], {"units": "s", "long_name": f"duration scale D = a0 D_g of {s}' (CB 1993 I eq. 22)"})
-        ds[f"n_events_{s}"] = (("record", "height"), n_ev[s], {"long_name": f"MHAT zero-crossings of {s}' at a0 (edges excluded)"})
-        ds[f"mean_spacing_{s}"] = (("record", "height"), spacing[s], {"units": "s", "long_name": "mean interval between consecutive detections"})
-        ds[f"event_time_{s}"] = (("record", "height", "event"), times[s], {"units": "s", "long_name": "detection time from window start (NaN padded)"})
-        ds[f"slope_{s}"] = (("record", "height"), slope_code[s], {"long_name": "slope sign used: -1 negative, +1 positive, 0 both"})
-        ds[f"W_{s}"] = (("record", "height", "scale"), W[s], {"long_name": f"wavelet variance W_1(a) of {s}' (CB 1993 I eq. 8)"})
+        t = token(s)
+        ds[f"a0_{t}"] = (("record", "height"), a0[s], {"units": "s", "long_name": f"wavelet-variance peak scale of {t}'"})
+        ds[f"D_{t}"] = (("record", "height"), D[s], {"units": "s", "long_name": f"duration scale D = a0 D_g of {t}' (CB 1993 I eq. 22)"})
+        ds[f"n_events_{t}"] = (("record", "height"), n_ev[s], {"long_name": f"MHAT zero-crossings of {t}' at a0 (edges excluded)"})
+        ds[f"mean_spacing_{t}"] = (("record", "height"), spacing[s], {"units": "s", "long_name": "mean interval between consecutive detections"})
+        ds[f"event_time_{t}"] = (("record", "height", "event"), times[s], {"units": "s", "long_name": "detection time from window start (NaN padded)"})
+        ds[f"slope_{t}"] = (("record", "height"), slope_code[s], {"long_name": "slope sign used: -1 negative, +1 positive, 0 both"})
+        ds[f"W_{t}"] = (("record", "height", "scale"), W[s], {"long_name": f"wavelet variance W_1(a) of {t}' (CB 1993 I eq. 8)"})
     ds["wT"] = (("record", "height"), wT_all, {"long_name": "window covariance w'Ts' (sign drives slope='auto')"})
     dims3 = ("record", "height", "sr_lag")
     long = {"a": "linearized Van Atta ramp amplitude (sign carries the flux direction)",
@@ -483,26 +484,27 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
             "a2": "two-lag P-corrected ramp amplitude (Paw U et al. 2005 eq. 4)",
             "S3_rate": "S^3(r)/r, the Chen et al. (1997) t_m diagnostic"}
     for s in sr_signals:
-        base = "K" if s == "Ts" else "m s-1"
+        t = token(s)
+        base = "K" if s == "ts" else "m s-1"
         units = {"a": base, "period": "s", "d": "s", "s": "s", "a2": base, "S3_rate": f"({base})^3 s-1"}
         for f in ("a", "period", "d", "s", "a2", "S3_rate"):
-            ds[f"sr_{f}_{s}"] = (dims3, sr[s][f], {"units": units[f], "long_name": f"{long[f]} of {s}'"})
-    if "Ts" in sr_signals:
+            ds[f"sr_{f}_{t}"] = (dims3, sr[s][f], {"units": units[f], "long_name": f"{long[f]} of {t}'"})
+    if "ts" in sr_signals:
         # kinematic SR flux F = alpha * a * z / (l+s); alpha per sr_alpha_mode (ruling 2026-08-23)
         z_h = np.asarray(hf.heights, dtype=float)[None, :, None]
-        F0 = sr["Ts"]["a"] * z_h / sr["Ts"]["period"]
+        F0 = sr["ts"]["a"] * z_h / sr["ts"]["period"]
         alpha_arr = np.full((nr, nh, nl), np.nan)
         if rc.sr_alpha_mode == "fixed":
             alpha_arr[:] = rc.sr_alpha
         elif rc.sr_alpha_mode == "castellvi":
-            ust = _ancillary(hf, "ustar", nr, nh)
+            ust = _ancillary(hf, "ustar_pf", nr, nh)
             L_ob = _ancillary(hf, "L", nr, nh)
             for ih in range(nh):
                 zz = float(hf.heights[ih])
                 with np.errstate(divide="ignore", invalid="ignore"):
                     zeta = (zz - rc.sr_d) / L_ob[:, ih]
                 for il in range(nl):
-                    alpha_arr[:, ih, il] = alpha_castellvi(sr["Ts"]["period"][:, ih, il],
+                    alpha_arr[:, ih, il] = alpha_castellvi(sr["ts"]["period"][:, ih, il],
                                                            ust[:, ih], zeta, zz, rc.sr_d)
         elif rc.sr_alpha_mode == "fit":
             for il in range(nl):          # [SITE-TUNED] least squares through the origin vs w'Ts'
@@ -512,10 +514,10 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
                     alpha_arr[:, :, il] = float(x[m] @ y[m]) / float(x[m] @ x[m])
         else:
             raise ValueError(f"sr_alpha_mode {rc.sr_alpha_mode!r}; expected fixed, castellvi or fit")
-        ds["sr_flux_Ts"] = (dims3, alpha_arr * F0,
+        ds["sr_flux_ts"] = (dims3, alpha_arr * F0,
                             {"units": "K m s^-1",
                              "long_name": "kinematic surface-renewal heat flux alpha a z/(l+s) (Spano 1997 eq. 2)"})
-        ds["sr_alpha_Ts"] = (dims3, alpha_arr,
+        ds["sr_alpha_ts"] = (dims3, alpha_arr,
                              {"long_name": f"weighting factor alpha applied (mode {rc.sr_alpha_mode})"})
     if do_tke:
         ds["n_events_e"] = (("record", "height"), tke_n, {"long_name": "TKE-triggered coherent structures (Mangan 2022)"})
@@ -526,8 +528,8 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
     ds.attrs.update(wavelet=rc.wavelet, D_g=float(D_G[rc.wavelet]), peak=rc.peak, refine=rc.refine,
                     D_min_s=rc.D_min_s,
                     edge_scales=rc.edge_scales, a_min_s=rc.a_min_s, a_max_s=rc.a_max_s,
-                    detrend_method=pc.detrend, signals=",".join(signals),
-                    sr_signals=",".join(sr_signals), sr_alpha=rc.sr_alpha,
+                    detrend_method=pc.detrend, signals=",".join(token(s) for s in signals),
+                    sr_signals=",".join(token(s) for s in sr_signals), sr_alpha=rc.sr_alpha,
                     sr_alpha_mode=rc.sr_alpha_mode, sr_d=rc.sr_d,
                     sr_min_period_lags=rc.sr_min_period_lags,
                     tke_lp_s=rc.tke_lp_s, tke_a_s=rc.tke_a_s, tke_thresh=rc.tke_thresh,

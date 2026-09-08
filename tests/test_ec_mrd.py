@@ -112,7 +112,7 @@ def test_run_on_synthetic_file(tmp_path):
     assert fin.any()
     assert np.allclose(D_sum[fin], cov[fin], atol=1e-9)
     assert (cov[fin] < 0).all()
-    for name in ("D_uu", "D_ww", "D_TsTs", "D_wTs", "D_vw", "err_uw", "gap_wTs", "gap_uw"):
+    for name in ("D_u_u", "D_w_w", "D_ts_ts", "D_wTs", "D_vw", "err_uw", "gap_wTs", "gap_uw"):
         assert name in ds
 
 

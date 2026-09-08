@@ -110,7 +110,7 @@ def test_run_on_synthetic_file(tmp_path):
     assert ds["R_uL_uS"].shape == (3, 2)
     got = ds["R_uL_uS"].values
     assert np.isfinite(got).all() and (np.abs(got) <= 1).all()
-    for name in ("R_wL_uS", "R_uL_TsS", "R_uL_uwS", "R_wL_wTsS"):
+    for name in ("R_wL_uS", "R_uL_tsS", "R_uL_uwS", "R_wL_wTsS"):
         assert name in ds
         assert (np.abs(ds[name].values[np.isfinite(ds[name].values)]) <= 1).all()
     assert (ds["cutoff_source"].values == 2).all()

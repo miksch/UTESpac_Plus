@@ -13,12 +13,12 @@ import xarray as xr
 from . import ampmod
 from . import preprocess as pp
 from . import spectra as sp
-from .io import HFFile, iter_windows
+from .io import HFFile, iter_windows, token
 
 GROUP = "scale_separation"
 
 BANDS = ("small", "lsm", "vlsm")
-PAIRS = {"uw": ("u", "w"), "wTs": ("w", "Ts"), "wrhov": ("w", "rhov")}
+PAIRS = {"uw": ("u_pf", "w_pf"), "wTs": ("w_pf", "ts"), "wrhov": ("w_pf", "rho_h2o")}
 # Balakumar & Adrian 2007 pp. 666, 671 [CITED]: LSM band 0.1*pi*delta_0 .. pi*delta_0
 # (k_x delta = 20 .. 2), one decade wide; VLSM above it.
 LSM_DECADE = 10.0
@@ -76,8 +76,8 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
     sigs = list(sc.signals)
     flxs = list(sc.fluxes)
     flux_members = [m for k in flxs for m in PAIRS[k]]
-    names = ["u", "v", "w"] + [s for s in dict.fromkeys([*sigs, *flux_members])
-                               if s not in ("u", "v", "w") and s in hf.ds]
+    names = ["u_pf", "v_pf", "w_pf"] + [s for s in dict.fromkeys([*sigs, *flux_members])
+                                        if s not in ("u_pf", "v_pf", "w_pf") and s in hf.ds]
     nr, nh, nb = len(hf.records), len(hf.heights), len(BANDS)
 
     var_frac = {a: np.full((nr, nh, nb), np.nan) for a in sigs}
@@ -90,17 +90,17 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
     for win in iter_windows(hf, variables=names, records=records):
         i = win.index
         for ih in range(nh):
-            if not win.has("u", ih) or not win.has("w", ih):
+            if not win.has("u_pf", ih) or not win.has("w_pf", ih):
                 continue
             prep = pp.prepare(win, ih, names, method=pc.detrend, tau_s=pc.filter_tau_s,
                               nan_max_frac=pc.nan_max_frac, taylor_max_ratio=pc.taylor_max_ratio)
             prime = {k: v for k, v in prep.prime.items()
                      if prep.accepted.get(k, False) and np.isfinite(v).all()}
-            if "u" not in prime:
+            if "u_pf" not in prime:
                 continue
             U = prep.U_mean
             z = float(hf.heights[ih])
-            l1, l2, src = band_edges(sc, prime["u"], win.fs, U, z)
+            l1, l2, src = band_edges(sc, prime["u_pf"], win.fs, U, z)
             lam_1[i, ih], lam_2[i, ih], source[i, ih] = l1, l2, src
             U_mean[i, ih] = U
             L = win.ancillary.get("L", np.full(nh, np.nan))[ih]
@@ -126,11 +126,12 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
                             "scale_band": ("scale_band", list(BANDS))})
     dims3, dims = ("record", "height", "scale_band"), ("record", "height")
     for a in sigs:
-        ds[f"var_frac_{a}"] = (dims3, var_frac[a], {
-            "long_name": f"fraction of the {a}' variance in each wavelength band"})
-        ds[f"var_{a}"] = (dims, var_tot[a], {"long_name": f"total {a}' variance (band-sum denominator)"})
+        t = token(a)
+        ds[f"var_frac_{t}"] = (dims3, var_frac[a], {
+            "long_name": f"fraction of the {t}' variance in each wavelength band"})
+        ds[f"var_{t}"] = (dims, var_tot[a], {"long_name": f"total {t}' variance (band-sum denominator)"})
     for k in flxs:
-        a, b = PAIRS[k]
+        a, b = (token(s) for s in PAIRS[k])
         ds[f"flux_frac_{k}"] = (dims3, flux_frac[k], {
             "long_name": f"fraction of the {a}'{b}' covariance in each wavelength band"})
         ds[f"cov_{k}"] = (dims, cov_tot[k], {"long_name": f"total {a}'{b}' covariance (band-sum denominator)"})

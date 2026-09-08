@@ -6,6 +6,7 @@ fast-data timestamp validation, the 48-h uniform grid, and the
 year/day/HM/second output columns.
 """
 
+import csv
 import os
 import platform
 
@@ -26,26 +27,57 @@ def get_box_path():
     return os.path.expanduser("~/Box")  # Windows
 
 
-def read_toa5(path, **kwargs):
+def header_row(path, row):
+    """Read one header line of a delimited file as a list of fields.
+
+    Parameters
+    ----------
+    path : str
+        Path to the file.
+    row : int
+        0-based line index (TOA5: 1 names, 2 units, 3 aggregation).
+
+    Returns
+    -------
+    list of str
+        Unquoted, stripped fields; empty list when the line is absent.
+    """
+    with open(path, "r", newline="") as fh:
+        for i, fields in enumerate(csv.reader(fh)):
+            if i == row:
+                return [f.strip() for f in fields]
+    return []
+
+
+def read_toa5(path, with_units=False, units_row=2, **kwargs):
     """Read a Campbell TOA5 .dat file (4-line header, timestamp in col 0).
 
     Parameters
     ----------
     path : str
         Path to the TOA5 file.
+    with_units : bool, optional
+        Also return the units row, which the default ``skiprows`` drops
+        (default False).
+    units_row : int, optional
+        0-based line index of the units row (default 2, the TOA5 slot).
     **kwargs
         Overrides for the default ``pd.read_csv`` options (e.g. ``nrows=1``
         or ``parse_dates=False`` for a header peek).
 
     Returns
     -------
-    pandas.DataFrame
-        Data indexed by the TIMESTAMP column.
+    pandas.DataFrame or (pandas.DataFrame, list of str)
+        Data indexed by the TIMESTAMP column; with ``with_units`` also the
+        units row, one entry per raw column including the timestamp.
     """
     opts = dict(skiprows=[0, 2, 3], index_col=[0],
                 na_values=["NaN", "NAN"], parse_dates=True)
     opts.update(kwargs)
-    return pd.read_csv(path, **opts)
+    df = pd.read_csv(path, **opts)
+    if with_units:
+        return df, header_row(path, units_row)
+    return df
 
 
 def load_daqm_files(paths):

@@ -46,11 +46,11 @@ def main(argv):
     lags = ds.sr_lag.values
     z = float(ds.height.values[0])
     wT = ds.wT.values[:, 0]
-    F = ds.sr_flux_Ts.values[:, 0, :]                      # (record, lag)
-    a_lin = ds.sr_a_Ts.values[:, 0, :]
-    period = ds.sr_period_Ts.values[:, 0, :]
-    d2 = ds.sr_d_Ts.values[:, 0, :]
-    s2 = ds.sr_s_Ts.values[:, 0, :]
+    F = ds.sr_flux_ts.values[:, 0, :]                      # (record, lag)
+    a_lin = ds.sr_a_ts.values[:, 0, :]
+    period = ds.sr_period_ts.values[:, 0, :]
+    d2 = ds.sr_d_ts.values[:, 0, :]
+    s2 = ds.sr_s_ts.values[:, 0, :]
     il05 = int(np.argmin(np.abs(lags - 0.5)))
     valid = np.isfinite(F)
     r_per_lag = [np.corrcoef(wT[valid[:, il]], F[valid[:, il], il])[0, 1]
@@ -58,7 +58,7 @@ def main(argv):
     m05 = valid[:, il05]
     slope05 = np.nanmedian(F[m05, il05] / wT[m05])
     # Castellvi & Snyder 2009 similarity alpha (eq. 3, inertial branch), d = 0 assumed
-    ust = hf.ds["ustar"].values
+    ust = hf.ds["ustar_pf"].values
     L = hf.ds["L"].values
     ust = ust[:, 0] if ust.ndim == 2 else ust
     L = L[:, 0] if L.ndim == 2 else L
@@ -89,7 +89,7 @@ def main(argv):
         sgn.append(np.mean(np.sign(a_lin[m, il]) == np.sign(wT[m])))
         mb = m & (np.abs(wT) > 0.01)
         sgn_big.append(np.mean(np.sign(a_lin[mb, il]) == np.sign(wT[mb])))
-    S3_05 = ds.sr_S3_rate_Ts.values[:, 0, il05] * lags[il05]
+    S3_05 = ds.sr_S3_rate_ts.values[:, 0, il05] * lags[il05]
     a_q = np.cbrt(-10.0 * S3_05)
     mq = np.isfinite(a_q) & np.isfinite(a_lin[:, il05])
     print(f"French 2012 checks: median F_SR/w'Ts' by lag {[f'{v:.2f}' for v in ratio_lag]} "
@@ -137,7 +137,7 @@ def main(argv):
     ax.legend(fontsize=7, frameon=False)
 
     ax = axes[1, 0]
-    S3r = ds.sr_S3_rate_Ts.values[:, 0, :]
+    S3r = ds.sr_S3_rate_ts.values[:, 0, :]
     for i in range(len(rec)):
         if np.isfinite(S3r[i]).any():
             ax.plot(lags, np.abs(S3r[i]), "-", color=C_T, alpha=0.15, lw=0.8)
@@ -150,15 +150,15 @@ def main(argv):
     ax = axes[1, 1]
     ax.plot(rec, ds.n_events_e.values[:, 0], ".", color=C_REF, label="TKE trigger")
     ax.plot(rec, ds.n_events_u.values[:, 0], ".", color=C_U, label="u' wavelet")
-    ax.plot(rec, ds.n_events_Ts.values[:, 0], ".", color=C_T, alpha=0.5, label="Ts' wavelet")
+    ax.plot(rec, ds.n_events_ts.values[:, 0], ".", color=C_T, alpha=0.5, label="Ts' wavelet")
     ax.set_ylabel("events per 30 min"); ax.tick_params(axis="x", labelrotation=30, labelsize=7)
     sf = ds.sweep_frac_e.values[:, 0, :]
     ax.set_title(f"(e) event counts (median sweep fraction {np.nanmedian(sf):.2f})", fontsize=10)
     ax.legend(fontsize=7, frameon=False)
 
-    win = next(ecio.iter_windows(hf, variables=("u", "v", "w", "Ts"), records=[rec_show]))
-    prep = pp.prepare(win, 0, ("u", "v", "w", "Ts"), method=cfg.preprocess.detrend)
-    x = prep.prime["Ts"]
+    win = next(ecio.iter_windows(hf, variables=("u_pf", "v_pf", "w_pf", "ts"), records=[rec_show]))
+    prep = pp.prepare(win, 0, ("u_pf", "v_pf", "w_pf", "ts"), method=cfg.preprocess.detrend)
+    x = prep.prime["ts"]
     t = np.arange(x.size) / hf.fs
     seg = (t >= 600) & (t < 1200)
     ax = axes[1, 2]

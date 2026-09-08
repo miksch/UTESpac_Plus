@@ -14,24 +14,25 @@ Pipeline per 48-h window:
   4. Reindex onto the uniform 48-h grid (common.build_48h_index)
   5. Slow tables: optionally interpolate across timestamp jitter
   6. Map raw logger columns to UTESpac names (cfg["columns"])
-  7. Write <prefix>_<table>_<d1>000000_<d2>000000.txt (headerless)
-     and <prefix>_<table>_header.dat into the site folder
+  7. Write <prefix>_<table>_<d1>000000_<d2>000000.txt (headerless),
+     <prefix>_<table>_header.dat and <prefix>_<table>_units.dat into the
+     site folder
 """
 
 import glob
 import os
+import sys
 from datetime import timedelta
 
 import numpy as np
 import pandas as pd
 
 try:
-    from common import (load_cr_files, read_toa5, validate_fast,
+    from common import (header_row, load_cr_files, read_toa5, validate_fast,
                         build_48h_index, timestamp_columns)
 except ImportError:  # allow running from repo root or elsewhere
-    import sys
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from common import (load_cr_files, read_toa5, validate_fast,
+    from common import (header_row, load_cr_files, read_toa5, validate_fast,
                         build_48h_index, timestamp_columns)
 
 
@@ -156,6 +157,156 @@ def write_header(out_dir, table_name, columns):
     return path
 
 
+def header_rows(cfg):
+    """Line indices of the names and units rows of a table's raw files.
+
+    Parameters
+    ----------
+    cfg : dict
+        Table config; ``header_row`` and ``units_row`` override the
+        defaults, ``units_row = None`` marks a source with no units row.
+
+    Returns
+    -------
+    (int, int or None)
+        0-based line indices. Defaults: TOA5 (1, 2); a ``loader`` source
+        (a pandas export with a names row and a units row) (0, 1); any
+        other ``read_kwargs`` variant (0, None).
+    """
+    if cfg.get("loader") is not None:
+        default = (0, 1)
+    elif cfg.get("read_kwargs", {}).get("skiprows", [0, 2, 3]) == [0, 2, 3]:
+        default = (1, 2)
+    else:
+        default = (0, None)
+    return (cfg.get("header_row", default[0]),
+            cfg["units_row"] if "units_row" in cfg else default[1])
+
+
+def clean_unit(unit):
+    """Normalize one declared unit to a plain string.
+
+    ``"Unnamed: 30_level_1"`` is what a pandas export writes for an empty
+    units cell; it and a bare TOA5 blank both mean "no unit declared".
+    """
+    unit = "" if unit is None else str(unit).strip().strip('"').strip("'").strip()
+    if unit.startswith("Unnamed:") or unit.lower() == "nan":
+        return ""
+    return unit
+
+
+def source_units(path, header_row_i=1, units_row_i=2):
+    """Read ``{source column: unit}`` from a raw file's header lines.
+
+    Parameters
+    ----------
+    path : str
+        Raw file.
+    header_row_i : int
+        0-based line index of the column-names row.
+    units_row_i : int or None
+        0-based line index of the units row; None when the source has none.
+
+    Returns
+    -------
+    dict
+        Empty when there is no units row.
+    """
+    if units_row_i is None:
+        return {}
+    names = header_row(path, header_row_i)
+    units = header_row(path, units_row_i)
+    return {n: clean_unit(u) for n, u in zip(names, units)}
+
+
+def resolve_units(cfg, path=None):
+    """Units of a table's output columns, in ``cfg["columns"]`` order.
+
+    The raw file's units row supplies the defaults; ``cfg["raw_units"]``
+    ({source column: unit}) declares them where the source carries none
+    (card-converted files with a names row only) and overrides them
+    otherwise.
+
+    Returns
+    -------
+    dict
+        ``{output name: unit}``; "" where no unit is known.
+    """
+    h_i, u_i = header_rows(cfg)
+    raw = source_units(path, h_i, u_i) if path is not None else {}
+    raw.update({k: clean_unit(v) for k, v in cfg.get("raw_units", {}).items()})
+    return {out: raw.get(src, "") for out, src in cfg["columns"].items()}
+
+
+def write_units(out_dir, table_name, columns, units):
+    """Write the <table>_units.dat file beside the header.
+
+    Parameters
+    ----------
+    out_dir : str
+        Site folder.
+    table_name : str
+        Full table name (e.g. ``"MySite_20Hz"``).
+    columns : iterable of str
+        Output column names, in file order (as ``write_header``).
+    units : dict
+        ``{output name: unit}``; missing entries are written empty. The
+        synthesized TIMESTAMP column is always empty.
+
+    Returns
+    -------
+    str
+        Path of the units file written.
+    """
+    path = os.path.join(out_dir, f"{table_name}_units.dat")
+    fields = [""] + [clean_unit(units.get(c, "")) for c in columns]
+    with open(path, "w") as fh:
+        fh.write(",".join(f'"{u}"' for u in fields) + "\n")
+    return path
+
+
+def write_table_units(cfg):
+    """Write a table's header and units files without reading any data rows.
+
+    The units come from the first matching raw file's units row plus
+    ``cfg["raw_units"]``; use it to (re)generate ``<table>_units.dat`` for
+    tables that were processed before the units file existed.
+
+    Returns
+    -------
+    str
+        Path of the units file written.
+    """
+    table = f"{cfg['prefix']}_{cfg['table']}"
+    paths = sorted(glob.glob(cfg["raw_pattern"]))
+    if not paths:
+        raise FileNotFoundError(f"No raw files match {cfg['raw_pattern']}")
+    os.makedirs(cfg["out_dir"], exist_ok=True)
+    units = resolve_units(cfg, paths[0])
+    hdr = write_header(cfg["out_dir"], table, cfg["columns"])
+    path = write_units(cfg["out_dir"], table, cfg["columns"], units)
+    print(f"{table}: units from {os.path.basename(paths[0])}")
+    print(f"  → {os.path.basename(hdr)}")
+    print(f"  → {os.path.basename(path)}")
+    missing = [c for c, u in units.items() if not u]
+    if missing:
+        print(f"  no unit declared for: {', '.join(missing)}")
+    return path
+
+
+def run_table(cfg, argv=None):
+    """Entry point of a per-site table script.
+
+    ``--units-only`` on the command line writes the header and units files
+    from the raw header rows alone (no data is read or rewritten);
+    otherwise the table is processed in full.
+    """
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if "--units-only" in argv:
+        return write_table_units(cfg)
+    return process_table(cfg)
+
+
 def process_table(cfg):
     """Process one TOA5 table into 48-h UTESpac input files.
 
@@ -192,6 +343,13 @@ def process_table(cfg):
             Extra ``read_toa5`` options applied when indexing and loading
             (e.g. ``{"skiprows": []}`` for files with a single names row
             instead of the 4-line TOA5 header).
+        raw_units : dict, optional
+            ``{TOA5 source column: unit}`` declaring the units of a source
+            with no units row (card-converted files with a names row
+            only); overrides the file's own units row where both exist.
+        header_row, units_row : int or None, optional
+            0-based line indices of the names and units rows of the raw
+            files; see :func:`header_rows` for the defaults.
         loader : callable, optional
             ``loader(paths) -> DataFrame`` with a DatetimeIndex, replacing
             the TOA5 reader for non-TOA5 sources (e.g. a logger CSV with a
@@ -226,6 +384,8 @@ def process_table(cfg):
 
     hdr = write_header(cfg["out_dir"], table, columns)
     print(f"  → {os.path.basename(hdr)}")
+    uni = write_units(cfg["out_dir"], table, columns, resolve_units(cfg, entries[0][1]))
+    print(f"  → {os.path.basename(uni)}")
     print(f"  siteInfo: tableNames += ['{table}'], "
           f"tableScanFrequency += [{hz:g}], "
           f"tableNumberOfColumns += [{4 + len(columns)}]")

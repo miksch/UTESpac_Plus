@@ -83,9 +83,9 @@ def main():
     sl = load_slow()
     j = ut.join(ep[["H", "LE"]].rename(columns={"H": "H_ep", "LE": "LE_ep"}), how="inner") \
           .join(sl, how="inner")
-    j["H_ut"] = j["H_Thv_wPF"]
-    j["H_ut_snd"] = j["H_Thv_wPF"] - SND * j["LE_wPF"]
-    j["LE_ut"] = j["LE_wPF"]
+    j["H_ut"] = j["H_buoyancy_pf"]
+    j["H_ut_snd"] = j["H_buoyancy_pf"] - SND * j["LE_wpl_pf"]
+    j["LE_ut"] = j["LE_wpl_pf"]
     print(f"joined periods: {len(j)}  ({j.index.min()} .. {j.index.max()})")
     print(f"NETRAD finite: {j['NETRAD'].notna().sum()}, ghf_avg finite: {j['ghf_avg'].notna().sum()}, "
           f"G_plate_avg finite: {j['G_plate_avg'].notna().sum()}")

@@ -13,7 +13,7 @@ import numpy as np
 import xarray as xr
 
 from . import preprocess as pp
-from .io import HFFile, iter_windows
+from .io import HFFile, iter_windows, token
 from .quadrant import PAIRS, quadrant_stats
 from .ramps import _slope_for, detect, log_scales
 
@@ -181,8 +181,8 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
         raise ValueError("coherent_flux conditions on wavelet ramp events; "
                          "the TKE event set ('e') is not supported")
     sigs = [s for s in cf.event_signals if s in hf.ds]
-    pairs = [k for k in cf.pairs if all(m in ("u", "v", "w") or m in hf.ds for m in PAIRS[k])]
-    names = list(dict.fromkeys(["u", "v", "w", "Ts"] + sigs + [m for k in pairs for m in PAIRS[k]]))
+    pairs = [k for k in cf.pairs if all(m in ("u_pf", "v_pf", "w_pf") or m in hf.ds for m in PAIRS[k])]
+    names = list(dict.fromkeys(["u_pf", "v_pf", "w_pf", "ts"] + sigs + [m for k in pairs for m in PAIRS[k]]))
     holes = np.asarray(cf.hole_sizes, dtype=float)
     scales = log_scales(rc.a_min_s, rc.a_max_s, rc.n_scales_per_decade)
     nr, nh, nH = len(hf.records), len(hf.heights), len(holes)
@@ -199,19 +199,19 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
     for win in iter_windows(hf, variables=names, records=records):
         i = win.index
         for ih in range(nh):
-            if not win.has("w", ih):
+            if not win.has("w_pf", ih):
                 continue
             prep = pp.prepare(win, ih, names, method=pc.detrend, tau_s=pc.filter_tau_s,
                               nan_max_frac=pc.nan_max_frac, taylor_max_ratio=pc.taylor_max_ratio)
             prime = {k: v for k, v in prep.prime.items() if prep.accepted.get(k, False)}
             wT = np.nan
-            if "w" in prime and "Ts" in prime:
-                wT = float(np.nanmean(prime["w"] * prime["Ts"]))
+            if "w_pf" in prime and "ts" in prime:
+                wT = float(np.nanmean(prime["w_pf"] * prime["ts"]))
             events = {}
             for s in sigs:
                 if s not in prime or not np.isfinite(prime[s]).all():
                     continue
-                slope = _slope_for(s, getattr(rc, f"slope_{s}", "auto"), wT)
+                slope = _slope_for(s, getattr(rc, f"slope_{token(s)}", "auto"), wT)
                 ev = detect(prime[s], hf.fs, scales, slope=slope, wavelet=rc.wavelet,
                             peak=rc.peak, edge_scales=rc.edge_scales, refine=rc.refine,
                             D_min_s=rc.D_min_s)
@@ -224,7 +224,7 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
                     continue
                 xp, yp = prime[a], prime[b]
                 cov[k][i, ih] = float(np.nanmean(xp * yp))
-                q = quadrant_fraction(xp, yp, holes, w_is=(0 if a == "w" else 1))
+                q = quadrant_fraction(xp, yp, holes, w_is=(0 if a == "w_pf" else 1))
                 for f in ("F_ej", "F_sw", "F_coh"):
                     qd[k][f][i, ih] = q[f]
                 if not (np.isfinite(xp).all() and np.isfinite(yp).all()):
@@ -251,21 +251,22 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
             "ratio": "F_tot / cov representativeness (TF 2007 §4.2 gate 0.8-1.2)",
             "flux_error": "EC flux error Delta(x'y') from coherent structures (TF 2007 eq. 12b)"}
     for s in sigs:
-        ds[f"n_structures_{s}"] = (dims, n_ev[s], {"long_name": f"wavelet events of {s}' conditioned on"})
-        ds[f"half_window_{s}"] = (dims, halfw[s], {"units": "s",
-                                  "long_name": f"conditional-window half width about {s}' events ({cf.window})"})
+        ts_ = token(s)
+        ds[f"n_structures_{ts_}"] = (dims, n_ev[s], {"long_name": f"wavelet events of {ts_}' conditioned on"})
+        ds[f"half_window_{ts_}"] = (dims, halfw[s], {"units": "s",
+                                    "long_name": f"conditional-window half width about {ts_}' events ({cf.window})"})
         for k in pairs:
-            a, b = PAIRS[k]
+            a, b = (token(m) for m in PAIRS[k])
             for f in fields:
-                ds[f"{f}_{k}_{s}"] = (dims, wl[s][k][f], {
-                    "long_name": f"{long[f]} of {a}'{b}' on {s}' events", "method": "wavelet"})
-            ds[f"F_frac_{k}_{s}"] = (dims, wl[s][k]["F_cs"] / wl[s][k]["F_tot"], {
-                "long_name": f"coherent flux fraction F_cs/F_tot of {a}'{b}' on {s}' events",
+                ds[f"{f}_{k}_{ts_}"] = (dims, wl[s][k][f], {
+                    "long_name": f"{long[f]} of {a}'{b}' on {ts_}' events", "method": "wavelet"})
+            ds[f"F_frac_{k}_{ts_}"] = (dims, wl[s][k]["F_cs"] / wl[s][k]["F_tot"], {
+                "long_name": f"coherent flux fraction F_cs/F_tot of {a}'{b}' on {ts_}' events",
                 "method": "wavelet"})
-            ds[f"valid_{k}_{s}"] = (dims, valid[s][k], {
+            ds[f"valid_{k}_{ts_}"] = (dims, valid[s][k], {
                 "long_name": "0.8 <= F_tot/cov <= 1.2 (TF 2007 §4.2)", "method": "wavelet"})
     for k in pairs:
-        a, b = PAIRS[k]
+        a, b = (token(m) for m in PAIRS[k])
         ds[f"cov_{k}"] = (dims, cov[k], {"long_name": f"total {a}'{b}' covariance"})
         for f in ("F_ej", "F_sw", "F_coh"):
             what = {"F_ej": "ejection", "F_sw": "sweep", "F_coh": "ejection + sweep"}[f]
@@ -282,7 +283,7 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
             ds[f"ratio_turner_{k}"] = (dims, tu[k]["ratio"], {
                 "long_name": "reconstructed / total covariance (Haar-frame fidelity)",
                 "method": "turner"})
-    ds.attrs.update(event_signals=",".join(sigs), window=cf.window, window_s=cf.window_s,
+    ds.attrs.update(event_signals=",".join(token(s) for s in sigs), window=cf.window, window_s=cf.window_s,
                     turner=int(cf.turner), turner_K=cf.turner_K,
                     wavelet=rc.wavelet, peak=rc.peak, D_min_s=rc.D_min_s, refine=rc.refine,
                     detrend_method=pc.detrend,

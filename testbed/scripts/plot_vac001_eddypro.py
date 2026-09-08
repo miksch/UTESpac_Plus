@@ -25,9 +25,9 @@ from compare_vac001_eddypro import load_utespac, load_eddypro, stats, ROOT  # no
 C_DATA, C_FIT, C_INK, C_GRID = "#2a78d6", "#eb6834", "#52514e", "#e6e5e1"
 
 PANELS = [
-    ("H_Thv_wPF", "H",     "H  [W m$^{-2}$]  (UTESpac: Θv'wPF')"),
-    ("LE_wPF",    "LE",    "LE  [W m$^{-2}$]  (WPL, wPF')"),
-    ("Fc_wPF",    "Fc",    "Fc  [µmol m$^{-2}$ s$^{-1}$]  (WPL, wPF')"),
+    ("H_buoyancy_pf", "H",     "H  [W m$^{-2}$]  (UTESpac: w'theta_v', pf)"),
+    ("LE_wpl_pf",    "LE",    "LE  [W m$^{-2}$]  (WPL, pf)"),
+    ("Fc_wpl_pf",    "Fc",    "Fc  [µmol m$^{-2}$ s$^{-1}$]  (WPL, pf)"),
     ("ustar",     "ustar", "u*  [m s$^{-1}$]"),
     ("sigma_w",   "sigma_w", "σ$_w$  [m s$^{-1}$]"),
     ("TKE",       "TKE",   "TKE  [m$^2$ s$^{-2}$]"),
@@ -94,7 +94,7 @@ def main():
     _style(ax)
     ax.plot(j.index, j["H_ep"] if "H_ep" in j.columns else j["H"],
             color=C_FIT, linewidth=1.2, label="EddyPro H")
-    ax.plot(j.index, j["H_Thv_wPF"], color=C_DATA, linewidth=1.2,
+    ax.plot(j.index, j["H_buoyancy_pf"], color=C_DATA, linewidth=1.2,
             label="UTESpac H (Θv'wPF')")
     ax.axhline(0, color=C_INK, linewidth=0.6)
     ax.set_ylabel("H  [W m$^{-2}$]", fontsize=8, color=C_INK)

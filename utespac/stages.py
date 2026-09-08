@@ -18,8 +18,8 @@ import xarray as xr
 
 from .averaging import block_average, block_last, n_periods, period_bounds
 from .condition_data import qc_table
-from .model import (COLUMN, COMPONENT, HEIGHT, TIME, TIME_HF, Run, Sensors, tables_from_legacy,
-                    to_datenum, to_datetime64)
+from .model import (COLUMN, COMPONENT, HEIGHT, TIME, TIME_HF, Run, Sensors, header_units,
+                    tables_from_legacy, to_datenum, to_datetime64)
 from .rotation import SonicSeries, rotate_sonics
 from .wind_stats import shadow_flag, wind_direction_speed
 
@@ -30,8 +30,9 @@ def load_run(info: Dict, data, headers, table_names: Sequence[str], sensor_info:
              data_info=None, pf_table=None) -> Run:
     """The Run right after ``load_data``/``find_serial_date``: tables and sensors."""
     hdrs = {name: (list(headers[i][0]), list(headers[i][1])) for i, name in enumerate(table_names)}
+    units = {name: header_units(headers[i]) for i, name in enumerate(table_names)}
     return Run(site=info, sensors=Sensors.from_legacy(sensor_info, headers, table_names),
-               table_names=list(table_names), headers=hdrs,
+               table_names=list(table_names), headers=hdrs, header_units=units,
                tables=tables_from_legacy(data, headers, table_names, info.get("tableScanFrequency")),
                notes=list(data_info or []), pf_table=pf_table)
 
@@ -374,9 +375,9 @@ def flux(run: Run) -> Run:
     )
 
     tables = FluxTables(N, heights, has_fw)
-    derivedT_cols = []
-    specific_hum = None
-    cp = 1004.67 * (1 + 0.84 * ref.q)
+    temperature_cols = []
+    humidity_cols = None
+    cp = ref.cp
 
     for ii, s in enumerate(sonics):
         height = s.height
@@ -384,12 +385,12 @@ def flux(run: Run) -> Run:
             lev = build_level(run, ii, ref, N, slope_axis)
             lev_opts = replace(opts, scan_freq=lev.scan_hz)
             if lev.specific_hum_cols:
-                if specific_hum is None:
-                    specific_hum = ([block_last(t, bp)], ["time"])
+                if humidity_cols is None:
+                    humidity_cols = ([block_last(t, bp)], ["time"])
                 for hdr, col in lev.specific_hum_cols:
-                    specific_hum[0].append(np.asarray(col)[:N])
-                    specific_hum[1].append(hdr)
-            derivedT_cols.extend(lev.derived_T_cols)
+                    humidity_cols[0].append(np.asarray(col)[:N])
+                    humidity_cols[1].append(hdr)
+            temperature_cols.extend(lev.derived_T_cols)
             if save_raw:
                 if ii == 0:
                     _init_raw(raw, t, len(sonics), run)
@@ -400,8 +401,10 @@ def flux(run: Run) -> Run:
                     continue
                 if ii == 0:
                     tables.set_time(jj, t[s1 - 1])
-                    tables["H"].set(jj, None, "rho", ref.rho[jj] if jj < len(ref.rho) else np.nan)
-                    tables["H"].set(jj, None, "cp", cp[jj] if jj < len(cp) else np.nan)
+                    tables["sensible_heat"].set(jj, None, "rho_air_ref",
+                                                ref.rho[jj] if jj < len(ref.rho) else np.nan)
+                    tables["sensible_heat"].set(jj, None, "cp_ref",
+                                                cp[jj] if jj < len(cp) else np.nan)
                 res = compute_period(lev, ref, lev_opts, jj, s0, s1, t)
                 for tname, vals in res.values.items():
                     tables[tname].set_many(jj, height, vals)
@@ -414,16 +417,16 @@ def flux(run: Run) -> Run:
     # legacy-shaped matrices + headers -> Datasets (the same converter the
     # boundary uses; the CSV writer and the HF ancillaries read the legacy form)
     legacy = tables.store({}, store_extra=bool(info.get("storeExtraStats", True)))
-    if derivedT_cols:
+    if temperature_cols:
         timestamps = block_last(t, period_bounds(len(t), n_periods(t, info["avgPer"])))
-        mat = np.column_stack([timestamps] + [c for _, c in derivedT_cols])
-        hdr = ["time"] + [h for h, _ in derivedT_cols]
+        mat = np.column_stack([timestamps] + [c for _, c in temperature_cols])
+        hdr = ["time"] + [h for h, _ in temperature_cols]
         keep = np.any(~np.isnan(mat), axis=0)
-        legacy["derivedT"] = mat[:, keep]
-        legacy["derivedTheader"] = [h for h, k in zip(hdr, keep) if k]
-    if specific_hum is not None:
-        legacy["specificHum"] = np.column_stack(specific_hum[0])
-        legacy["specificHumHeader"] = list(specific_hum[1])
+        legacy["temperature"] = mat[:, keep]
+        legacy["temperatureHeader"] = [h for h, k in zip(hdr, keep) if k]
+    if humidity_cols is not None:
+        legacy["humidity"] = np.column_stack(humidity_cols[0])
+        legacy["humidityHeader"] = list(humidity_cols[1])
     run.products = products_from_legacy(legacy, heights)
     if raw is not None:
         run.raw = raw_from_legacy(raw, run.time_hf)

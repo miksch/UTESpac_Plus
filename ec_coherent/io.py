@@ -1,4 +1,4 @@
-"""netCDF I/O: the ``utespac-hf-1`` reader, the window iterator, the analysis writer.
+"""netCDF I/O: the ``utespac-hf-2`` reader, the window iterator, the analysis writer.
 
 Windows follow the upstream averaging period: ``record`` is the END of each
 period, so record *r* covers the samples ``(r - T, r]`` (``T`` =
@@ -17,18 +17,36 @@ import xarray as xr
 
 log = logging.getLogger("ec_coherent")
 
-HF_FORMAT = "utespac-hf-1"
+HF_FORMAT = "utespac-hf-2"
+LEGACY_HF_FORMAT = "utespac-hf-1"
 OUT_FORMAT = "ec-coherent-1"
 
 # (time, height) variables carried into every window when present
-HF_VARIABLES = ("u", "v", "w", "Ts", "theta_v", "T_fw", "theta_fw", "rhov", "rhoCO2")
+HF_VARIABLES = ("u_pf", "v_pf", "w_pf", "ts", "theta_v", "t_fw", "theta_fw",
+                "rho_h2o", "rho_co2")
 # per-record ancillaries (record, height) carried into every window when present
-ANCILLARIES = ("ustar", "L", "wdir", "wind_flag", "spike_flag", "nan_flag")
+ANCILLARIES = ("ustar_pf", "L", "wdir", "wind_flag", "spike_flag", "nan_flag")
+# SSITC / steady-state flags of the flux_qc product, also on (record, height)
+QC_FLAGS = ("Tau_ssitc", "H_ssitc", "LE_ssitc", "Fc_ssitc",
+            "Tau_ss", "H_ss", "LE_ss", "Fc_ss")
+
+
+def token(series: str) -> str:
+    """Output-name token of an HF series: ``u_pf`` -> ``u``, ``ts`` -> ``ts``.
+
+    Every series ec_coherent reads is in the one planar-fit frame of the HF
+    file, so the frame is a property of the whole analysis file (global
+    attribute ``rotation``), not of each variable name; carrying ``_pf``
+    inside a composed name would also put the frame qualifier mid-name,
+    against the naming convention. Analysis-file names are built from these
+    tokens; the HF file is always read by the full name.
+    """
+    return series[:-3] if series.endswith("_pf") else series
 
 
 @dataclass
 class HFFile:
-    """An opened ``utespac-hf-1`` file."""
+    """An opened ``utespac-hf-2`` file."""
     path: str
     ds: xr.Dataset
     fs: float
@@ -63,7 +81,7 @@ class Window:
     heights: np.ndarray
     data: Dict[str, np.ndarray]            # name -> (n, n_heights), NaN where absent
     ancillary: Dict[str, np.ndarray]       # name -> (n_heights,)
-    scalar_heights: Dict[str, np.ndarray]  # rhov/rhoCO2 sensor height mapped to each sonic height
+    scalar_heights: Dict[str, np.ndarray]  # rho_h2o/rho_co2 sensor height mapped to each sonic height
 
     @property
     def n(self) -> int:
@@ -80,11 +98,21 @@ class Window:
 
 
 def open_hf(path) -> HFFile:
-    """Open a ``utespac-hf-1`` file lazily (xarray, netCDF4 engine)."""
+    """Open a ``utespac-hf-2`` file lazily (xarray, netCDF4 engine).
+
+    Raises
+    ------
+    ValueError
+        The file is not ``utespac-hf-2``. ``utespac-hf-1`` files carry the
+        pre-rename variable names (``u``, ``Ts``, ``rhov``, ...) and are not
+        read; regenerate them with ``testbed/scripts/run_vac001.py``.
+    """
     ds = xr.open_dataset(path, engine="netcdf4", decode_times=True, chunks=None)
     fmt = ds.attrs.get("utespac_format", "")
     if fmt != HF_FORMAT:
-        raise ValueError(f"{path}: utespac_format {fmt!r}, expected {HF_FORMAT!r}")
+        hint = (f" {LEGACY_HF_FORMAT} uses the pre-rename variable names; regenerate the file "
+                "with testbed/scripts/run_vac001.py") if fmt == LEGACY_HF_FORMAT else ""
+        raise ValueError(f"{path}: utespac_format {fmt!r}, expected {HF_FORMAT!r}.{hint}")
     fs = float(ds.attrs["sampling_frequency_hz"])
     window_s = float(ds.attrs["flux_averaging_s"])
     heights = np.asarray(ds["height"].values, dtype=float)
@@ -146,8 +174,7 @@ def iter_windows(hf: HFFile, variables: Sequence[str] = HF_VARIABLES,
             zz = np.asarray(ds[dims[1]].values, dtype=float)
             scalar_z[v] = zz
             scalar_map[v] = _nearest_height_map(z, zz)
-    anc_present = [a for a in ANCILLARIES if a in ds] + \
-        [a for a in ds.data_vars if a.startswith("ssitc_")]
+    anc_present = [a for a in ANCILLARIES + QC_FLAGS if a in ds]
     rec_index = None
     if "record" in ds:
         rec_index = {np.datetime64(r, "ns"): i for i, r in enumerate(ds["record"].values)}

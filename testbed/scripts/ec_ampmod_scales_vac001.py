@@ -36,15 +36,15 @@ SWEEP_LAMBDA = (200.0, 350.0, 600.0, 1000.0, 1800.0, 3000.0)
 
 def sweep(hf, cfg, lambdas):
     """Median R_uL_uS and R_wL_uS across all records for each fixed cutoff wavelength."""
-    med = {"u": [], "w": []}
+    med = {"u_pf": [], "w_pf": []}
     pc = cfg.preprocess
-    Rs = {lam: {"u": [], "w": []} for lam in lambdas}
-    for win in ecio.iter_windows(hf, variables=("u", "v", "w")):
-        prep = pp.prepare(win, 0, ["u", "w"], method=pc.detrend, tau_s=pc.filter_tau_s,
+    Rs = {lam: {"u_pf": [], "w_pf": []} for lam in lambdas}
+    for win in ecio.iter_windows(hf, variables=("u_pf", "v_pf", "w_pf")):
+        prep = pp.prepare(win, 0, ["u_pf", "w_pf"], method=pc.detrend, tau_s=pc.filter_tau_s,
                           nan_max_frac=pc.nan_max_frac, taylor_max_ratio=pc.taylor_max_ratio)
-        if not (prep.accepted.get("u") and prep.accepted.get("w")):
+        if not (prep.accepted.get("u_pf") and prep.accepted.get("w_pf")):
             continue
-        pu, pw = prep.prime["u"], prep.prime["w"]
+        pu, pw = prep.prime["u_pf"], prep.prime["w_pf"]
         if not (np.isfinite(pu).all() and np.isfinite(pw).all()):
             continue
         for lam in lambdas:
@@ -53,9 +53,9 @@ def sweep(hf, cfg, lambdas):
                 continue
             us = pu - ampmod.lowpass_sharp(pu, win.fs, fc)
             env_l = ampmod.lowpass_sharp(ampmod.envelope(us), win.fs, fc)
-            Rs[lam]["u"].append(ampmod.am_coefficient(ampmod.lowpass_sharp(pu, win.fs, fc), env_l))
-            Rs[lam]["w"].append(ampmod.am_coefficient(ampmod.lowpass_sharp(pw, win.fs, fc), env_l))
-    for m in ("u", "w"):
+            Rs[lam]["u_pf"].append(ampmod.am_coefficient(ampmod.lowpass_sharp(pu, win.fs, fc), env_l))
+            Rs[lam]["w_pf"].append(ampmod.am_coefficient(ampmod.lowpass_sharp(pw, win.fs, fc), env_l))
+    for m in ("u_pf", "w_pf"):
         med[m] = [np.nanmedian(Rs[lam][m]) if Rs[lam][m] else np.nan for lam in lambdas]
     return med
 
@@ -75,7 +75,7 @@ def main(argv):
     hours = (rec - midnight).astype("timedelta64[s]").astype(float) / 3600.0
     zeta = am.zeta.values[:, 0]
     Ruu, Rwu = am.R_uL_uS.values[:, 0], am.R_wL_uS.values[:, 0]
-    RuT, RwT = am.R_uL_TsS.values[:, 0], am.R_wL_TsS.values[:, 0]
+    RuT, RwT = am.R_uL_tsS.values[:, 0], am.R_wL_tsS.values[:, 0]
     Rw_wT = am.R_wL_wTsS.values[:, 0]
     lam_c = am.cutoff_lambda.values[:, 0]
     src = am.cutoff_source.values[:, 0]
@@ -83,7 +83,7 @@ def main(argv):
     print(f"cutoff source: spectral_gap {n_gap}, delta_fallback {(src == 1).sum()} of {len(rec)}")
     print(f"lambda_c [m]: median {np.nanmedian(lam_c):.0f}, "
           f"IQR {np.nanpercentile(lam_c, 25):.0f}-{np.nanpercentile(lam_c, 75):.0f}")
-    for name, v in (("R_uL_uS", Ruu), ("R_wL_uS", Rwu), ("R_uL_TsS", RuT),
+    for name, v in (("R_uL_uS", Ruu), ("R_wL_uS", Rwu), ("R_uL_tsS", RuT),
                     ("R_wL_TsS", RwT), ("R_wL_wTsS", Rw_wT)):
         print(f"{name}: median {np.nanmedian(v):+.2f}, IQR "
               f"{np.nanpercentile(v, 25):+.2f} to {np.nanpercentile(v, 75):+.2f}")
@@ -97,7 +97,7 @@ def main(argv):
 
     med = sweep(hf, cfg, SWEEP_LAMBDA)
     print("cutoff sweep, median R_uL_uS:",
-          ", ".join(f"{int(l)} m {r:+.2f}" for l, r in zip(SWEEP_LAMBDA, med["u"])))
+          ", ".join(f"{int(l)} m {r:+.2f}" for l, r in zip(SWEEP_LAMBDA, med["u_pf"])))
 
     fig, axs = plt.subplots(3, 2, figsize=(12.5, 12), constrained_layout=True)
     ax = axs[0, 0]
@@ -122,8 +122,8 @@ def main(argv):
     ax.legend(fontsize=8)
 
     ax = axs[1, 0]
-    ax.plot(SWEEP_LAMBDA, med["u"], "o-", color=C_U, label="$R_{u_L,u_S}$")
-    ax.plot(SWEEP_LAMBDA, med["w"], "s-", color=C_W, label="$R_{w_L,u_S}$")
+    ax.plot(SWEEP_LAMBDA, med["u_pf"], "o-", color=C_U, label="$R_{u_L,u_S}$")
+    ax.plot(SWEEP_LAMBDA, med["w_pf"], "s-", color=C_W, label="$R_{w_L,u_S}$")
     ax.set_xscale("log")
     ax.axhline(0, color=C_INK, lw=0.6)
     ax.set_xlabel(r"cutoff $\lambda_c$ [m]")
@@ -136,9 +136,9 @@ def main(argv):
     n_win = hf.n_per_window
     pmed, Umed = [], []
     pc = cfg.preprocess
-    for win in ecio.iter_windows(hf, variables=("u", "v", "w")):
-        prep = pp.prepare(win, 0, ["u"], method=pc.detrend, tau_s=pc.filter_tau_s)
-        x = prep.prime["u"]
+    for win in ecio.iter_windows(hf, variables=("u_pf", "v_pf", "w_pf")):
+        prep = pp.prepare(win, 0, ["u_pf"], method=pc.detrend, tau_s=pc.filter_tau_s)
+        x = prep.prime["u_pf"]
         if np.isfinite(x).all():
             spec = sp.spectrum(x, fs)
             pmed.append(spec.S)

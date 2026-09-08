@@ -81,15 +81,15 @@ def main(argv):
     # ---- octant summary ----
     cov_wTs = qd.cov_wTs.values[:, 0]
     unstable = cov_wTs > 0
-    Fuw = oc.flux_frac_uwTs_uw.values[:, 0, :]
-    FwT = oc.flux_frac_uwTs_wTs.values[:, 0, :]
+    Fuw = oc.flux_frac_u_w_ts_uw.values[:, 0, :]
+    FwT = oc.flux_frac_u_w_ts_wts.values[:, 0, :]
     print(f"octants ({oc.attrs['octant_triplets']}), {unstable.sum()} records with w'Ts' > 0:")
     for name, F in (("u'w' (uwTs)", Fuw), ("w'Ts' (uwTs)", FwT)):
         med = np.nanmedian(F[unstable], axis=0)
         print(f"  {name} fractions: " + ", ".join(f"O{i+1} {v:+.2f}" for i, v in enumerate(med))
               + f"  (O2+O8 = {med[1] + med[7]:+.2f})")
     if "flux_frac_wTsrhov_wTs" in oc:
-        Fq = oc.flux_frac_wTsrhov_wTs.values[:, 0, :]
+        Fq = oc.flux_frac_w_ts_rho_h2o_wts.values[:, 0, :]
         med = np.nanmedian(Fq[unstable], axis=0)
         print("  w'Ts' (wTsrhov) fractions: "
               + ", ".join(f"O{i+1} {v:+.2f}" for i, v in enumerate(med)))

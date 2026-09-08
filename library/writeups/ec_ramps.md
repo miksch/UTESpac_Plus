@@ -416,7 +416,7 @@ Spano's, above.
 
 ## Outputs (`/ramps` group)
 
-Wavelet detector, per record, height and signal (`Ts`, `u`): `a0_*` (s),
+Wavelet detector, per record, height and signal (`ts`, `u`): `a0_*` (s),
 `D_*` (s, eq. 22), `n_events_*`, `mean_spacing_*` (s, mean interval
 between consecutive detections), `event_time_*` (s from window start,
 `(record, height, event)` padded with NaN), the wavelet variance `W_*` on
@@ -427,9 +427,9 @@ Structure-function detector, per record, height, signal and `sr_lag` (s):
 `sr_a_*` and `sr_period_*` (linearized Van Atta $a$ and $l+s$),
 `sr_d_*`, `sr_s_*`, `sr_a2_*` (two-lag $d$, $s$ and P-corrected $a$,
 lags $r$ and $2r$), `sr_S3_rate_*` ($S^3(r)/r$, the Chen $t_m$
-diagnostic), and for `Ts` the kinematic SR flux `sr_flux_Ts`
+diagnostic), and for `ts` the kinematic SR flux `sr_flux_ts`
 $= \alpha\,a\,z/(l+s)$ (K m s$^{-1}$, linearized $a$, $l+s$) with the
-applied factor stored as `sr_alpha_Ts`. `sr_alpha_mode` (ruled, user
+applied factor stored as `sr_alpha_ts`. `sr_alpha_mode` (ruled, user
 2026-08-23) selects $\alpha$: `fixed` (the `sr_alpha` value, default 1,
 `[CITED]` Spano eq. 2), `castellvi` (per record from the ancillary
 $u_*$ and $L$ via `alpha_castellvi`, `[CITED]` Castellví & Snyder 2009

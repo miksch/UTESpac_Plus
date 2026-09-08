@@ -1,4 +1,4 @@
-"""utespac.flux.tables: named columns, legacy labels, trimming and storage."""
+"""utespac.flux.tables: named columns, CSV labels, trimming and storage."""
 
 import numpy as np
 
@@ -10,13 +10,14 @@ def test_height_label_matches_legacy_format():
     assert height_label(2.0) == "2"
 
 
-def test_table_labels_follow_legacy_header_order():
-    tab = FluxTable(TABLE_SPECS["H"], 4, [10.85, 2.0])
-    assert tab.labels[:3] == ["time", "rho", "cp"]
-    assert tab.labels[3] == "10.85m son:Ts'w'"
-    assert tab.labels[14] == "10.85m fw:VTh'wPF'"
-    assert tab.labels[15] == "2m son:Ts'w'"
-    assert len(tab.labels) == 3 + 2 * 12
+def test_table_labels_follow_the_names_column_order():
+    tab = FluxTable(TABLE_SPECS["sensible_heat"], 4, [10.85, 2.0])
+    n_cols = len(TABLE_SPECS["sensible_heat"].columns)
+    assert tab.labels[:3] == ["time", "rho_air_ref", "cp_ref"]
+    assert tab.labels[3] == "w_ts_cov_raw_10.85"
+    assert tab.labels[2 + n_cols] == "H_buoyancy_pf_10.85"
+    assert tab.labels[3 + n_cols] == "w_ts_cov_raw_2"
+    assert len(tab.labels) == 3 + 2 * n_cols
 
 
 def test_set_get_and_trim_drop_all_nan_columns():
@@ -24,36 +25,43 @@ def test_set_get_and_trim_drop_all_nan_columns():
     tab.set(0, None, "time", 1.0)
     tab.set(1, None, "time", 2.0)
     vals, labels = tab.trimmed()
-    assert labels == ["time"]                       # tke column untouched -> dropped
-    tab.set(1, 10.0, "tke", 0.5)
-    assert tab.get(1, 10.0, "tke") == 0.5
+    assert labels == ["time"]                       # TKE column untouched -> dropped
+    tab.set(1, 10.0, "TKE", 0.5)
+    assert tab.get(1, 10.0, "TKE") == 0.5
     vals, labels = tab.trimmed()
-    assert labels == ["time", "10m :0.5(u'^2+v'^2+w'^2)"]
+    assert labels == ["time", "TKE_10"]
     assert np.isnan(vals[0, 1]) and vals[1, 1] == 0.5
 
 
 def test_parity_artifacts_are_gone():
-    tab = FluxTable(TABLE_SPECS["R"], 1, [10.0])
+    tab = FluxTable(TABLE_SPECS["correlation"], 1, [10.0])
     assert len(tab.labels) == 1 + 15                      # the duplicate MATLAB col 14 is gone
     assert len(set(tab.labels)) == len(tab.labels)
-    skew = FluxTable(TABLE_SPECS["skew"], 1, [10.0])
-    assert "10m :skew_Theta_v" in skew.labels and not any("Theata" in lab for lab in skew.labels)
+    skew = FluxTable(TABLE_SPECS["skewness"], 1, [10.0])
+    assert "theta_v_skew_10" in skew.labels and not any("Theata" in lab for lab in skew.labels)
 
 
-def test_flux_tables_sigma_tfw_only_with_fine_wire_and_store_rules():
+def test_third_moment_of_ts_sits_in_transport():
+    sigma = FluxTable(TABLE_SPECS["sigma"], 1, [10.0])
+    transport = FluxTable(TABLE_SPECS["transport"], 1, [10.0])
+    assert "ts_var_transport_pf_10" in transport.labels
+    assert not any("transport" in lab for lab in sigma.labels)
+
+
+def test_flux_tables_t_fw_sigma_only_with_fine_wire_and_store_rules():
     with_fw = FluxTables(2, [10.0], has_fw=True)
     without = FluxTables(2, [10.0], has_fw=False)
-    assert "10m :sigma_TFW" in with_fw["sigma"].labels
-    assert "10m :sigma_TFW" not in without["sigma"].labels
+    assert "t_fw_sigma_10" in with_fw["sigma"].labels
+    assert "t_fw_sigma_10" not in without["sigma"].labels
     assert list(with_fw.tables) == STORE_ORDER
 
     with_fw.set_time(0, 7.0)
-    with_fw["H"].set(0, 10.0, "Ts_w", 0.1)
+    with_fw["sensible_heat"].set(0, 10.0, "w_ts_cov_raw", 0.1)
     out = with_fw.store({}, store_extra=False)
-    assert "H" in out and out["Hheader"] == ["time", "10m son:Ts'w'"]
-    assert "R" not in out and "L" not in out          # extras skipped
-    assert "CO2flux" not in out                       # no CO2 data
-    with_fw["CO2flux"].set(0, 10.0, "ppm", 420.0)
+    assert "sensible_heat" in out and out["sensible_heatHeader"] == ["time", "w_ts_cov_raw_10"]
+    assert "correlation" not in out and "obukhov" not in out      # extras skipped
+    assert "co2_flux" not in out                                  # no CO2 data
+    with_fw["co2_flux"].set(0, 10.0, "co2_mole_fraction", 420.0)
     out = with_fw.store({}, store_extra=True)
-    assert out["CO2fluxHeader"] == ["time", "10m: CO2 (ppm, moist-air molar ratio)"]
-    assert "Lheader" in out and out["L"].shape == (2, 1)   # time column only
+    assert out["co2_fluxHeader"] == ["time", "co2_mole_fraction_10"]
+    assert "obukhovHeader" in out and out["obukhov"].shape == (2, 1)   # time column only

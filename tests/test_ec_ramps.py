@@ -107,11 +107,11 @@ def test_zero_crossings_interpolate_and_validate_slope():
 
 
 def test_slope_auto_follows_the_heat_flux_sign():
-    assert ramps._slope_for("Ts", "auto", 0.1) == "negative"
-    assert ramps._slope_for("Ts", "auto", -0.1) == "positive"
-    assert ramps._slope_for("Ts", "auto", np.nan) == "negative"
-    assert ramps._slope_for("u", "auto", -0.1) == "positive"
-    assert ramps._slope_for("Ts", "both", 0.1) == "both"
+    assert ramps._slope_for("ts", "auto", 0.1) == "negative"
+    assert ramps._slope_for("ts", "auto", -0.1) == "positive"
+    assert ramps._slope_for("ts", "auto", np.nan) == "negative"
+    assert ramps._slope_for("u_pf", "auto", -0.1) == "positive"
+    assert ramps._slope_for("ts", "both", 0.1) == "both"
 
 
 def sr_train(fs=20.0, a=1.2, d=20.0, s=10.0, n_periods=200, sign=-1.0, noise=0.0, seed=0):
@@ -221,22 +221,22 @@ def test_module_run_writes_the_ramps_group(tmp_path):
     cfg = ECConfig.from_config(modules=("ramps",), ramps={"a_max_s": 100.0, "D_min_s": 0.0})
     out = run_file(path, cfg)
     ds = ecio.read_group(out, "ramps")
-    assert ds.attrs["wavelet"] == "mhat" and ds.attrs["signals"] == "Ts,u"
-    assert ds["event_time_Ts"].dims == ("record", "height", "event")
-    assert np.isfinite(ds["D_Ts"]).all() and np.isfinite(ds["D_u"]).all()
-    assert (ds["n_events_Ts"] > 0).all()
-    n = int(ds["n_events_Ts"][0, 0])
-    times = ds["event_time_Ts"][0, 0].values
+    assert ds.attrs["wavelet"] == "mhat" and ds.attrs["signals"] == "ts,u"
+    assert ds["event_time_ts"].dims == ("record", "height", "event")
+    assert np.isfinite(ds["D_ts"]).all() and np.isfinite(ds["D_u"]).all()
+    assert (ds["n_events_ts"] > 0).all()
+    n = int(ds["n_events_ts"][0, 0])
+    times = ds["event_time_ts"][0, 0].values
     assert np.isfinite(times[:n]).all() and np.isnan(times[n:]).all()
     assert np.all(np.diff(times[:n]) > 0)
-    assert ds["W_Ts"].dims == ("record", "height", "scale")
+    assert ds["W_ts"].dims == ("record", "height", "scale")
     assert set(np.unique(ds["slope_u"].values)) == {1.0}
     # structure-function outputs on the sr_lag axis
-    assert ds.attrs["sr_signals"] == "Ts,u" and ds.attrs["sr_alpha"] == 1.0
-    assert ds["sr_a_Ts"].dims == ("record", "height", "sr_lag")
+    assert ds.attrs["sr_signals"] == "ts,u" and ds.attrs["sr_alpha"] == 1.0
+    assert ds["sr_a_ts"].dims == ("record", "height", "sr_lag")
     assert list(ds["sr_lag"].values) == [0.25, 0.5, 0.75, 1.0]
-    fin = np.isfinite(ds["sr_period_Ts"].values)
-    assert np.all(ds["sr_period_Ts"].values[fin] >= 10.0 * np.broadcast_to(
+    fin = np.isfinite(ds["sr_period_ts"].values)
+    assert np.all(ds["sr_period_ts"].values[fin] >= 10.0 * np.broadcast_to(
         ds["sr_lag"].values, fin.shape)[fin])             # Spano's l+s >= 10 r constraint
     assert np.isfinite(ds["sr_S3_rate_u"]).any()
     # TKE trigger outputs
@@ -250,21 +250,21 @@ def test_module_run_writes_the_ramps_group(tmp_path):
     assert ds.attrs["tke_a_s"] == 10.0 and ds.attrs["tke_thresh"] == 1.25
     # sr_alpha modes (ruling 2026-08-23): fixed is the default, castellvi and fit selectable
     assert ds.attrs["sr_alpha_mode"] == "fixed"
-    al = ds["sr_alpha_Ts"].values
+    al = ds["sr_alpha_ts"].values
     assert np.all(al[np.isfinite(al)] == 1.0) and np.isfinite(al).all()
     hgt = ds.height.values
-    F0 = ds["sr_a_Ts"].values * hgt[None, :, None] / ds["sr_period_Ts"].values
-    assert np.allclose(ds["sr_flux_Ts"].values, F0, equal_nan=True)
+    F0 = ds["sr_a_ts"].values * hgt[None, :, None] / ds["sr_period_ts"].values
+    assert np.allclose(ds["sr_flux_ts"].values, F0, equal_nan=True)
     dsc = ecio.read_group(run_file(path, ECConfig.from_config(
         modules=("ramps",), ramps={"a_max_s": 100.0, "D_min_s": 0.0,
                                    "sr_alpha_mode": "castellvi"})), "ramps")
-    ac = dsc["sr_alpha_Ts"].values
-    fin = np.isfinite(dsc["sr_period_Ts"].values)
+    ac = dsc["sr_alpha_ts"].values
+    fin = np.isfinite(dsc["sr_period_ts"].values)
     assert np.isfinite(ac[fin]).all() and np.all(ac[fin] > 0)
     assert not np.allclose(ac[fin], ac[fin].flat[0])      # per record/height, not constant
     dsf = ecio.read_group(run_file(path, ECConfig.from_config(
         modules=("ramps",), ramps={"a_max_s": 100.0, "D_min_s": 0.0, "sr_alpha_mode": "fit"})), "ramps")
-    af = dsf["sr_alpha_Ts"].values
+    af = dsf["sr_alpha_ts"].values
     for il in range(af.shape[2]):                         # one fitted scalar per lag
         vals = af[:, :, il][np.isfinite(af[:, :, il])]
         if vals.size:

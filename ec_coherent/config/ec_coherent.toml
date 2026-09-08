@@ -21,11 +21,11 @@ taylor_max_ratio = 0.5         # sigma_M / U_mean validity limit  [CITED] Stull 
 taper = "boxcar"               # boxcar | hann; boxcar closes Parseval exactly (task doc 2026-08-23)  [ASSUMED]
 nperseg = 0                    # 0 = full-record periodogram; N = Welch segments of N samples
 n_bins_per_decade = 10         # log-binning density  [ASSUMED]
-scalars = ["Ts", "rhov", "rhoCO2"]
+scalars = ["ts", "rho_h2o", "rho_co2"]
 
 [mrd]
 # Multiresolution decomposition, library/writeups/ec_mrd.md
-signals = ["u", "w", "Ts"]     # MR variance spectra D_xx
+signals = ["u_pf", "w_pf", "ts"]  # MR variance spectra D_xx
 fluxes = ["uw", "vw", "wTs"]   # MR cospectra D_xy; vw feeds the momentum gap scan (Vickers 2003: stress-vector magnitude)
 grid = "trim"                  # trim | interp -- window onto 2^M samples (DECIDE, task doc); trim per gameplan [ASSUMED],
 #                                interp is the Vickers & Mahrt 2003 eq. 8 down-grid (both sources interpolate)  [CITED]
@@ -38,21 +38,21 @@ hole_sizes = [0.0, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 15.0
 #                                H grid; range [CITED] Raupach 1981 figs. 6-7 (0..20), spacing [ASSUMED]
 hole_norm = "rms"              # rms (H*sigma_x*sigma_w, Lu & Willmarth 1973 §4.3; Li & Bo 2019 eq. 9) |
 #                                flux (H*|mean flux|, Willmarth & Lu 1972; Raupach 1981 eq. 2); H_flux = |rho|*H_rms
-octant_triplets = [["u", "w", "Ts"], ["w", "Ts", "rhov"]]
-#                                (u,w,Ts) [CITED] Li & Bo 2019 eq. 11 (all read octant sources: velocity pair + one
-#                                scalar); (w,Ts,rhov) scalar-dissimilarity triplet [ASSUMED], ruled in (user
-#                                2026-08-23); any signals accepted (v, rhoCO2, ...)
+octant_triplets = [["u_pf", "w_pf", "ts"], ["w_pf", "ts", "rho_h2o"]]
+#                                (u_pf,w_pf,ts) [CITED] Li & Bo 2019 eq. 11 (all read octant sources: velocity pair + one
+#                                scalar); (w_pf,ts,rho_h2o) scalar-dissimilarity triplet [ASSUMED], ruled in (user
+#                                2026-08-23); any signals accepted (v_pf, rho_co2, ...)
 
 [ramps]
 # Ramp detectors, library/writeups/ec_ramps.md
-signals = ["Ts", "u", "e"]     # wavelet detector on Ts, u; "e" runs the TKE trigger (Mangan et al. 2022)
+signals = ["ts", "u_pf", "e"]  # wavelet detector on ts, u_pf; "e" runs the TKE trigger (Mangan et al. 2022)
 wavelet = "mhat"               # MHAT zero-crossing method  [CITED] Collineau & Brunet 1993 I §4.3.3
 peak = "smallest_scale"        # smallest-scale variance maximum (Thomas & Foken 2007 §3.1) | "global" (CB 1993)
 D_min_s = 6.2                  # [s] peak search over event durations D >= this  [CITED] Thomas & Foken 2007 §3.1 (low-pass <6.2 s; their spruce site)
 a_min_s = 1.0                  # [s] scale grid  [ASSUMED]
 a_max_s = 300.0
 n_scales_per_decade = 16
-slope_Ts = "auto"              # negative (unstable ramp) | positive (stable inverse ramp) | both | auto from sign(w'Ts')
+slope_ts = "auto"              # negative (unstable ramp) | positive (stable inverse ramp) | both | auto from sign(w'Ts')
 slope_u = "positive"           # [CITED] CB 1993 I p. 375
 edge_scales = 3.0              # detections within edge_scales * a0 of the window ends dropped  [ASSUMED]
 refine = "none"                # none | ramp | haar -- re-time each event at the RAMP/HAAR transform extremum within +-a0
@@ -61,7 +61,7 @@ max_events = 300
 
 # Structure-function (surface renewal) detector -- Van Atta 1977 cubic, Spano et al. 1997
 # lags/flux, Paw U et al. 2005 two-lag d/s split
-sr_signals = ["Ts", "u"]       # series the cubic runs on; the kinematic SR flux is emitted for Ts only
+sr_signals = ["ts", "u_pf"]    # series the cubic runs on; the kinematic SR flux is emitted for ts only
 sr_lags_s = [0.25, 0.5, 0.75, 1.0]  # [s] time lags r  [CITED] Spano 1997 p. 261 (8 Hz crops; transferability [ASSUMED])
 sr_min_period_lags = 10.0      # lags with l+s < this * r are NaN  [CITED] Spano 1997 p. 261
 sr_alpha = 1.0                 # weighting factor alpha; 1 well above the canopy  [CITED] Spano 1997 eq. 2
@@ -78,7 +78,7 @@ tke_thresh = 1.25              # trigger when a wave's min-to-max amplitude > th
 [coherent_flux]
 # Coherent-structure flux fractions, library/writeups/ec_coherent_flux.md
 # (Thomas & Foken 2007 eqs. 3-7 triple decomposition; quadrant estimator their §3.3)
-event_signals = ["u", "Ts"]    # ramp event sets conditioned on; u default with Ts alongside (user ruling
+event_signals = ["u_pf", "ts"] # ramp event sets conditioned on; u_pf default with ts alongside (user ruling
 #                                2026-08-23; Thomas & Foken condition on Ts at their site)
 pairs = ["uw", "wTs", "wrhov"] # flux pairs (quadrant-plane keys); F_cs/F_tot per pair and event set
 window = "duration"            # duration (half-width D_e of the event signal, [CITED] TF 2007 eq. 5) |
@@ -93,8 +93,8 @@ turner_K = 4.0                 # threshold K x rms of the coefficients per scale
 [ampmod]
 # Amplitude modulation, library/writeups/ec_ampmod.md (Mathis et al. 2009 decoupling,
 # single-point form; Salesky & Anderson 2018 generalisation R_{b_l, a_s})
-modulators = ["u", "w"]        # large-scale signals b_l; w_l is the "buoyancy proof" modulator  [CITED] SA18 p. 158
-signals = ["u", "w", "Ts"]     # small-scale signals a_s
+modulators = ["u_pf", "w_pf"]  # large-scale signals b_l; w_l is the "buoyancy proof" modulator  [CITED] SA18 p. 158
+signals = ["u_pf", "w_pf", "ts"]  # small-scale signals a_s
 fluxes = ["uw", "wTs"]         # instantaneous-flux series u'w', w'Ts' decomposed like signals  [CITED] SA18 §1.3
 cutoff_mode = "spectral_gap"   # spectral_gap | delta | scaled -- large/small cutoff (locked decision 3;
 #                                sources use lambda = delta or z_i, absent here: deviation register, ec_ampmod.md)
@@ -104,7 +104,7 @@ z_mult = 100.0                 # 'scaled' mode: lambda_c = z_mult * z  [ASSUMED]
 
 [scales]
 # LSM/VLSM separation, library/writeups/ec_scales.md (bands small | lsm | vlsm)
-signals = ["u", "w", "Ts"]     # per-band variance fractions
+signals = ["u_pf", "w_pf", "ts"]  # per-band variance fractions
 fluxes = ["uw", "wTs"]         # per-band covariance fractions
 cutoff_mode = "spectral_gap"   # spectral_gap | delta | scaled (shared deviation entry, ec_ampmod.md)
 delta_m = 1000.0               # [m] 'delta' mode: cuts at 0.1*pi*delta and pi*delta -- the ratios are

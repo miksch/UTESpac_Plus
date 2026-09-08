@@ -41,7 +41,7 @@ def main(argv):
     ds = ecio.read_group(out, "spectra")
     hf = ecio.open_hf(hf_path)
     z = float(hf.heights[0])
-    ustar = np.asarray(hf.ds["ustar"].values[:, 0], dtype=float)
+    ustar = np.asarray(hf.ds["ustar_pf"].values[:, 0], dtype=float)
     L = np.asarray(hf.ds["L"].values[:, 0], dtype=float)
     hf.close()
 
@@ -56,7 +56,7 @@ def main(argv):
 
     fig, axes = plt.subplots(2, 3, figsize=(13, 8))
     ax = axes[0, 0]
-    for k, c in (("u", C_DATA), ("w", "#1baf7a"), ("Ts", "#9b59b6")):
+    for k, c in (("u_pf", C_DATA), ("w_pf", "#1baf7a"), ("ts", "#9b59b6")):
         S = ds[f"S_{k}"].values[:, 0, :]
         var = ds[f"var_{k}"].values[:, 0]
         band = np.nansum(S * width, axis=1)
@@ -135,7 +135,7 @@ def main(argv):
     print(f"figure written: {os.path.relpath(fig_out, ROOT)}")
 
     # numbers for the record
-    for k in ("u", "w", "Ts"):
+    for k in ("u_pf", "w_pf", "ts"):
         S = ds[f"S_{k}"].values[:, 0, :]; var = ds[f"var_{k}"].values[:, 0]
         r = np.nansum(S * width, axis=1)[rec_ok] / var[rec_ok]
         print(f"  band-sum/var {k}: median {np.nanmedian(r):.3f}, range {np.nanmin(r):.3f}-{np.nanmax(r):.3f}")

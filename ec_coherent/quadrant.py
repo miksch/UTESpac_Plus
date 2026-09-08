@@ -14,7 +14,7 @@ import numpy as np
 import xarray as xr
 
 from . import preprocess as pp
-from .io import HFFile, iter_windows
+from .io import HFFile, iter_windows, token
 
 GROUP = "quadrant"
 OCTANT_GROUP = "octant"
@@ -22,7 +22,7 @@ OCTANT_GROUP = "octant"
 # plane (x1, x2): quadrant by signs, Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-).
 # uw on (u', w') -- Wallace et al. 1972 layout (Q2 ejection, Q4 sweep);
 # scalars on (w', c') -- Li & Bo 2019 eq. 10 (labels sign-aware, see the note).
-PAIRS = {"uw": ("u", "w"), "wTs": ("w", "Ts"), "wrhov": ("w", "rhov"), "wrhoCO2": ("w", "rhoCO2")}
+PAIRS = {"uw": ("u_pf", "w_pf"), "wTs": ("w_pf", "ts"), "wrhov": ("w_pf", "rho_h2o"), "wrhoCO2": ("w_pf", "rho_co2")}
 QUADRANTS = ("Q1", "Q2", "Q3", "Q4")
 # Li & Bo 2019 eq. 11 sign triples (u', w', c') for octants O1..O8
 OCTANT_SIGNS = ((1, 1, 1), (-1, 1, 1), (-1, 1, -1), (1, 1, -1),
@@ -136,8 +136,8 @@ def _prime(win, ih, names, pc):
 def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
     """Quadrant statistics for every window and pair; the ``/quadrant`` Dataset."""
     qc, pc = cfg.quadrant, cfg.preprocess
-    pairs = [k for k in qc.pairs if all(m in ("u", "v", "w") or m in hf.ds for m in PAIRS[k])]
-    names = list(dict.fromkeys(["u", "v", "w"] + [m for k in pairs for m in PAIRS[k]]))
+    pairs = [k for k in qc.pairs if all(m in ("u_pf", "v_pf", "w_pf") or m in hf.ds for m in PAIRS[k])]
+    names = list(dict.fromkeys(["u_pf", "v_pf", "w_pf"] + [m for k in pairs for m in PAIRS[k]]))
     holes = np.asarray(qc.hole_sizes, dtype=float)
     nr, nh, nq, nH = len(hf.records), len(hf.heights), len(QUADRANTS), len(holes)
 
@@ -151,7 +151,7 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
     for win in iter_windows(hf, variables=names, records=records):
         i = win.index
         for ih in range(nh):
-            if not win.has("w", ih):
+            if not win.has("w_pf", ih):
                 continue
             prime = _prime(win, ih, names, pc)
             for k in pairs:
@@ -161,7 +161,7 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
                 st = quadrant_stats(prime[a], prime[b], holes, qc.hole_norm)
                 S[k][i, ih], T[k][i, ih], count[k][i, ih] = st["S"], st["T"], st["count"]
                 cov[k][i, ih] = st["total"]
-                d = derived_h0(prime[a], prime[b], w_is=(0 if a == "w" else 1))
+                d = derived_h0(prime[a], prime[b], w_is=(0 if a == "w_pf" else 1))
                 for name, v in d.items():
                     der[k][name][i, ih] = v
 
@@ -172,7 +172,7 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
     ds["hole"].attrs.update(long_name=f"hyperbolic hole size H ({qc.hole_norm} normalization)")
     dims4, dims = ("record", "height", "quadrant", "hole"), ("record", "height")
     for k in pairs:
-        a, b = PAIRS[k]
+        a, b = (token(s) for s in PAIRS[k])
         plane = f"({a}', {b}')"
         ds[f"S_frac_{k}"] = (dims4, S[k], {
             "long_name": f"{a}'{b}' flux fraction per quadrant of the {plane} plane outside the hole"})
@@ -210,9 +210,9 @@ def run_octant(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.D
         t = tuple(t)
         if len(t) != 3:
             raise ValueError(f"octant triplet needs 3 signals, got {t}")
-        if all(m in ("u", "v", "w") or m in hf.ds for m in t):
+        if all(m in ("u_pf", "v_pf", "w_pf") or m in hf.ds for m in t):
             trips.append(t)
-    names = list(dict.fromkeys(["u", "v", "w"] + [m for t in trips for m in t]))
+    names = list(dict.fromkeys(["u_pf", "v_pf", "w_pf"] + [m for t in trips for m in t]))
     nr, nh = len(hf.records), len(hf.heights)
 
     comps = {t: ((t[0], t[1]), (t[0], t[2]), (t[1], t[2])) for t in trips}
@@ -224,7 +224,7 @@ def run_octant(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.D
     for win in iter_windows(hf, variables=names, records=records):
         i = win.index
         for ih in range(nh):
-            if not win.has("w", ih):
+            if not win.has("w_pf", ih):
                 continue
             prime = _prime(win, ih, names, pc)
             for t in trips:
@@ -242,18 +242,20 @@ def run_octant(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.D
     dims3, dims = ("record", "height", "octant"), ("record", "height")
     layouts = []
     for t in trips:
-        tag = "".join(t)
+        tt = tuple(token(s) for s in t)
+        tag = "_".join(tt)
         layout = ("O1..O8 by the signs of ({0}', {1}', {2}') per Li & Bo 2019 eq. 11: "
-                  "(+++), (-++), (-+-), (++-), (+-+), (--+), (---), (+--)").format(*t)
+                  "(+++), (-++), (-+-), (++-), (+-+), (--+), (---), (+--)").format(*tt)
         layouts.append(f"{tag}: {layout}")
         for k, (a, b) in zip(("uw", "uc", "wc"), comps[t]):
+            a, b = token(a), token(b)
             ds[f"flux_frac_{tag}_{a}{b}"] = (dims3, F[t][k], {
-                "long_name": f"fraction of the {a}'{b}' covariance per ({t[0]}', {t[1]}', {t[2]}') octant"})
+                "long_name": f"fraction of the {a}'{b}' covariance per ({tt[0]}', {tt[1]}', {tt[2]}') octant"})
             ds[f"cov_{tag}_{a}{b}"] = (dims, tot[t][k], {"long_name": f"total {a}'{b}' covariance"})
         ds[f"dur_frac_{tag}"] = (dims3, T[t], {
-            "long_name": f"time fraction per ({t[0]}', {t[1]}', {t[2]}') octant"})
+            "long_name": f"time fraction per ({tt[0]}', {tt[1]}', {tt[2]}') octant"})
         ds[f"count_{tag}"] = (dims3, count[t], {"long_name": "samples per octant"})
-    ds.attrs.update(octant_triplets="; ".join(",".join(t) for t in trips),
+    ds.attrs.update(octant_triplets="; ".join(",".join(token(s) for s in t) for t in trips),
                     detrend_method=pc.detrend,
                     octant_layout=" | ".join(layouts),
                     closure="flux_frac sums to 1 over octant per component; no hole (none of the read "

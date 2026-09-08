@@ -1,6 +1,6 @@
 """Compare UTESpac VAC001 output against the EddyPro reference run.
 
-Reads the UTESpac 30-min run files (utespac-run-2 netCDF) in
+Reads the UTESpac 30-min run files (utespac-run-3 netCDF) in
 data/VAC001/output (produced by run_vac001.py) and the EddyPro full-output CSV in data/VAC001/eddypro,
 joins on period-end timestamp, and prints agreement statistics for H, LE,
 Fc, u*, L, wind, sigma_w, and the tilt angles. Optionally writes a
@@ -13,12 +13,13 @@ Usage (repo root, UTESpac_Plus env)::
 Conventions that matter for the join and units:
   * UTESpac timestamps are the last sample of each window (period end);
     EddyPro ``datetime`` is also period end. Both are rounded to the minute.
-  * UTESpac H is kinematic (K m/s) with rho and cp in columns 1-2 of H;
+  * The UTESpac heat flux is compared kinematically: rho and cp are columns
+    1-2 of sensible_heat;
     H [W/m2] = rho * cp * w'T'. Two variants are compared: w'Ts' (sonic,
-    unrotated w) and Theta_v'wPF' (planar-fit w), the latter being what
+    unrotated w) and w'theta_v' (planar-fit w), the latter being what
     the WPL path uses. EddyPro ``H`` is the humidity-corrected sensible
     heat flux; ``un_H`` is before spectral correction.
-  * UTESpac CO2 WPL flux is stored in kg m-2 s-1 despite the header's
+  * UTESpac Fc_wpl_pf is stored in kg m-2 s-1 despite the legacy header's
     "(mol/m^2s)" label; converted to umol m-2 s-1 here.
   * EddyPro q' (H2O) second moments are treated as suspect per the
     2026-08-22 ruling; LE is reported but H/u*/L anchor the judgement.
@@ -72,11 +73,12 @@ def _frame_from_output(out):
     the entire block for that file with NaN. Header-label lookup sidesteps
     that.
     """
-    heights = sorted({float(h.split("m")[0]) for h in get_header(out, "H")[3:]
-                      if h and h[0].isdigit()})
+    heights = sorted({float(h.rsplit("_", 1)[1]) for h in get_header(out, "sensible_heat")[3:]
+                      if h and h.rsplit("_", 1)[-1][:1].isdigit()})
     z = heights[0]
-    t = datenum_to_datetime(out["H"][:, 0])
-    rho, cp = out["H"][:, 1], out["H"][:, 2]
+    hn = f"{z:g}"
+    t = datenum_to_datetime(out["sensible_heat"][:, 0])
+    rho, cp = out["sensible_heat"][:, 1], out["sensible_heat"][:, 2]
     df = pd.DataFrame(index=t)
 
     def opt(field, label, scale=1.0):
@@ -85,28 +87,31 @@ def _frame_from_output(out):
         except KeyError:
             return np.full(len(t), np.nan)
 
-    df["wTs_PF"]     = opt("H", f"{z:g}m son:Theta_v'wPF'")   # kinematic, K m/s
-    df["H_Ts_w"]     = rho * cp * opt("H", f"{z:g}m son:Ts'w'")
-    df["H_Thv_wPF"]  = rho * cp * df["wTs_PF"]
-    df["H_Tair_wPF"] = rho * cp * opt("H", f"{z:g}m son:T_air'wPF'")
-    df["H_fw_wPF"]   = rho * cp * opt("H", f"{z:g}m fw:T'wPF'")
-    df["ustar"]  = np.sqrt(opt("tau", f"{z:g}m :sqrt(uPF'wPF'^2+vPF'wPF'^2)"))
-    df["L"]      = opt("L", f"{z:g}m L:")
+    df["w_theta_v_cov_pf"]     = opt("sensible_heat", f"w_theta_v_cov_pf_{hn}")   # kinematic, K m/s
+    df["H_ts_raw"]     = rho * cp * opt("sensible_heat", f"w_ts_cov_raw_{hn}")
+    df["H_buoyancy_pf"]  = rho * cp * df["w_theta_v_cov_pf"]
+    df["H_pf"] = rho * cp * opt("sensible_heat", f"w_t_air_cov_pf_{hn}")
+    df["H_fw_pf"]   = rho * cp * opt("sensible_heat", f"w_t_fw_cov_pf_{hn}")
+    df["ustar"]  = opt("scaling", f"ustar_pf_{hn}")
+    if not np.isfinite(df["ustar"]).any():     # utespac-run-2 file: ustar_pf not stored yet
+        df["ustar"] = np.sqrt(np.abs(opt("momentum", f"Tau_pf_{hn}")))
+    df["L"]      = opt("obukhov", f"L_{hn}")
     df["zeta"]   = z / df["L"]
-    df["LE_wPF"] = opt("LHflux", f"{z:g}m WPL, wPF' (W/m^2)")
-    df["Fc_wPF"] = (opt("CO2flux", f"{z:g}m WPL,wPF':CO2") / M_CO2 * 1e6
-                    if "CO2flux" in out else np.nan)
-    df["sigma_w"] = opt("sigma", f"{z:g}m :sigma_wPF")
-    df["TKE"]     = opt("tke", f"{z:g}m :0.5")
-    df["WS"]      = opt("spdAndDir", f"{z}m speed")
-    df["WD"]      = opt("spdAndDir", f"{z}m direction")
+    df["LE_wpl_pf"] = opt("latent_heat", f"LE_wpl_pf_{hn}")
+    df["Fc_wpl_pf"] = (opt("co2_flux", f"Fc_wpl_pf_{hn}") / M_CO2 * 1e6
+                    if "co2_flux" in out else np.nan)
+    df["sigma_w"] = opt("sigma", f"w_sigma_pf_{hn}")
+    df["TKE"]     = opt("tke", f"TKE_{hn}")
+    df["WS"]      = opt("spdAndDir", f"wind_speed_{hn}")
+    df["WD"]      = opt("spdAndDir", f"wind_dir_{hn}")
     return df, z
 
 
 def load_utespac(pf, det="LinDet"):
     files = run_files(os.path.join(ROOT, "data"), "VAC001", avg_per=30, qualifier=f"{pf}_{det}")
     if not files:
-        raise FileNotFoundError(f"no utespac-run-2 files *_30minAvg_{pf}_{det}_*.nc under {SITE_DIR}/output")
+        raise FileNotFoundError(
+            f"no run files *_30minAvg_{pf}_{det}_*.nc under {SITE_DIR}/output")
     frames, z, last = [], None, None
     for f in files:
         last = read_run_legacy(f)
@@ -150,19 +155,19 @@ def stats(a, b):
 
 PAIRS = [
     # (utespac column, eddypro column, label)
-    ("H_Ts_w",     "H",     "H: w'Ts' (unrot)  vs EddyPro H"),
-    ("H_Thv_wPF",  "H",     "H: Thv'wPF'       vs EddyPro H"),
-    ("H_Tair_wPF", "H",     "H: Tair'wPF'      vs EddyPro H"),
-    ("H_fw_wPF",   "H",     "H: fw T'wPF'      vs EddyPro H"),
-    ("H_Thv_wPF",  "un_H",  "H: Thv'wPF'       vs EddyPro un_H (no spectral corr)"),
-    ("wTs_PF",     "wts_cov", "w'Ts' kinematic   vs EddyPro w/ts_cov (rotated, raw)"),
+    ("H_ts_raw",      "H",     "H: w'Ts' (unrotated)    vs EddyPro H"),
+    ("H_buoyancy_pf", "H",     "H: w'theta_v' (pf)      vs EddyPro H"),
+    ("H_pf",          "H",     "H: w'T_air' (pf)        vs EddyPro H"),
+    ("H_fw_pf",       "H",     "H: w'T_fw' (pf)         vs EddyPro H"),
+    ("H_buoyancy_pf", "un_H",  "H: w'theta_v' (pf)      vs EddyPro un_H (no spectral corr)"),
+    ("w_theta_v_cov_pf", "wts_cov", "w'theta_v' kinematic    vs EddyPro w/ts_cov (rotated, raw)"),
     ("ustar",      "ustar", "u*"),
     ("L",          "L",     "L (Obukhov)"),
     ("zeta",       "zeta",  "z/L clipped to [-2,2]"),
-    ("LE_wPF",     "LE",    "LE WPL wPF'       vs EddyPro LE  [q' caveat]"),
-    ("LE_wPF",     "un_LE", "LE WPL wPF'       vs EddyPro un_LE (pre-spectral, pre-WPL)"),
-    ("Fc_wPF",     "Fc",    "Fc WPL wPF'       vs EddyPro co2_flux"),
-    ("Fc_wPF",     "un_Fc", "Fc WPL wPF'       vs EddyPro un_co2_flux (pre-spectral, pre-WPL)"),
+    ("LE_wpl_pf",     "LE",    "LE (WPL, pf)            vs EddyPro LE  [q' caveat]"),
+    ("LE_wpl_pf",     "un_LE", "LE (WPL, pf)            vs EddyPro un_LE (pre-spectral, pre-WPL)"),
+    ("Fc_wpl_pf",     "Fc",    "Fc (WPL, pf)            vs EddyPro co2_flux"),
+    ("Fc_wpl_pf",     "un_Fc", "Fc (WPL, pf)            vs EddyPro un_co2_flux (pre-spectral, pre-WPL)"),
     ("sigma_w",    "sigma_w", "sigma_w"),
     ("TKE",        "TKE",   "TKE"),
     ("WS",         "WS",    "wind speed"),

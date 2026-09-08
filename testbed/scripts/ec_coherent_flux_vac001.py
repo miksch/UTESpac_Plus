@@ -36,11 +36,11 @@ def patterns(hf, cfg, i_rec):
     """Conditional averages about the u' events of one record (fig. 2 analog)."""
     rc, pc, cf = cfg.ramps, cfg.preprocess, cfg.coherent_flux
     scales = ramps.log_scales(rc.a_min_s, rc.a_max_s, rc.n_scales_per_decade)
-    for win in ecio.iter_windows(hf, variables=("u", "v", "w", "Ts"), records=[i_rec]):
-        prep = pp.prepare(win, 0, ["u", "w", "Ts"], method=pc.detrend, tau_s=pc.filter_tau_s)
-        pu, pw, pT = (prep.prime[k] for k in ("u", "w", "Ts"))
+    for win in ecio.iter_windows(hf, variables=("u_pf", "v_pf", "w_pf", "ts"), records=[i_rec]):
+        prep = pp.prepare(win, 0, ["u_pf", "w_pf", "ts"], method=pc.detrend, tau_s=pc.filter_tau_s)
+        pu, pw, pT = (prep.prime[k] for k in ("u_pf", "w_pf", "ts"))
         wT = float(np.nanmean(pw * pT))
-        ev = ramps.detect(pu, hf.fs, scales, slope=ramps._slope_for("u", rc.slope_u, wT),
+        ev = ramps.detect(pu, hf.fs, scales, slope=ramps._slope_for("u_pf", rc.slope_u, wT),
                           peak=rc.peak, edge_scales=rc.edge_scales, D_min_s=rc.D_min_s)
         half = ev.D if cf.window == "duration" else 0.5 * cf.window_s
         lag, cw = cflux.conditional_average(pw, hf.fs, ev.times, half)
@@ -56,11 +56,11 @@ def turner_sweep(hf, cfg, Ks):
     """Median w'Ts' strong-covariance fraction across records for each threshold K."""
     pc = cfg.preprocess
     fr = {K: [] for K in Ks}
-    for win in ecio.iter_windows(hf, variables=("u", "v", "w", "Ts")):
-        prep = pp.prepare(win, 0, ["w", "Ts"], method=pc.detrend, tau_s=pc.filter_tau_s)
-        if not (prep.accepted.get("w") and prep.accepted.get("Ts")):
+    for win in ecio.iter_windows(hf, variables=("u_pf", "v_pf", "w_pf", "ts")):
+        prep = pp.prepare(win, 0, ["w_pf", "ts"], method=pc.detrend, tau_s=pc.filter_tau_s)
+        if not (prep.accepted.get("w_pf") and prep.accepted.get("ts")):
             continue
-        pw, pT = prep.prime["w"], prep.prime["Ts"]
+        pw, pT = prep.prime["w_pf"], prep.prime["ts"]
         if not (np.isfinite(pw).all() and np.isfinite(pT).all()):
             continue
         for K in Ks:
@@ -127,7 +127,7 @@ def main(argv):
     print(f"relative EC flux error (eq. 12b/12c): wTs median |err| "
           f"{np.nanmedian(np.abs(ferr_wT[valid_wT])) * 100:.1f}%, "
           f"uw {np.nanmedian(np.abs(ferr_uw[valid_uw])) * 100:.1f}% [TF2007: < 4% mostly]")
-    n_Ts = ds.n_structures_Ts.values[:, 0]
+    n_Ts = ds.n_structures_ts.values[:, 0]
     print(f"Ts' event set alongside: events in {np.count_nonzero(n_Ts)} of {len(rec)} records "
           f"(median {np.median(n_Ts[n_Ts > 0]) if (n_Ts > 0).any() else float('nan'):.0f} where found)")
 

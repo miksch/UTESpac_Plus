@@ -26,37 +26,44 @@ def _output():
         "X_20Hz": tbl,
         "X_20HzHeader": [["TIMESTAMP", "Ux_10.85", "T_Sonic_10.85"], [None, 10.85, 10.85]],
         "X_20HzSpikeFlag": np.array([[0, 1, 0], [0, 0, 0], [0, 0, 1], [0, 0, 0]], dtype=bool),
-        "H": np.column_stack([T, np.full(4, 1.2), [np.nan, 1, 2, 3]]),
-        "Hheader": ["time", "rho", "10.85m son:Ts'w'"],
+        "sensible_heat": np.column_stack([T, np.full(4, 1.2), [np.nan, 1, 2, 3]]),
+        "sensible_heatHeader": ["time", "rho_air_ref", "w_ts_cov_raw_10.85"],
         "spdAndDir": np.column_stack([T, [200.0, 210, 220, 230]]),
-        "spdAndDirHeader": ["timeStamp", "10.85m direction"],
+        "spdAndDirHeader": ["timeStamp", "wind_dir_10.85"],
         "rotatedSonic": np.ones((4, 3)),
-        "rotatedSonicHeader": ["10.85m:u", "10.85m:v", "10.85m:w"],
-        "epsilon": np.column_stack([T]),
-        "epsilonHeader": ["time"],
+        "rotatedSonicHeader": ["u_pf_10.85", "v_pf_10.85", "w_pf_10.85"],
+        "dissipation": np.column_stack([T]),
+        "dissipationHeader": ["time"],
         "dataInfo": [["file: X_20Hz_20240601000000_20240603000000.txt", "beg date: 01-Jun-2024"]],
         "warnings": [],
     }
 
 
 def test_parse_label():
+    # current form: the height is the trailing suffix of the column name
+    assert labeled.parse_label("w_ts_cov_raw_10.85") == (10.85, "w_ts_cov_raw")
+    assert labeled.parse_label("TKE_2") == (2.0, "TKE")
+    assert labeled.parse_label("shadow_flag_4.42") == (4.42, "shadow_flag")
+    assert labeled.parse_label("rho_air_ref") == (None, "rho_air_ref")
+    assert labeled.parse_label("time") == (None, "time")
+    # labels of files written before the rename
     assert labeled.parse_label("10.85m son:Ts'w'") == (10.85, "son:Ts'w'")
     assert labeled.parse_label("10.85 m: q(g/kg)") == (10.85, "q(g/kg)")
     assert labeled.parse_label("10.85m:u") == (10.85, "u")
     assert labeled.parse_label("4.42m flag 15<dir<55") == (4.42, "flag 15<dir<55")
     assert labeled.parse_label("rho") == (None, "rho")
-    assert labeled.parse_label("time") == (None, "time")
 
 
 def test_tables_shapes_and_time():
     tabs = labeled.tables(_output())
-    assert set(tabs) == {"X_20Hz", "X_20HzSpikeFlag", "H", "spdAndDir", "rotatedSonic", "epsilon"}
-    h = tabs["H"]
-    assert h.time_in_col0 and h.labels == ["rho", "10.85m son:Ts'w'"]
+    assert set(tabs) == {"X_20Hz", "X_20HzSpikeFlag", "sensible_heat", "spdAndDir",
+                         "rotatedSonic", "dissipation"}
+    h = tabs["sensible_heat"]
+    assert h.time_in_col0 and h.labels == ["rho_air_ref", "w_ts_cov_raw_10.85"]
     assert h.heights == [None, 10.85] and h.values.shape == (4, 2)
     assert h.time[0] == np.datetime64("2024-06-01T00:30:00.000")
-    assert h.time_label == "time" and h.header_key == "Hheader"
-    # nested table header: heights from the header row, time column dropped
+    assert h.time_label == "time" and h.header_key == "sensible_heatHeader"
+    # nested table header: heights from the header row, not from the column names
     x = tabs["X_20Hz"]
     assert x.header_nested and x.labels == ["Ux_10.85", "T_Sonic_10.85"] and x.heights == [10.85, 10.85]
     # flags share the table header (time column kept, it is a flag column too)
@@ -65,13 +72,21 @@ def test_tables_shapes_and_time():
     assert f.values.dtype == bool and np.array_equal(f.time, x.time)
     # no time column of its own: the reference axis
     assert np.array_equal(tabs["rotatedSonic"].time, x.time)
-    assert tabs["epsilon"].values.shape == (4, 0)
+    assert tabs["dissipation"].values.shape == (4, 0)
+
+
+def test_logger_table_heights_come_from_the_nested_header():
+    """The trailing-height parser must not reinterpret logger column names."""
+    out = _output()
+    out["X_20HzHeader"] = [["TIMESTAMP", "Ux_10.85", "T_Sonic_10.85"], [None, 3.0, 3.0]]
+    assert labeled.tables(out)["X_20Hz"].heights == [3.0, 3.0]
 
 
 def test_to_frames():
     fr = labeled.to_frames(_output())
-    assert fr["H"].index.name == "time" and list(fr["H"].columns) == ["rho", "10.85m son:Ts'w'"]
-    assert fr["H"].loc["2024-06-01 01:30", "10.85m son:Ts'w'"] == 2
+    assert fr["sensible_heat"].index.name == "time"
+    assert list(fr["sensible_heat"].columns) == ["rho_air_ref", "w_ts_cov_raw_10.85"]
+    assert fr["sensible_heat"].loc["2024-06-01 01:30", "w_ts_cov_raw_10.85"] == 2
 
 
 def _assert_same(a, b):
@@ -103,8 +118,8 @@ def test_netcdf_round_trip(tmp_path):
         assert ds.getncattr("sampling_frequency_hz") == 20.0
         assert ds.getncattr("source_files") == "X_20Hz_20240601000000_20240603000000.txt"
         assert ds["time"].units.startswith("milliseconds since 1970-01-01")
-        assert list(ds["H_column"][:]) == ["rho", "10.85m son:Ts'w'"]
-        hh = np.ma.filled(ds["H_height"][:], np.nan)
+        assert list(ds["sensible_heat_column"][:]) == ["rho_air_ref", "w_ts_cov_raw_10.85"]
+        hh = np.ma.filled(ds["sensible_heat_height"][:], np.nan)
         assert np.isnan(hh[0]) and hh[1] == 10.85
         assert ds["X_20HzSpikeFlag"].dtype == np.int8
     frames = labeled.read_netcdf(path, frames=True)
@@ -123,7 +138,7 @@ def test_get_data_reads_netcdf_like_pkl(tmp_path):
     (site / "siteInfo.toml").write_text("tower = 1\n")
     out1 = _output()
     out2 = _output()
-    for k in ("X_20Hz", "H", "spdAndDir", "epsilon"):        # next file: two hours later
+    for k in ("X_20Hz", "sensible_heat", "spdAndDir", "dissipation"):   # next file: two hours later
         out2[k][:, 0] += 2 / 24
     for i, o in enumerate((out1, out2), 1):
         with open(site / "output" / f"X_30minAvg_LPF_ConstDet_0{i}.pkl", "wb") as fh:
@@ -132,8 +147,8 @@ def test_get_data_reads_netcdf_like_pkl(tmp_path):
     from_pkl = get_data(tmp_path, site="SiteA", avg_per=30, qualifier="LPF", fmt="pkl")
     from_nc = get_data(tmp_path, site="SiteA", avg_per=30, qualifier="LPF", fmt="nc")
     _assert_same(from_pkl, from_nc)
-    assert from_nc["H"].shape == (8, 3)
+    assert from_nc["sensible_heat"].shape == (8, 3)
     fr = get_frames(tmp_path, site="SiteA", avg_per=30, qualifier="LPF", fmt="nc")
-    assert fr["H"].shape == (8, 2) and fr["H"].index.name == "time"
+    assert fr["sensible_heat"].shape == (8, 2) and fr["sensible_heat"].index.name == "time"
     with pytest.raises(ValueError, match="fmt"):
         get_data(tmp_path, site="SiteA", fmt="csv")

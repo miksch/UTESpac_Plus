@@ -134,7 +134,7 @@ def test_turner_fraction_separates_isolated_events_from_noise():
 
 def test_tke_event_set_is_rejected():
     cfg = ECConfig.from_config(modules=("coherent_flux",),
-                               coherent_flux={"event_signals": ("u", "e")})
+                               coherent_flux={"event_signals": ("u_pf", "e")})
     with pytest.raises(ValueError, match="TKE"):
         cflux.run(None, cfg)
 
@@ -145,7 +145,7 @@ def test_module_run_writes_the_coherent_flux_group(tmp_path):
                                ramps={"a_max_s": 100.0, "D_min_s": 0.0})
     out = run_file(path, cfg)
     ds = ecio.read_group(out, "coherent_flux")
-    assert ds.attrs["event_signals"] == "u,Ts" and ds.attrs["window"] == "duration"
+    assert ds.attrs["event_signals"] == "u,ts" and ds.attrs["window"] == "duration"
     assert (ds["n_structures_u"] > 0).all()
     assert np.isfinite(ds["half_window_u"]).all()
     for k in ("uw", "wTs", "wrhov"):
@@ -155,7 +155,7 @@ def test_module_run_writes_the_coherent_flux_group(tmp_path):
         assert ds[f"F_coh_quad_{k}"].attrs["method"] == "quadrant"
     assert list(ds["hole"].values) == [0.0, 0.5, 1.0]
     # identities where the wavelet estimator ran
-    for s in ("u", "Ts"):
+    for s in ("u", "ts"):
         cs, ej, sw = (ds[f"{f}_wTs_{s}"].values for f in ("F_cs", "F_ej", "F_sw"))
         fin = np.isfinite(cs)
         assert fin.any()
@@ -175,7 +175,7 @@ def test_module_run_fixed_window_and_turner(tmp_path):
     cfg = ECConfig.from_config(modules=("coherent_flux",),
                                ramps={"a_max_s": 100.0, "D_min_s": 0.0},
                                coherent_flux={"window": "fixed", "window_s": 20.0,
-                                              "event_signals": ("u",), "pairs": ("uw",),
+                                              "event_signals": ("u_pf",), "pairs": ("uw",),
                                               "turner": True, "turner_K": 2.0})
     ds = ecio.read_group(run_file(path, cfg), "coherent_flux")
     hw = ds["half_window_u"].values
@@ -187,6 +187,6 @@ def test_module_run_fixed_window_and_turner(tmp_path):
     # the default config carries no turner variables
     cfg0 = ECConfig.from_config(modules=("coherent_flux",),
                                 ramps={"a_max_s": 100.0, "D_min_s": 0.0},
-                                coherent_flux={"event_signals": ("u",), "pairs": ("uw",)})
+                                coherent_flux={"event_signals": ("u_pf",), "pairs": ("uw",)})
     ds0 = ecio.read_group(run_file(path, cfg0), "coherent_flux")
     assert ds0.attrs["turner"] == 0 and "F_frac_turner_uw" not in ds0

@@ -34,8 +34,8 @@ C_T, C_U, C_REF, C_INK, C_OK = "#9b59b6", "#2a78d6", "#eb6834", "#52514e", "#1ba
 
 def detect_for(prep, name, fs, cfg, refine="none"):
     x = prep.prime[name]
-    wT = float(np.nanmean(prep.prime["w"] * prep.prime["Ts"]))
-    slope = ramps._slope_for(name, getattr(cfg.ramps, f"slope_{name}", "auto"), wT)
+    wT = float(np.nanmean(prep.prime["w_pf"] * prep.prime["ts"]))
+    slope = ramps._slope_for(name, getattr(cfg.ramps, f"slope_{ecio.token(name)}", "auto"), wT)
     sc = ramps.log_scales(cfg.ramps.a_min_s, cfg.ramps.a_max_s, cfg.ramps.n_scales_per_decade)
     return ramps.detect(x, fs, sc, slope=slope, peak=cfg.ramps.peak,
                         edge_scales=cfg.ramps.edge_scales, refine=refine,
@@ -47,15 +47,15 @@ def main(argv):
     cfg = ECConfig.from_config()
     hf = ecio.open_hf(hf_path)
     fs = hf.fs
-    need = ("u", "v", "w", "Ts")
+    need = ("u_pf", "v_pf", "w_pf", "ts")
 
     # ---- pooled per-event lag (zero-crossing minus refined), whole day --------------
-    lags = {"Ts": [], "u": []}
+    lags = {"ts": [], "u_pf": []}
     preps = {}
     for win in ecio.iter_windows(hf, variables=need):
         prep = pp.prepare(win, 0, need, method=cfg.preprocess.detrend)
         preps[win.index] = prep
-        for name in ("Ts", "u"):
+        for name in ("ts", "u_pf"):
             if not prep.accepted.get(name, False) or not np.isfinite(prep.prime[name]).all():
                 continue
             ev, _ = detect_for(prep, name, fs, cfg)
@@ -63,8 +63,8 @@ def main(argv):
                 continue
             ref = ramps.refine_times(prep.prime[name], fs, ev.times, ev.a0, "ramp")
             lags[name].append((ev.times - ref) / ev.a0)
-    lag_T = np.concatenate(lags["Ts"]) if lags["Ts"] else np.array([])
-    lag_u = np.concatenate(lags["u"]) if lags["u"] else np.array([])
+    lag_T = np.concatenate(lags["ts"]) if lags["ts"] else np.array([])
+    lag_u = np.concatenate(lags["u_pf"]) if lags["u_pf"] else np.array([])
     print(f"pooled events: Ts {lag_T.size} (lag median {np.median(lag_T):+.2f} a0), "
           f"u {lag_u.size} (lag median {np.median(lag_u):+.2f} a0)")
 
@@ -74,10 +74,10 @@ def main(argv):
     # ---- (a) strongest-heat-flux window: Ts ramps visible, Ts detector fails --------
     rec_a = 21                                # 2023-07-06 11:00, max w'Ts' of the file
     prep_a = preps[rec_a]
-    xT, xu = prep_a.prime["Ts"], prep_a.prime["u"]
+    xT, xu = prep_a.prime["ts"], prep_a.prime["u_pf"]
     t = np.arange(xT.size) / fs
-    evT_a, slope_a = detect_for(prep_a, "Ts", fs, cfg)
-    evu_a, _ = detect_for(prep_a, "u", fs, cfg, refine="none")
+    evT_a, slope_a = detect_for(prep_a, "ts", fs, cfg)
+    evu_a, _ = detect_for(prep_a, "u_pf", fs, cfg, refine="none")
     seg = (t >= 480) & (t < 960)
     ax = fig.add_subplot(gs[0, :])
     ax.plot(t[seg], xT[seg], "-", color=C_T, lw=0.8)
@@ -137,8 +137,8 @@ def main(argv):
     # ---- (d) issue 1 on one trace: a window where Ts detection works ----------------
     rec_d = 18                                # 09:30, D_Ts = 9.2 s, 99 events
     prep_d = preps[rec_d]
-    xd = prep_d.prime["Ts"]
-    evd, slope_d = detect_for(prep_d, "Ts", fs, cfg)
+    xd = prep_d.prime["ts"]
+    evd, slope_d = detect_for(prep_d, "ts", fs, cfg)
     refd = ramps.refine_times(xd, fs, evd.times, evd.a0, "ramp")
     lag_s = float(np.median(evd.times - refd))
     ax = fig.add_subplot(gs[2, :])

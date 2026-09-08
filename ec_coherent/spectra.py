@@ -12,10 +12,12 @@ import xarray as xr
 from scipy import signal
 
 from . import preprocess as pp
-from .io import HFFile, Window, iter_windows
+from .io import HFFile, Window, iter_windows, token
 
 GROUP = "spectra"
-PAIRS = (("u", "w"), ("w", "Ts"), ("w", "rhov"), ("w", "rhoCO2"), ("w", "theta_v"))
+# analysis-file pair label -> the two HF series of the cross spectrum
+PAIRS = {"uw": ("u_pf", "w_pf"), "wTs": ("w_pf", "ts"), "wrhov": ("w_pf", "rho_h2o"),
+         "wrhoCO2": ("w_pf", "rho_co2"), "wtheta_v": ("w_pf", "theta_v")}
 
 
 @dataclass
@@ -125,14 +127,15 @@ def kaimal_neutral(f: np.ndarray, which: str) -> np.ndarray:
 
 # ---------------------------------------------------------------- module driver
 
-def _pairs_for(names: Sequence[str]) -> List[Tuple[str, str]]:
-    return [(a, b) for a, b in PAIRS if a in names and b in names]
+def _pairs_for(names: Sequence[str]) -> List[str]:
+    """Labels of :data:`PAIRS` whose two series are both in *names*."""
+    return [k for k, (a, b) in PAIRS.items() if a in names and b in names]
 
 
 def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
     """Spectra group for every window and height of *hf*; returns the ``/spectra`` Dataset."""
     sc, pc = cfg.spectra, cfg.preprocess
-    names = ["u", "v", "w"] + [s for s in sc.scalars if s in hf.ds]
+    names = ["u_pf", "v_pf", "w_pf"] + [s for s in sc.scalars if s in hf.ds]
     if "theta_v" in hf.ds and "theta_v" not in names:
         names.append("theta_v")
     pairs = _pairs_for(names)
@@ -145,11 +148,11 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
     def _arr():
         return np.full((nr, nh, nb), np.nan)
     S = {k: _arr() for k in names}
-    Co = {f"{a}{b}": _arr() for a, b in pairs}
-    Qu = {f"{a}{b}": _arr() for a, b in pairs}
-    Og = {f"{a}{b}": _arr() for a, b in pairs}
+    Co = {k: _arr() for k in pairs}
+    Qu = {k: _arr() for k in pairs}
+    Og = {k: _arr() for k in pairs}
     var = {k: np.full((nr, nh), np.nan) for k in names}
-    cov = {f"{a}{b}": np.full((nr, nh), np.nan) for a, b in pairs}
+    cov = {k: np.full((nr, nh), np.nan) for k in pairs}
     diag_names = ("U_mean", "sigma_M", "taylor_ratio", "w_mean", "v_mean", "w_mean_over_sigma_w")
     diag = {k: np.full((nr, nh), np.nan) for k in diag_names}
     nan_frac = np.full((nr, nh), np.nan)
@@ -158,14 +161,14 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
     for win in iter_windows(hf, variables=names, records=records):
         i = win.index
         for ih in range(nh):
-            if not win.has("u", ih) or not win.has("w", ih):
+            if not win.has("u_pf", ih) or not win.has("w_pf", ih):
                 continue
             prep = pp.prepare(win, ih, names, method=pc.detrend, tau_s=pc.filter_tau_s,
                               nan_max_frac=pc.nan_max_frac, taylor_max_ratio=pc.taylor_max_ratio)
             for k in diag_names:
                 diag[k][i, ih] = prep.diagnostics.get(k, np.nan)
-            nan_frac[i, ih] = max(prep.nan_frac.get(k, 0.0) for k in ("u", "v", "w"))
-            n_valid[i, ih] = int(np.isfinite(prep.prime["w"]).sum())
+            nan_frac[i, ih] = max(prep.nan_frac.get(k, 0.0) for k in ("u_pf", "v_pf", "w_pf"))
+            n_valid[i, ih] = int(np.isfinite(prep.prime["w_pf"]).sum())
             for k in names:
                 if not prep.accepted.get(k, False):
                     continue
@@ -175,14 +178,14 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
                 sp = spectrum(x, hf.fs, taper=sc.taper, nperseg=sc.nperseg)
                 S[k][i, ih] = log_bin(sp.f, sp.S, edges)[1]
                 var[k][i, ih] = float(np.var(x))
-            for a, b in pairs:
+            for key in pairs:
+                a, b = PAIRS[key]
                 if not (prep.accepted.get(a) and prep.accepted.get(b)):
                     continue
                 x, y = prep.prime[a], prep.prime[b]
                 if not (np.isfinite(x).all() and np.isfinite(y).all()):
                     continue
                 sp = spectrum(x, hf.fs, y=y, taper=sc.taper, nperseg=sc.nperseg)
-                key = f"{a}{b}"
                 binned = log_bin(sp.f, sp.S, edges)[1]
                 Co[key][i, ih] = np.real(binned)
                 Qu[key][i, ih] = np.imag(binned)
@@ -193,14 +196,15 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
                             "frequency": ("frequency", fb)})
     ds["frequency"].attrs.update(units="Hz", long_name="mean line frequency of each log bin")
     ds["frequency_edges"] = ("frequency_edge", edges)
-    units = {"u": "m2 s-2 Hz-1", "v": "m2 s-2 Hz-1", "w": "m2 s-2 Hz-1", "Ts": "K2 Hz-1",
-             "theta_v": "K2 Hz-1", "rhov": "g2 m-6 Hz-1", "rhoCO2": "mg2 m-6 Hz-1"}
+    units = {"u_pf": "m2 s-2 Hz-1", "v_pf": "m2 s-2 Hz-1", "w_pf": "m2 s-2 Hz-1", "ts": "K2 Hz-1",
+             "theta_v": "K2 Hz-1", "rho_h2o": "g2 m-6 Hz-1", "rho_co2": "mg2 m-6 Hz-1"}
     dims3 = ("record", "height", "frequency")
     for k in names:
-        ds[f"S_{k}"] = (dims3, S[k], {"units": units.get(k, "1"), "long_name": f"one-sided power spectral density of {k}'"})
-        ds[f"var_{k}"] = (("record", "height"), var[k], {"long_name": f"variance of {k}' (closure target)"})
-    for a, b in pairs:
-        key = f"{a}{b}"
+        t = token(k)
+        ds[f"S_{t}"] = (dims3, S[k], {"units": units.get(k, "1"), "long_name": f"one-sided power spectral density of {t}'"})
+        ds[f"var_{t}"] = (("record", "height"), var[k], {"long_name": f"variance of {t}' (closure target)"})
+    for key in pairs:
+        a, b = (token(s) for s in PAIRS[key])
         ds[f"Co_{key}"] = (dims3, Co[key], {"long_name": f"cospectrum of {a}'{b}' (real part of the one-sided CSD)"})
         ds[f"Qu_{key}"] = (dims3, Qu[key], {"long_name": f"quadrature spectrum of {a}'{b}'"})
         ds[f"ogive_{key}"] = (dims3, Og[key], {"long_name": f"ogive of {a}'{b}': integral of Co from f_Nyquist down to f (Foken & Wichura 1996 eq. 10)"})

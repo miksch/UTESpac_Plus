@@ -12,11 +12,11 @@ import numpy as np
 import xarray as xr
 
 from . import preprocess as pp
-from .io import HFFile, iter_windows
+from .io import HFFile, iter_windows, token
 
 GROUP = "mrd"
 
-PAIRS = {"uw": ("u", "w"), "vw": ("v", "w"), "wTs": ("w", "Ts"), "wrhov": ("w", "rhov")}
+PAIRS = {"uw": ("u_pf", "w_pf"), "vw": ("v_pf", "w_pf"), "wTs": ("w_pf", "ts"), "wrhov": ("w_pf", "rho_h2o")}
 
 
 def to_grid(x: np.ndarray, mode: str = "trim") -> Tuple[np.ndarray, float]:
@@ -121,9 +121,9 @@ def gap_scale(tau: np.ndarray, D: np.ndarray, level_frac: float = 0.01) -> float
 def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
     """MR spectra/cospectra, sampling errors, gap scales; the ``/mrd`` Dataset."""
     mc, pc = cfg.mrd, cfg.preprocess
-    sigs = [s for s in mc.signals if s in ("u", "v", "w") or s in hf.ds]
-    flxs = [k for k in mc.fluxes if all(m in ("u", "v", "w") or m in hf.ds for m in PAIRS[k])]
-    names = list(dict.fromkeys(["u", "v", "w"] + sigs + [m for k in flxs for m in PAIRS[k]]))
+    sigs = [s for s in mc.signals if s in ("u_pf", "v_pf", "w_pf") or s in hf.ds]
+    flxs = [k for k in mc.fluxes if all(m in ("u_pf", "v_pf", "w_pf") or m in hf.ds for m in PAIRS[k])]
+    names = list(dict.fromkeys(["u_pf", "v_pf", "w_pf"] + sigs + [m for k in flxs for m in PAIRS[k]]))
 
     n_win = hf.n_per_window
     M = int(np.floor(np.log2(n_win)))
@@ -143,7 +143,7 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
     for win in iter_windows(hf, variables=names, records=records):
         i = win.index
         for ih in range(nh):
-            if not win.has("w", ih):
+            if not win.has("w_pf", ih):
                 continue
             prep = pp.prepare(win, ih, names, method=pc.detrend, tau_s=pc.filter_tau_s,
                               nan_max_frac=pc.nan_max_frac, taylor_max_ratio=pc.taylor_max_ratio)
@@ -174,10 +174,11 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
     ds["mr_scale"].attrs.update(units="s", long_name="MR averaging timescale 2^m dt")
     dims3, dims = ("record", "height", "mr_scale"), ("record", "height")
     for a in sigs:
-        ds[f"D_{a}{a}"] = (dims3, D_sig[a], {
-            "long_name": f"MR spectrum of {a}' (variance per dyadic averaging scale)"})
+        t = token(a)
+        ds[f"D_{t}_{t}"] = (dims3, D_sig[a], {
+            "long_name": f"MR spectrum of {t}' (variance per dyadic averaging scale)"})
     for k in flxs:
-        a, b = PAIRS[k]
+        a, b = (token(s) for s in PAIRS[k])
         ds[f"D_{k}"] = (dims3, D_flx[k], {
             "long_name": f"MR cospectrum of {a}'{b}' (covariance per dyadic averaging scale)"})
         ds[f"err_{k}"] = (dims3, err_flx[k], {

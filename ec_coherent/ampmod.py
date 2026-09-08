@@ -12,7 +12,7 @@ from scipy import signal as sig
 
 from . import preprocess as pp
 from . import spectra as sp
-from .io import HFFile, iter_windows
+from .io import HFFile, iter_windows, token
 
 GROUP = "amplitude_mod"
 
@@ -107,7 +107,7 @@ def cutoff_frequency(cfg, x_mod: np.ndarray, fs: float, U: float, z: float
     raise ValueError(f"ampmod cutoff_mode {mode!r}; expected spectral_gap | delta | scaled")
 
 
-_FLUX_PAIRS = {"uw": ("u", "w"), "wTs": ("w", "Ts"), "wrhov": ("w", "rhov")}
+_FLUX_PAIRS = {"uw": ("u_pf", "w_pf"), "wTs": ("w_pf", "ts"), "wrhov": ("w_pf", "rho_h2o")}
 
 
 def _flux_series(prime: Dict[str, np.ndarray], key: str) -> Optional[np.ndarray]:
@@ -128,8 +128,8 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
     sigs = list(ac.signals)
     flxs = list(ac.fluxes)
     flux_members = [m for k in flxs for m in _FLUX_PAIRS[k]]
-    names = ["u", "v", "w"] + [s for s in dict.fromkeys([*sigs, *mods, *flux_members])
-                               if s not in ("u", "v", "w") and s in hf.ds]
+    names = ["u_pf", "v_pf", "w_pf"] + [s for s in dict.fromkeys([*sigs, *mods, *flux_members])
+                                        if s not in ("u_pf", "v_pf", "w_pf") and s in hf.ds]
     nr, nh = len(hf.records), len(hf.heights)
 
     def _arr():
@@ -141,22 +141,22 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
     for win in iter_windows(hf, variables=names, records=records):
         i = win.index
         for ih in range(nh):
-            if not win.has("u", ih) or not win.has("w", ih):
+            if not win.has("u_pf", ih) or not win.has("w_pf", ih):
                 continue
             prep = pp.prepare(win, ih, names, method=pc.detrend, tau_s=pc.filter_tau_s,
                               nan_max_frac=pc.nan_max_frac, taylor_max_ratio=pc.taylor_max_ratio)
             prime = {k: v for k, v in prep.prime.items()
                      if prep.accepted.get(k, False) and np.isfinite(v).all()}
-            if "u" not in prime:
+            if "u_pf" not in prime:
                 continue
             U = prep.U_mean
             z = float(hf.heights[ih])
-            lam, fc, src = cutoff_frequency(ac, prime["u"], win.fs, U, z)
+            lam, fc, src = cutoff_frequency(ac, prime["u_pf"], win.fs, U, z)
             lam_c[i, ih], f_c[i, ih], source[i, ih] = lam, fc, src
             U_mean[i, ih] = U
             L = win.ancillary.get("L", np.full(nh, np.nan))[ih]
             zeta[i, ih] = z / L if np.isfinite(L) and L != 0 else np.nan
-            f1 = win.fs / len(prime["u"])
+            f1 = win.fs / len(prime["u_pf"])
             if fc <= f1:                       # no resolved line below the cutoff
                 continue
             large = {m: lowpass_sharp(prime[m], win.fs, fc) for m in mods if m in prime}
@@ -176,8 +176,9 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
     dims = ("record", "height")
     for (m, a), arr in R.items():
         kind = "instantaneous flux" if a in flxs else "signal"
-        ds[f"R_{m}L_{a}S"] = (dims, arr, {
-            "long_name": f"amplitude-modulation coefficient of small-scale {a} ({kind}) by large-scale {m}",
+        tm, ta = token(m), token(a)
+        ds[f"R_{tm}L_{ta}S"] = (dims, arr, {
+            "long_name": f"amplitude-modulation coefficient of small-scale {ta} ({kind}) by large-scale {tm}",
             "reference": "Mathis et al. 2009 eq. 5.1; Salesky & Anderson 2018 eq. 1.6 (single-point)"})
     ds["cutoff_lambda"] = (dims, lam_c, {"units": "m", "long_name": "large/small cutoff wavelength lambda_c"})
     ds["cutoff_f"] = (dims, f_c, {"units": "Hz", "long_name": "large/small cutoff frequency U_mean/lambda_c"})

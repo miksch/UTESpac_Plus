@@ -30,17 +30,31 @@ log = logging.getLogger("utespac")
 FORMAT = "utespac-averaged-1"
 _TIME_LABELS = {"time", "timestamp"}
 _LABEL_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*m\s*:?\s*(.*?)\s*$")
+_SUFFIX_RE = re.compile(r"^(?P<name>[A-Za-z][A-Za-z0-9_]*)_(?P<h>\d+(?:\.\d+)?)$")
 _FLAG_SUFFIXES = ("SpikeFlag", "NanFlag")
 _NOT_TABLES = {"dataInfo", "tableNames", "warnings", "infoString", "z"}
 _TIME_UNITS = "milliseconds since 1970-01-01 00:00:00"
 
 
 def parse_label(label: str) -> Tuple[Optional[float], str]:
-    """``"10.85m son:Ts'w'"`` -> ``(10.85, "son:Ts'w'")``; no height -> ``(None, label)``."""
-    m = _LABEL_RE.match(str(label))
+    """Height and name of a product column label.
+
+    ``"w_ts_cov_raw_10.85"`` -> ``(10.85, "w_ts_cov_raw")`` (the current
+    form), ``"10.85m son:Ts'w'"`` -> ``(10.85, "son:Ts'w'")`` (files written
+    before the rename); no height -> ``(None, label)``.
+
+    Applies to product columns only. Logger-table columns (``Ux_10.85``)
+    take the same shape, so their heights come from the nested header row
+    (:func:`tables`), never from here.
+    """
+    text = str(label).strip()
+    m = _SUFFIX_RE.match(text)
+    if m:
+        return float(m.group("h")), m.group("name")
+    m = _LABEL_RE.match(text)
     if m and m.group(2):
         return float(m.group(1)), m.group(2)
-    return None, str(label).strip()
+    return None, text
 
 
 def is_time_label(label) -> bool:
@@ -78,7 +92,7 @@ class LabeledTable:
     heights: List[Optional[float]]   # per column, parsed from the label or the header
     time_in_col0: bool               # the legacy matrix carried the timestamp in column 0
     time_label: Optional[str] = None
-    header_key: Optional[str] = None   # "Hheader", "MySite_20HzHeader", ... (None: unlabeled)
+    header_key: Optional[str] = None   # "sigmaHeader", "MySite_20HzHeader", ... (None: unlabeled)
     header_nested: bool = False        # header stored as [names, heights]
     header_of: Optional[str] = None    # flags: the table whose header names the columns
 

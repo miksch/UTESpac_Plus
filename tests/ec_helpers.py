@@ -1,4 +1,4 @@
-"""Synthetic ``utespac-hf-1`` files for the ec_coherent tests."""
+"""Synthetic ``utespac-hf-2`` files for the ec_coherent tests."""
 
 import numpy as np
 import xarray as xr
@@ -8,10 +8,10 @@ MS = "milliseconds since 1970-01-01 00:00:00"
 
 def make_hf(path, fs=10.0, window_s=300.0, n_records=4, heights=(3.0, 10.0), seed=0,
             with_scalars=True, nan_block=None):
-    """Write a small HF file: red-noise winds with a prescribed u'w' covariance, Ts, rhov.
+    """Write a small HF file: red-noise winds with a prescribed u'w' covariance, ts, rho_h2o.
 
-    ``nan_block=(record, start, stop)`` blanks that sample range of u in one record.
-    Returns (path, truth dict).
+    ``nan_block=(record, start, stop)`` blanks that sample range of u_pf in one record.
+    Returns (path, truth dict keyed by the ``utespac-hf-2`` names).
     """
     rng = np.random.default_rng(seed)
     n_win = int(round(window_s * fs))
@@ -39,17 +39,19 @@ def make_hf(path, fs=10.0, window_s=300.0, n_records=4, heights=(3.0, 10.0), see
     ds = xr.Dataset(
         coords={"time": ("time", time), "height": ("height", np.array(heights, dtype=float)),
                 "record": ("record", records)})
-    for name, arr in (("u", u), ("v", v), ("w", w), ("Ts", Ts)):
+    for name, arr in (("u_pf", u), ("v_pf", v), ("w_pf", w), ("ts", Ts)):
         ds[name] = (("time", "height"), arr.astype("f4"))
     if with_scalars:
-        ds = ds.assign_coords(height_rhov=("height_rhov", np.array(heights, dtype=float)))
-        ds["rhov"] = (("time", "height_rhov"), rhov.astype("f4"))
-    ds["ustar"] = (("record", "height"), np.full((n_records, nh), 0.45))
+        ds = ds.assign_coords(height_h2o=("height_h2o", np.array(heights, dtype=float)))
+        ds["rho_h2o"] = (("time", "height_h2o"), rhov.astype("f4"))
+    ds["ustar_pf"] = (("record", "height"), np.full((n_records, nh), 0.45))
     ds["L"] = (("record", "height"), np.full((n_records, nh), -50.0))
     ds["spike_flag"] = (("record", "height"), np.zeros((n_records, nh)))
-    ds.attrs.update(utespac_format="utespac-hf-1", sampling_frequency_hz=fs,
+    ds["H_ssitc"] = (("record", "height"), np.zeros((n_records, nh)))
+    ds.attrs.update(utespac_format="utespac-hf-2", sampling_frequency_hz=fs,
                     flux_averaging_s=window_s, site_id="SYN", detrend="constant",
                     pf_type="GPF", git_commit="test", despiking="none (synthetic)")
     ds.to_netcdf(path, engine="netcdf4",
                  encoding={"time": {"units": MS}, "record": {"units": MS}})
-    return str(path), {"u": u, "v": v, "w": w, "Ts": Ts, "rhov": rhov, "n_win": n_win}
+    return str(path), {"u_pf": u, "v_pf": v, "w_pf": w, "ts": Ts, "rho_h2o": rhov,
+                       "n_win": n_win}

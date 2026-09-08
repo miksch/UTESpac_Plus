@@ -11,7 +11,7 @@ is in [ec_coherent/preprocess.py](../../ec_coherent/preprocess.py).
 ## Averaging window and perturbations -- Reynolds decomposition; window from the upstream `flux_averaging_s`
 
 The window is the upstream flux-averaging period (30 min, read from the
-`flux_averaging_s` attribute of the `utespac-hf-1` file, never hardcoded).
+`flux_averaging_s` attribute of the `utespac-hf-2` file, never hardcoded).
 `record` marks the END of each period (`utespac.export_hf`), so the
 samples of record $r$ are $(r - T, r]$; `iter_windows` slices exactly
 $T f_s$ samples per record (36 000 at 20 Hz).
@@ -155,9 +155,10 @@ window fraction, consecutive-outlier limit) and are not re-derived here.
 Consequence, carried into every output's provenance (`despiking`
 attribute copied from the HF file): spikes were interpolated in place, so
 extreme-value statistics (ramp amplitudes, quadrant tails) see slightly
-smoothed extremes. The per-window `spike_flag` / `nan_flag` / `ssitc_*`
-ancillaries are joined by `iter_windows`; windows failing QC are processed
-and flagged, never dropped.
+smoothed extremes. The per-window `spike_flag` / `nan_flag` /
+`Tau_ssitc` / `H_ssitc` / `LE_ssitc` / `Fc_ssitc` / `Tau_ss` / `H_ss` /
+`LE_ss` / `Fc_ss` ancillaries are joined by `iter_windows`; windows
+failing QC are processed and flagged, never dropped.
 
 ## Missing samples -- `[ASSUMED]` policy
 

@@ -16,10 +16,10 @@ UTESpacVersion = "5.0-Python"
 avgPer = 30            # [min] averaging period; must divide 60
 
 [output]
-# The averaged products are always written as one utespac-run-2 netCDF per
+# The averaged products are always written as one utespac-run-3 netCDF per
 # date (<Site>_<avgPer>minAvg_<PF>_<Det>_<date>.nc, utespac.run_io).
 saveRawConditionedData = true   # high-frequency products (rotated winds, Ts, scalars)
-#                                 as the utespac-hf-1 netCDF <Site>_hf_<PF>_<Det>_<date>.nc
+#                                 as the utespac-hf-2 netCDF <Site>_hf_<PF>_<Det>_<date>.nc
 #                                 (utespac.export_hf, integration notes A.2)
 saveCSV = true                  # the averaged matrices as CSV under output/csv/
 

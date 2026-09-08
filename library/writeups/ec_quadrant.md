@@ -81,7 +81,7 @@ efficiency (eqs. 8-9):
 $\eta = \overline{w'c'}/(\overline{w'c'}_{ej} + \overline{w'c'}_{sw})$,
 total over downgradient -- exactly UTESpac's `find_eta`. $\Delta S =
 S_{ej} - S_{sw}$, $\Delta D = D_{ej} - D_{sw}$ (eqs. 16-17) -- UTESpac's
-`delta_flux_ctrb`/`delta_time_ctrb`, the A.3 cross-check. Findings:
+`delta_flux`/`delta_time`, the A.3 cross-check. Findings:
 transport similarity holds near neutral and breaks with instability
 (scalars gain, momentum loses efficiency, MOST fits eqs. 12-13 and
 Table 2); ejections' flux share grows with $-z/L$ while their duration
@@ -161,7 +161,7 @@ docstring already flags the distinction.
   gameplan's $(w', Ts', q')$ scalar-dissimilarity triplet `[ASSUMED]` --
   it appears in no read source (Li2011 studies scalar dissimilarity with
   *quadrants*, not octants). Output variables are tagged per triplet
-  (`flux_frac_uwTs_wTs`, `flux_frac_wTsrhov_wTs`, ...); any signals are
+  (`flux_frac_u_w_ts_wts`, `flux_frac_w_ts_rho_h2o_wts`, ...); any signals are
   accepted ($v$, $rhoCO_2$ anticipated). Validation-site check: in the
   $(w,Ts,\rho_v)$ sign space the warm-moist-updraft (+++) and
   cool-dry-downdraft (---) octants carry the $w'Ts'$ flux, the moist

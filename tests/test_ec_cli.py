@@ -42,7 +42,7 @@ def test_closure_identities_hold_across_groups(coherent):
     q = ecio.read_group(out, "quadrant").isel(hole=0)
     assert np.allclose(q["S_frac_uw"].sum("quadrant"), 1.0, atol=1e-5)
     oc = ecio.read_group(out, "octant")
-    assert np.allclose(oc["flux_frac_uwTs_uw"].sum("octant"), 1.0, atol=1e-5)
+    assert np.allclose(oc["flux_frac_u_w_ts_uw"].sum("octant"), 1.0, atol=1e-5)
     sc = ecio.read_group(out, "scale_separation")
     assert np.allclose(sc["var_frac_u"].sum("scale_band"), 1.0, atol=1e-5)
     cf = ecio.read_group(out, "coherent_flux")

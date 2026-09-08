@@ -16,13 +16,13 @@ Kernels keep taking numpy; the model is the currency between stages and
 the shape of what is persisted.
 """
 
-import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 import xarray as xr
 
+from . import names
 from .campbell_date import datetime64_to_matlab_datenum, matlab_datenum_to_datetime64
 from .flux.tables import TABLE_SPECS, height_label
 
@@ -35,6 +35,19 @@ COLUMN = "column"
 
 # ── sensors ──────────────────────────────────────────────────────────────────
 
+def header_units(header: Sequence) -> List[str]:
+    """Declared units of one legacy header cell ``[names, heights(, units)]``.
+
+    Returns one entry per column, "" where no unit is declared and for every
+    column of a header cell written before the units row existed.
+    """
+    labels = list(header[0])
+    if len(header) > 2 and header[2] is not None:
+        units = [("" if u is None else str(u)) for u in header[2]]
+        return units[: len(labels)] + [""] * max(0, len(labels) - len(units))
+    return [""] * len(labels)
+
+
 @dataclass(frozen=True)
 class Sensor:
     """One header column that matched a sensor template."""
@@ -44,6 +57,7 @@ class Sensor:
     height: float                   # [m]
     orientation: Optional[float] = None     # sonic head bearing (field "u")
     manufacturer: Optional[int] = None      # 0 RMYoung, 1 Campbell, 2 Gill (field "u")
+    units: Optional[str] = None             # unit declared by the table's _units.dat
 
 
 class Sensors(list):
@@ -68,7 +82,12 @@ class Sensors(list):
     @classmethod
     def from_legacy(cls, sensor_info: Dict[str, np.ndarray], headers: Sequence,
                     table_names: Sequence[str]) -> "Sensors":
-        """From the ``find_instruments`` arrays ``[table, col, height(, bearing, manufacturer)]``."""
+        """From the ``find_instruments`` arrays ``[table, col, height(, bearing, manufacturer)]``.
+
+        ``headers[i]`` may carry a third row of declared units (``find_files``
+        reads it from the table's ``_units.dat``); it fills ``Sensor.units``,
+        which stays None when no unit is declared.
+        """
         out = cls()
         for field_name, arr in sensor_info.items():
             for row in np.atleast_2d(arr):
@@ -76,7 +95,9 @@ class Sensors(list):
                 label = str(headers[tbl_i][0][col_i])
                 orient = float(row[3]) if len(row) > 3 else None
                 manuf = int(row[4]) if len(row) > 4 else None
-                out.append(Sensor(field_name, table_names[tbl_i], label, float(row[2]), orient, manuf))
+                units = header_units(headers[tbl_i])[col_i] or None
+                out.append(Sensor(field_name, table_names[tbl_i], label, float(row[2]),
+                                  orient, manuf, units))
         return out
 
     def to_legacy(self, headers: Sequence, table_names: Sequence[str]) -> Dict[str, np.ndarray]:
@@ -101,6 +122,7 @@ class Run:
     sensors: Sensors
     table_names: List[str]
     headers: Dict[str, Tuple[List[str], List[Optional[float]]]]   # name -> (labels, heights)
+    header_units: Dict[str, List[str]] = field(default_factory=dict)  # name -> declared units, "" where none
     tables: Dict[str, xr.Dataset] = field(default_factory=dict)     # high-frequency, dim time_hf
     flags: Dict[str, xr.Dataset] = field(default_factory=dict)      # per period, dims (time, column)
     periods: Dict[str, xr.Dataset] = field(default_factory=dict)    # per period, dim time
@@ -279,36 +301,36 @@ def reference_time(output: Dict, table_names: Sequence[str]) -> np.ndarray:
 
 # ── wind ─────────────────────────────────────────────────────────────────────
 
-_FLAG_RE = re.compile(r"^(?P<h>[\d.]+)m flag (?P<lo>[-\d.eE+]+)<dir<(?P<hi>[-\d.eE+]+)$")
+# wind Dataset variable -> CSV header stem
+_WIND_STEMS = {"direction": names.LEGACY_WIND_LABELS["direction"],
+               "speed": names.LEGACY_WIND_LABELS["speed"],
+               "shadow_flag": names.LEGACY_WIND_LABELS["flag"]}
 
 
 def wind_from_legacy(output: Dict, heights: Sequence[float]) -> Optional[xr.Dataset]:
-    """``spdAndDir`` + header -> Dataset (time, height): direction, speed, shadow_flag,
-    sector_min, sector_max."""
+    """``spdAndDir`` + header -> Dataset (time, height): direction, speed,
+    shadow_flag, sector_min, sector_max.
+
+    The header labels are ``<stem>_<height>``; the shadow-sector bounds are
+    not part of them (they live in the ``wind`` group of the run file) and
+    come back as NaN.
+    """
     mat, hdr = output.get("spdAndDir"), output.get("spdAndDirHeader")
     if mat is None or hdr is None:
         return None
     t = to_datetime64(mat[:, 0])
     n, k = mat.shape[0], len(heights)
-    d = np.full((n, k), np.nan)
-    s = np.full((n, k), np.nan)
-    f = np.full((n, k), np.nan)
-    lo = np.full(k, np.nan)
-    hi = np.full(k, np.nan)
+    labels = [str(lab) for lab in hdr]
+    data = {var: np.full((n, k), np.nan) for var in _WIND_STEMS}
     for i, h in enumerate(heights):
-        for j, lab in enumerate(hdr):
-            if lab == f"{h}m direction":
-                d[:, i] = mat[:, j]
-            elif lab == f"{h}m speed":
-                s[:, i] = mat[:, j]
-            elif str(lab).startswith(f"{h}m flag"):
-                f[:, i] = mat[:, j]
-                m = _FLAG_RE.match(str(lab))
-                if m:
-                    lo[i], hi[i] = float(m["lo"]), float(m["hi"])
-    return xr.Dataset({"direction": ((TIME, HEIGHT), d), "speed": ((TIME, HEIGHT), s),
-                       "shadow_flag": ((TIME, HEIGHT), f),
-                       "sector_min": (HEIGHT, lo), "sector_max": (HEIGHT, hi)},
+        hn = height_label(h)
+        for var, stem in _WIND_STEMS.items():
+            lab = names.csv_header(stem, hn)
+            if lab in labels:
+                data[var][:, i] = mat[:, labels.index(lab)]
+    return xr.Dataset({var: ((TIME, HEIGHT), values) for var, values in data.items()}
+                      | {"sector_min": (HEIGHT, np.full(k, np.nan)),
+                         "sector_max": (HEIGHT, np.full(k, np.nan))},
                       coords={TIME: t, HEIGHT: list(heights)})
 
 
@@ -319,14 +341,10 @@ def wind_to_legacy(wind: xr.Dataset) -> Dict[str, Any]:
     mat[:, 0] = to_datenum(wind[TIME].values)
     hdr = ["timeStamp"] + [""] * (3 * k)
     for i, h in enumerate(heights):
-        c0 = 1 + 3 * i
-        mat[:, c0] = wind["direction"].values[:, i]
-        mat[:, c0 + 1] = wind["speed"].values[:, i]
-        mat[:, c0 + 2] = wind["shadow_flag"].values[:, i]
-        lo, hi = float(wind["sector_min"].values[i]), float(wind["sector_max"].values[i])
-        hdr[c0] = f"{h}m direction"
-        hdr[c0 + 1] = f"{h}m speed"
-        hdr[c0 + 2] = f"{h}m flag {lo:.3g}<dir<{hi:.3g}"
+        hn = height_label(h)
+        for j, (var, stem) in enumerate(_WIND_STEMS.items()):
+            mat[:, 1 + 3 * i + j] = wind[var].values[:, i]
+            hdr[1 + 3 * i + j] = names.csv_header(stem, hn)
     return {"spdAndDir": mat, "spdAndDirHeader": hdr}
 
 
@@ -359,8 +377,9 @@ def rotation_to_legacy(rot: xr.Dataset) -> Tuple[np.ndarray, np.ndarray, Dict[st
         pf_only = rot["pf"].values.reshape(n, 3 * k)
     else:
         rotated = pf_only = np.empty((0, 3 * k))
-    hdr = [f"{float(h)}m:{c}" for h in rot[HEIGHT].values for c in ("u", "v", "w")]
-    out = {"rotatedSonicHeader": hdr, "PFSonicHeader": list(hdr)}
+    hns = [height_label(float(h)) for h in rot[HEIGHT].values]
+    out = {"rotatedSonicHeader": [f"{c}_pf_{hn}" for hn in hns for c in ("u", "v", "w")],
+           "PFSonicHeader": [f"{c}_tilt_{hn}" for hn in hns for c in ("u", "v", "w")]}
     if "rotated_mean" in rot:
         out["rotatedSonic"] = rot["rotated_mean"].values.reshape(rot.sizes[TIME], 3 * k)
     if "pf_mean" in rot:
@@ -370,14 +389,9 @@ def rotation_to_legacy(rot: xr.Dataset) -> Tuple[np.ndarray, np.ndarray, Dict[st
 
 # ── flux products ────────────────────────────────────────────────────────────
 
-_DERIVED_RE = re.compile(r"^(?P<h>[\d.]+) m: (?P<key>.+)$")
-_SPECIFIC_KEYS = {"q(g/kg)": ("q", "g/kg"), "q(g/g)": ("q", "g/g"),
-                  "virtualThetaAvg(K)": ("virtualThetaAvg", "K"), "rAvg(g/kg)": ("rAvg", "g/kg"),
-                  "rho_airmoistAvg(kg/m^3)": ("rho_airmoistAvg", "kg/m^3"),
-                  "rho_airdryAvg(kg/m^3)": ("rho_airdryAvg", "kg/m^3"),
-                  "rho_H2OAvg(kg/m^3)": ("rho_H2OAvg", "kg/m^3")}
-_SPECIFIC_LABELS = {v[0]: k for k, v in _SPECIFIC_KEYS.items() if v[0] != "q"}
-PRODUCT_NAMES = list(TABLE_SPECS) + ["derivedT", "specificHum"]
+PRODUCT_NAMES = list(names.GROUP_ORDER)
+# groups assembled column by column in the flux stage, in their column order
+_ASSEMBLED_ORDER = {g: [v.name for v in names.VARIABLES[g]] for g in ("temperature", "humidity")}
 
 
 def _header_key(output: Dict, name: str) -> Optional[str]:
@@ -387,8 +401,17 @@ def _header_key(output: Dict, name: str) -> Optional[str]:
     return None
 
 
+def set_product_attrs(var: xr.DataArray, group: str, name: str) -> None:
+    """CF attributes of one product variable, from :mod:`utespac.names`."""
+    spec = names.variable(group, name)
+    var.attrs["units"] = spec.units
+    var.attrs["long_name"] = spec.long_name
+    if spec.legacy_label is not None:
+        var.attrs["legacy_label"] = spec.legacy_label
+
+
 def products_from_legacy(output: Dict, heights: Sequence[float]) -> Dict[str, xr.Dataset]:
-    """Every flux table of *output* -> Dataset (time, height) with variables by column key."""
+    """Every flux product of *output* -> Dataset (time, height) with variables by name."""
     out = {}
     hn_of = {height_label(h): h for h in heights}
     for name in PRODUCT_NAMES:
@@ -396,46 +419,35 @@ def products_from_legacy(output: Dict, heights: Sequence[float]) -> Dict[str, xr
         mat = output.get(name)
         if hk is None or not isinstance(mat, np.ndarray) or mat.ndim != 2:
             continue
-        labels = list(output[hk])
+        labels = [str(lab) for lab in output[hk]]
         t = to_datetime64(mat[:, 0])
         ds = xr.Dataset(coords={TIME: t, HEIGHT: list(heights)})
         ds.attrs["legacy_header_key"] = hk
         if name in TABLE_SPECS:
             spec = TABLE_SPECS[name]
+            lab_to_key = {tmpl.format(hn=hn): (key, h)
+                          for hn, h in hn_of.items() for key, tmpl in spec.columns}
+        else:
+            known = set(_ASSEMBLED_ORDER.get(name, ()))
             lab_to_key = {}
             for hn, h in hn_of.items():
-                for key, tmpl in spec.columns:
-                    lab_to_key[tmpl.format(hn=hn)] = (key, h, tmpl)
-            for j, lab in enumerate(labels):
-                if j == 0:
-                    continue
-                if lab in spec.fixed:
-                    ds[lab] = (TIME, mat[:, j])
-                    continue
-                if lab not in lab_to_key:
-                    continue
-                key, h, tmpl = lab_to_key[lab]
-                if key not in ds:
-                    ds[key] = ((TIME, HEIGHT), np.full((len(t), len(heights)), np.nan))
-                    ds[key].attrs["label"] = tmpl
-                ds[key].values[:, list(heights).index(h)] = mat[:, j]
-        else:
-            units = {}
-            for j, lab in enumerate(labels):
-                if j == 0:
-                    continue
-                m = _DERIVED_RE.match(str(lab))
-                if not m:
-                    continue
-                h = float(m["h"])
-                raw_key = m["key"]
-                key, unit = _SPECIFIC_KEYS.get(raw_key, (raw_key, None))
-                if key not in ds:
-                    ds[key] = ((TIME, HEIGHT), np.full((len(t), len(heights)), np.nan))
-                    if unit:
-                        ds[key].attrs["units"] = unit
-                    units[key] = unit
-                ds[key].values[:, list(heights).index(h)] = mat[:, j]
+                for key in known:
+                    lab_to_key[names.csv_header(key, hn)] = (key, h)
+            spec = None
+        for j, lab in enumerate(labels):
+            if j == 0:
+                continue
+            if spec is not None and lab in spec.fixed:
+                ds[lab] = (TIME, mat[:, j])
+                set_product_attrs(ds[lab], name, lab)
+                continue
+            if lab not in lab_to_key:
+                continue
+            key, h = lab_to_key[lab]
+            if key not in ds:
+                ds[key] = ((TIME, HEIGHT), np.full((len(t), len(heights)), np.nan))
+                set_product_attrs(ds[key], name, key)
+            ds[key].values[:, list(heights).index(h)] = mat[:, j]
         out[name] = ds
     return out
 
@@ -454,28 +466,15 @@ def products_to_legacy(products: Dict[str, xr.Dataset]) -> Dict[str, Any]:
                 if lab in ds:
                     cols.append(ds[lab].values)
                     hdr.append(lab)
-            for h in heights:
-                hn = height_label(h)
-                for key, tmpl in spec.columns:
-                    if key in ds:
-                        cols.append(ds[key].values[:, heights.index(h)])
-                        hdr.append(tmpl.format(hn=hn))
+            order = [key for key, _ in spec.columns]
         else:
-            order = (["theta_fw", "theta_v_son", "theta_v_fw", "T_son_air"] if name == "derivedT"
-                     else ["q", "virtualThetaAvg", "rAvg", "rho_airmoistAvg", "rho_airdryAvg", "rho_H2OAvg"])
-            for h in heights:
-                for key in order:
-                    if key not in ds:
-                        continue
-                    col = ds[key].values[:, heights.index(h)]
-                    if key == "q":
-                        lab = f"{h} m: q({ds[key].attrs.get('units', 'g/kg')})"
-                    elif name == "specificHum":
-                        lab = f"{h} m: {_SPECIFIC_LABELS[key]}"
-                    else:
-                        lab = f"{h} m: {key}"
-                    cols.append(col)
-                    hdr.append(lab)
+            order = [key for key in _ASSEMBLED_ORDER.get(name, list(ds.data_vars)) if key in ds]
+        for h in heights:
+            hn = height_label(h)
+            for key in order:
+                if key in ds:
+                    cols.append(ds[key].values[:, heights.index(h)])
+                    hdr.append(names.csv_header(key, hn))
         mat = np.column_stack(cols)
         keep = np.any(~np.isnan(mat), axis=0)
         out[name] = mat[:, keep]
@@ -543,8 +542,10 @@ def run_from_legacy(info: Dict, data, headers, table_names, sensor_info, output:
                     pf_table=None) -> Run:
     """Build a :class:`Run` from whatever legacy pieces exist at a point in the pipeline."""
     hdrs = {name: (list(headers[i][0]), list(headers[i][1])) for i, name in enumerate(table_names)}
+    units = {name: header_units(headers[i]) for i, name in enumerate(table_names)}
     sensors = Sensors.from_legacy(sensor_info, headers, table_names)
     run = Run(site=info, sensors=sensors, table_names=list(table_names), headers=hdrs,
+              header_units=units,
               tables=tables_from_legacy(data, headers, table_names, info.get("tableScanFrequency")),
               notes=list(data_info or []), pf_table=pf_table)
     if output:

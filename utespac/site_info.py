@@ -39,7 +39,7 @@ useTrefHMP = True
 avgSlowFreq = 1
 
 # Set True only when running a single high sonic (e.g. siteGill at 51.5 m) but needing
-# virtualTheta / specificHum referenced to the lowest sonic on the full tower.
+# virtual theta / humidity referenced to the lowest sonic on the full tower.
 shiftzRef = False
 
 # Override zRef value [m]; only used when shiftzRef = True.
