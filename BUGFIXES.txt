@@ -311,3 +311,18 @@ Bug Fixes from the 2026-08 Code Audit
            diagnostic decreases as signal quality degrades (full
            strength = 255).
     Fix:   Flag trips at or below meanLiGasDiagnosticLimit.
+
+
+20. Sonic-fallback reference temperature left as virtual temperature
+    File: fluxes.m Tref fallback (Python: utespac/flux/reference.py)
+    ----------------------------------------------------------------
+    Bug: When no slow-response temperature sensor exists, the sonic
+         temperature is used as Tref and stored uncorrected. The sonic
+         temperature is a (near-)virtual temperature, so the reference
+         state (air density, Lv, WPL terms) carries a ~0.1*q*T warm
+         bias (~0.3 K at q = 10 g/kg).
+    Fix: When Tref came from the sonic, divide by (1 + 0.51*q_ref) once
+         q_ref is resolved (Schotanus 1983 eq. 5), before the density
+         block. Adopted from upstream commit 874f54b. Only active on
+         runs without a slow T sensor; VAC001/VAC_ADV use the HMP, so
+         their products are unchanged.

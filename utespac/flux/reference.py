@@ -17,6 +17,7 @@ import numpy as np
 from ..averaging import block_average, n_periods
 from ..model import Run, Sensor
 from ..rh_to_spec_hum import rh_to_spec_hum
+from ..sonic_temperature import air_temperature_from_sonic
 
 log = logging.getLogger("utespac")
 
@@ -113,12 +114,14 @@ def reference_state(run: Run) -> ReferenceState:
             T_ref_K_avg += 273.15
         log.info(f"Slow-response T found. Median T_ref = {np.nanmedian(T_ref_K_avg) - 273.15:.3g} °C")
 
+    T_ref_is_sonic = False
     if T_ref_K_avg is None or np.nansum(~np.isnan(T_ref_K_avg)) == 0:
         if run.sensors.has("Tson"):
             sTs = nearest(run, "Tson", z_ref)
             T_ref_K_avg, _ = _period_means(run.hf(sTs), t, avg_per)
             if np.nanmedian(T_ref_K_avg) < 200:
                 T_ref_K_avg += 273.15
+            T_ref_is_sonic = True
             log.info(f"Using sonic T as Tref. Median = {np.nanmedian(T_ref_K_avg) - 273.15:.3g} °C")
         else:
             T_ref_K_avg = np.full(len(P_kPa_avg), 293.15)
@@ -153,6 +156,12 @@ def reference_state(run: Run) -> ReferenceState:
     if q_ref_avg is None:
         q_ref_avg = np.full(len(T_ref_K_avg), q_default)
         q_ref_fast = np.full(len(t), q_default)
+
+    # Sonic-fallback Tref is a sonic (virtual-like) temperature; convert to
+    # air temperature via Schotanus once q_ref is resolved, so the reference
+    # densities and T_virt below start from actual T (upstream 874f54b).
+    if T_ref_is_sonic:
+        T_ref_K_avg = air_temperature_from_sonic(T_ref_K_avg, q_ref_avg)
 
     # --- moist-air density ---
     P_v_avg = q_ref_avg * P_kPa_avg / 0.622
