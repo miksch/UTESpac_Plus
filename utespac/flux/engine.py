@@ -23,6 +23,7 @@ from ..find_delta_time import find_delta_time
 from ..find_eta import find_eta
 from ..nandetrend import nandetrend
 from ..sonic_temperature import air_temperature_perturbation
+from ..stability import psi_h, psi_m
 from .levels import LevelInputs
 from .reference import Md, Mv, ReferenceState
 
@@ -42,6 +43,7 @@ class FluxOptions:
     scan_freq: float = 20.0             # [Hz] of the sonic's table (dissipation lag)
     angle: float = 0.0                  # slope angle [deg]
     downslope_aspect: float = 30.0      # fall-line direction from north [deg]
+    stability_source: str = "hoegstroem1988"    # psi_m/psi_h coefficient set
 
 
 @dataclass
@@ -209,6 +211,12 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
     ustar = np.sqrt(tau_pf) if (not np.isnan(tau_pf) and tau_pf > 0) else np.nan
     r.put("scaling", "theta_star_SL",
           np.nan if (rot or tsf or np.isnan(ustar)) else -Thv_wPF / ustar)
+
+    # ---- integrated stability functions psi_m(z/L), psi_h(z/L) ----
+    # (Foken 2008 eqs. 2.85-2.89); NaN wherever L is (rot/tsf masks included)
+    zeta = lev.height / L_val if not np.isnan(L_val) else np.nan
+    r.put("scaling", "psi_m", psi_m(zeta, opts.stability_source))
+    r.put("scaling", "psi_h", psi_h(zeta, opts.stability_source))
 
     # ---- H: T_air'w', T_air'wPF' (mean-humidity rescale; replaced below
     #      by the Schotanus form where high-frequency humidity exists) ----

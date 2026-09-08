@@ -140,15 +140,20 @@ class FluxConfig:
     calcDissipation: bool = False
     storeExtraStats: bool = True
     qRef: float = 12
+    stabilitySource: str = "hoegstroem1988"
 
     @classmethod
     def from_config(cls, config=None, **overrides):
+        from .stability import PSI_SOURCES
         vals = _config.resolve("flux", config)
         _check_unknown(cls, set(vals) | set(overrides), "flux")
         obj = cls(**{**vals, **overrides})
         if obj.detrendingFormat not in ("linear", "constant"):
             raise ValueError("flux.detrendingFormat must be 'linear' or 'constant', "
                              f"got {obj.detrendingFormat!r}")
+        if obj.stabilitySource not in PSI_SOURCES:
+            raise ValueError(f"flux.stabilitySource must be one of {sorted(PSI_SOURCES)}, "
+                             f"got {obj.stabilitySource!r}")
         return obj
 
     def to_info(self) -> Dict[str, Any]:

@@ -128,6 +128,20 @@ def test_surface_layer_scales():
     assert "q_star_SL" not in r_dry.values["scaling"]
 
 
+def test_stability_functions_follow_L():
+    r = _run(_level())
+    from utespac.stability import psi_h, psi_m
+    zeta = 10.0 / r.values["L"]["L"]                  # z = sonic height
+    assert r.values["scaling"]["psi_m"] == pytest.approx(psi_m(zeta))
+    assert r.values["scaling"]["psi_h"] == pytest.approx(psi_h(zeta))
+    assert zeta < 0 and r.values["scaling"]["psi_m"] > 0     # unstable period
+    lev_rot = _level()
+    lev_rot.rot_flag[:] = True
+    r_rot = _run(lev_rot)
+    assert np.isnan(r_rot.values["scaling"]["psi_m"])
+    assert np.isnan(r_rot.values["scaling"]["psi_h"])
+
+
 def test_without_hygrometer_no_h2o_or_co2_tables():
     r = _run(_level(with_h2o=False, with_co2=False, with_fw=False))
     assert "LHflux" not in r.values and "CO2flux" not in r.values

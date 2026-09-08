@@ -21,6 +21,7 @@ LEGACY_INFO = {
     "PF": {"globalCalculation": "global", "recalculateGlobalCoefficients": True,
            "avgPer": 30, "globalCalcMaxWind": 20, "globalCalcMinWind": 0.5},
     "qRef": 12,
+    "stabilitySource": "hoegstroem1988",
     "spikeTest": {"maxRuns": 20, "windowSizeFraction": 1, "maxConsecutiveOutliers": 10,
                   "maxPercent": 2,
                   "spikeDef": {"u": 3.5, "v": 3.5, "w": 5.0, "Tson": 3.5, "fw": 3.5,
@@ -89,6 +90,8 @@ def test_unknown_keys_raise(tmp_path, monkeypatch):
         PFConfig.from_config(globalCalculation="planar")
     with pytest.raises(ValueError, match="detrendingFormat"):
         FluxConfig.from_config(detrendingFormat="quadratic")
+    with pytest.raises(ValueError, match="stabilitySource"):
+        FluxConfig.from_config(stabilitySource="kansas1968")
     with pytest.raises(ValueError):
         RunConfig().to_info()                  # rootFolder unset
 

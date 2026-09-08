@@ -92,6 +92,8 @@ TABLE_SPECS: Dict[str, TableSpec] = {s.name: s for s in [
     TableSpec("scaling", "scalingHeader", [
         ("theta_star_SL", "{hn}m :theta_star_SL(K)"),
         ("q_star_SL", "{hn}m :q_star_SL(g/kg)"),
+        ("psi_m", "{hn}m :psi_m(z/L)"),
+        ("psi_h", "{hn}m :psi_h(z/L)"),
     ]),
     TableSpec("eta", "etaHeader", [
         ("eta_wPFuPF", "{hn}m :eta_wPFuPF"), ("eta_wPFThetav", "{hn}m :eta_wPFThetav"),

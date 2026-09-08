@@ -370,6 +370,7 @@ def flux(run: Run) -> Run:
         calc_dissipation=bool(info.get("calcDissipation", False)),
         angle=angle,
         downslope_aspect=downslope_aspect,
+        stability_source=info.get("stabilitySource", "hoegstroem1988"),
     )
 
     tables = FluxTables(N, heights, has_fw)
