@@ -37,7 +37,6 @@ comparison_logs/
 # ── macOS ─────────────────────────────────────────────────────────────────────
 .DS_Store
 .idea/
-CLAUDE.md
 
 
 # ── Data tree (data/<SITE>/...): raw, processed, and reference data stay local.
