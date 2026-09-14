@@ -31,6 +31,9 @@ __pycache__/
 *.pyo
 *.pyd
 
+# ── Python packaging build artifacts (pip install -e .) ────────────────────────
+*.egg-info/
+
 # ── Comparison logs ────────────────────────────────────────────────────────────
 comparison_logs/
 
