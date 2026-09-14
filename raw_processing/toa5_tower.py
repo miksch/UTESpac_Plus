@@ -91,6 +91,70 @@ def files_for_window(entries, start, end):
     return ([before] if before else []) + inside
 
 
+#: Fraction of the 48-h grid a shifted source must match before the join is
+#: reported as suspect. Two loggers stamping the same nominal grid match
+#: everywhere or nowhere, so a clock offset that is not a whole number of
+#: samples would otherwise fail silently.
+ALIGN_MIN_HIT = 0.9
+
+#: Table-level keys a ``sources`` entry inherits when it omits them.
+SOURCE_KEYS = ("raw_pattern", "columns", "read_kwargs", "raw_units",
+               "loader", "header_row", "units_row")
+
+
+def source_specs(cfg):
+    """Per-source specs for a table, in output-column order.
+
+    A table is assembled from one raw source by default. ``cfg["sources"]``
+    declares several -- one per logger when the heights of one UTESpac
+    table are logged separately -- each with its own ``raw_pattern``,
+    ``columns``, ``read_kwargs``, ``raw_units``, ``loader`` and ``lag_s``;
+    a key a source omits falls back to the table-level value.
+
+    ``lag_s`` is ADDED to the source's timestamps before the join, matching
+    :func:`raw_processing.imu.load_imu_files`, so a logger whose clock runs
+    *ahead* of the primary takes a negative ``lag_s``. The first source is
+    the primary: its clock defines the output grid and its ``lag_s`` is
+    normally 0.
+
+    Returns
+    -------
+    list of dict
+        One spec per source, with ``name`` and ``lag_s`` always set.
+
+    Raises
+    ------
+    ValueError
+        A source declares no ``raw_pattern`` or no ``columns``, or two
+        sources map the same output column name.
+    """
+    entries = cfg.get("sources") or [{}]
+    specs, seen = [], {}
+    for i, src in enumerate(entries):
+        # Copy only the keys actually present: header_rows() distinguishes
+        # a missing header_row/units_row from one explicitly set to None.
+        spec = {}
+        for key in SOURCE_KEYS:
+            if key in src:
+                spec[key] = src[key]
+            elif key in cfg:
+                spec[key] = cfg[key]
+        spec["name"] = src.get("name") or f"source{i + 1}"
+        spec["lag_s"] = float(src.get("lag_s", 0.0))
+        if not spec.get("raw_pattern"):
+            raise ValueError(f"source {spec['name']}: no raw_pattern")
+        if not spec.get("columns"):
+            raise ValueError(f"source {spec['name']}: no columns")
+        for out in spec["columns"]:
+            if out in seen:
+                raise ValueError(
+                    f"output column {out!r} mapped by both {seen[out]!r} "
+                    f"and {spec['name']!r}")
+            seen[out] = spec["name"]
+        specs.append(spec)
+    return specs
+
+
 # UTESpac base name → typical Campbell (EasyFlux-style) TOA5 base name.
 # Used with level_columns(); override entries for loggers that name
 # variables differently.
@@ -326,6 +390,16 @@ def process_table(cfg):
         columns : dict
             ``{output name: TOA5 source column}``; output names carry the
             instrument height suffix (e.g. ``"Ux_3"``).
+        sources : list of dict, optional
+            Several raw sources joined into one table, one per logger when
+            the heights of one UTESpac table are logged separately. Each
+            entry may set ``raw_pattern``, ``columns``, ``read_kwargs``,
+            ``raw_units``, ``loader``, ``header_row``, ``units_row``,
+            ``name`` and ``lag_s``, inheriting the table-level value for
+            anything it omits; see :func:`source_specs`. Output columns are
+            written in ``sources`` order. The first source is the primary:
+            it defines the window, and a window it fails is skipped, while a
+            later source that fails leaves its own columns NaN.
         start_date, end_date : datetime.datetime
             Processing range, stepped in 48-h windows.
         decimals : int, optional
@@ -363,28 +437,39 @@ def process_table(cfg):
         Paths of the data files written.
     """
     hz       = cfg["hz"]
-    columns  = cfg["columns"]
     table    = f"{cfg['prefix']}_{cfg['table']}"
     decimals = cfg.get("decimals", 2 if hz >= 20 else 1 if hz >= 1 else 0)
     offset   = cfg.get("offset", True)
     interp   = cfg.get("interpolate_limit", 0)
     validate = cfg.get("validate", hz >= 1)
-    loader   = cfg.get("loader")
-    read_kw  = cfg.get("read_kwargs", {})
 
     os.makedirs(cfg["out_dir"], exist_ok=True)
-    if loader is None:
-        entries = index_toa5_files(cfg["raw_pattern"], read_kwargs=read_kw)
-    else:
-        entries = [(None, p) for p in sorted(glob.glob(cfg["raw_pattern"]))]
-    if not entries:
-        raise FileNotFoundError(f"No raw files match {cfg['raw_pattern']}")
-    span = (f" ({entries[0][0]} … {entries[-1][0]})" if loader is None else "")
-    print(f"{table}: {len(entries)} raw files{span}")
+
+    specs = source_specs(cfg)
+    columns, units = {}, {}
+    for spec in specs:
+        src_loader = spec.get("loader")
+        src_read_kw = spec.get("read_kwargs", {})
+        if src_loader is None:
+            spec["entries"] = index_toa5_files(spec["raw_pattern"],
+                                               read_kwargs=src_read_kw)
+        else:
+            spec["entries"] = [(None, p) for p
+                               in sorted(glob.glob(spec["raw_pattern"]))]
+        if not spec["entries"]:
+            raise FileNotFoundError(f"No raw files match {spec['raw_pattern']}")
+        columns.update(spec["columns"])
+        units.update(resolve_units(spec, spec["entries"][0][1]))
+
+        span = (f" ({spec['entries'][0][0]} … {spec['entries'][-1][0]})"
+                if src_loader is None else "")
+        lag = f", clock lag {spec['lag_s']:+g} s" if spec["lag_s"] else ""
+        tag = table if len(specs) == 1 else f"{table} [{spec['name']}]"
+        print(f"{tag}: {len(spec['entries'])} raw files{span}{lag}")
 
     hdr = write_header(cfg["out_dir"], table, columns)
     print(f"  → {os.path.basename(hdr)}")
-    uni = write_units(cfg["out_dir"], table, columns, resolve_units(cfg, entries[0][1]))
+    uni = write_units(cfg["out_dir"], table, columns, units)
     print(f"  → {os.path.basename(uni)}")
     print(f"  siteInfo: tableNames += ['{table}'], "
           f"tableScanFrequency += [{hz:g}], "
@@ -397,42 +482,74 @@ def process_table(cfg):
         w1    = w0 + pd.Timedelta(hours=48)
         label = f"{table} {w0.date()}"
 
-        if loader is None:
-            paths = files_for_window(entries, w0, w1)
-        else:
-            paths = [p for _, p in entries]
-        if not paths:
-            print(f"  SKIP {label}: no raw files overlap the window.")
-            curr += timedelta(days=2)
-            continue
-
-        raw = load_cr_files(paths, **read_kw) if loader is None else loader(paths)
-        raw = raw[(raw.index >= w0) & (raw.index <= w1)]
-        if validate:
-            if not validate_fast(raw, curr, round(hz), label):
-                curr += timedelta(days=2)
-                continue
-        elif raw.empty:
-            print(f"  SKIP {label}: no records in window.")
-            curr += timedelta(days=2)
-            continue
-
         grid = build_48h_index(w0, hz=hz, offset=offset)
-        full = raw.reindex(grid)
-        if interp:
-            full = (full.apply(pd.to_numeric, errors="coerce")
-                        .interpolate(method="time", limit=interp))
+        out  = timestamp_columns(grid, decimals=decimals)
+        skip = False
 
-        out = timestamp_columns(grid, decimals=decimals)
-        for name, src in columns.items():
-            if src in full.columns:
-                out[name] = full[src].values
+        for si, spec in enumerate(specs):
+            src_loader  = spec.get("loader")
+            src_read_kw = spec.get("read_kwargs", {})
+            tag = label if len(specs) == 1 else f"{label} [{spec['name']}]"
+
+            if src_loader is None:
+                # Widen the file selection by the shift, or the records it
+                # pulls in from the neighbouring file are never loaded.
+                pad = pd.Timedelta(seconds=abs(spec["lag_s"]))
+                paths = files_for_window(spec["entries"], w0 - pad, w1 + pad)
             else:
-                if src not in missing_warned:
-                    print(f"  Warning: source column '{src}' missing — "
-                          f"'{name}' filled with NaN.")
-                    missing_warned.add(src)
-                out[name] = np.nan
+                paths = [p for _, p in spec["entries"]]
+
+            raw = None
+            if not paths:
+                print(f"  {tag}: no raw files overlap the window.")
+            else:
+                raw = (load_cr_files(paths, **src_read_kw) if src_loader is None
+                       else src_loader(paths))
+                # Shift onto the primary's clock before the window is cut.
+                if spec["lag_s"]:
+                    raw.index = raw.index + pd.Timedelta(seconds=spec["lag_s"])
+                raw = raw[(raw.index >= w0) & (raw.index <= w1)]
+
+            ok = raw is not None
+            if ok and validate:
+                ok = validate_fast(raw, curr, round(hz), tag)
+            elif ok and raw.empty:
+                print(f"  {tag}: no records in window.")
+                ok = False
+
+            if not ok and si == 0:
+                skip = True          # the primary defines the window
+                break
+
+            if ok:
+                hit = float(np.isin(grid, raw.index).mean())
+                if spec["lag_s"] and hit < ALIGN_MIN_HIT:
+                    print(f"  WARNING {tag}: only {hit:.1%} of the grid "
+                          f"matched after the {spec['lag_s']:+g} s shift — "
+                          f"the offset must be a whole number of {1 / hz:g} s "
+                          f"samples; check it before trusting this table.")
+                full = raw.reindex(grid)
+                if interp:
+                    full = (full.apply(pd.to_numeric, errors="coerce")
+                                .interpolate(method="time", limit=interp))
+            else:
+                print(f"  {tag}: columns filled with NaN.")
+                full = pd.DataFrame(index=grid)
+
+            for name, src in spec["columns"].items():
+                if src in full.columns:
+                    out[name] = full[src].values
+                else:
+                    if (spec["name"], src) not in missing_warned:
+                        print(f"  Warning: source column '{src}' missing — "
+                              f"'{name}' filled with NaN.")
+                        missing_warned.add((spec["name"], src))
+                    out[name] = np.nan
+
+        if skip:
+            print(f"  SKIP {label}.")
+            curr += timedelta(days=2)
+            continue
 
         d1, d2   = w0.strftime("%Y%m%d"), w1.strftime("%Y%m%d")
         out_path = os.path.join(cfg["out_dir"],
