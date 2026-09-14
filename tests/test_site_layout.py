@@ -5,7 +5,7 @@ import os
 import pytest
 
 from utespac.site_config import (list_sites, resolve_site_dir, site_input_dir,
-                                 has_site_info)
+                                 has_site_info, site_id)
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -31,6 +31,37 @@ def test_list_sites_by_siteinfo_and_legacy_prefix(tmp_path):
 
 def test_list_sites_missing_root():
     assert list_sites("/definitely/not/here") == []
+
+
+def test_list_sites_descends_one_level_for_per_campaign_folders(tmp_path):
+    """A site split into year folders is found from the data/ root."""
+    site_b = tmp_path / "SiteB"
+    site_b.mkdir()
+    _mk_site(site_b, "2023", "toml")
+    _mk_site(site_b, "2025", "toml")
+    (site_b / "notes").mkdir()                  # no siteInfo → excluded
+    _mk_site(tmp_path, "SiteC", "toml")         # flat site, still found
+    deep = tmp_path / "SiteB" / "2025" / "nested"   # two levels down → not found
+    deep.mkdir(parents=True)
+    (deep / "siteInfo.toml").write_text("tower = 1\n")
+    assert list_sites(tmp_path) == ["SiteB/2023", "SiteB/2025", "SiteC"]
+
+
+def test_site_id_flattens_nested_name_and_strips_legacy_prefix():
+    assert site_id("SiteB/2025") == "SiteB_2025"
+    assert site_id("SiteB\\2025") == "SiteB_2025"
+    assert site_id("siteGill") == "Gill"
+    assert site_id("SiteC") == "SiteC"
+
+
+def test_resolve_site_dir_accepts_nested_and_flattened_names(tmp_path):
+    site_b = tmp_path / "SiteB"
+    site_b.mkdir()
+    _mk_site(site_b, "2025", "toml")
+    assert resolve_site_dir(tmp_path, "SiteB/2025") == "SiteB/2025"
+    assert resolve_site_dir(tmp_path, "SiteB_2025") == "SiteB/2025"
+    with pytest.raises(FileNotFoundError, match="available"):
+        resolve_site_dir(tmp_path, "2025")
 
 
 def test_resolve_site_dir_accepts_folder_name_and_bare_legacy_id(tmp_path):
@@ -64,4 +95,5 @@ def test_repo_data_tree_discovers_sites():
     checked = [n for n in sites if has_site_info(os.path.join(data_root, n))]
     assert checked
     for name in checked:
-        assert site_input_dir(os.path.join(data_root, name)).name in ("utespac", name)
+        assert site_input_dir(os.path.join(data_root, name)).name in (
+            "utespac", os.path.basename(name))

@@ -12,7 +12,7 @@ import numpy as np
 from .flux.tables import height_label
 from .get_data import get_data
 from .pf_coefficients import pf_coefficients
-from .site_config import list_sites
+from .site_config import list_sites, site_id
 from .stp_dn import stp_dn
 from .wind_stats import wind_direction_speed
 
@@ -69,7 +69,7 @@ def find_global_pf(info: Dict, template: Dict, sensor_info: Dict,
     # ── load LPF-averaged data ────────────────────────────────────────────────
     all_sites = list_sites(info["rootFolder"])
     site_num  = all_sites.index(info["siteFolder"]) + 1
-    site_name = info["siteFolder"].removeprefix("site")
+    site_name = site_id(info["siteFolder"])
 
     data = get_data(
         info["rootFolder"],
