@@ -165,28 +165,51 @@ def list_sites(root) -> list:
 
     A site is any directory carrying a ``siteInfo.*`` file (the ``data/``
     layout) or, for legacy trees, any directory whose name starts with
-    ``site``.
+    ``site``.  A directory that carries no ``siteInfo.*`` of its own is
+    descended one level, so a site split into per-campaign folders
+    (``MySite/2023``, ``MySite/2025``) is discovered from the ``data/``
+    root and reported with a ``/`` separator.
     """
     root = Path(root)
     if not root.is_dir():
         return []
-    return sorted(
-        d.name for d in root.iterdir()
-        if d.is_dir() and (has_site_info(d) or d.name.startswith("site"))
-    )
+    names = []
+    for d in root.iterdir():
+        if not d.is_dir():
+            continue
+        if has_site_info(d) or d.name.startswith("site"):
+            names.append(d.name)
+            continue
+        names.extend(f"{d.name}/{c.name}" for c in d.iterdir()
+                     if c.is_dir() and has_site_info(c))
+    return sorted(names)
+
+
+def site_id(site_folder) -> str:
+    """Filename-safe id for a site folder name.
+
+    Strips the legacy ``site`` prefix and flattens the nested separator, so
+    ``MySite/2025`` names products ``MySite_2025_30minAvg_...``.
+    """
+    return str(site_folder).removeprefix("site").replace("\\", "/").replace("/", "_")
 
 
 def resolve_site_dir(root, site) -> str:
     """Map a user-given site name to a folder name under *root*.
 
-    Accepts the folder name itself (``"MySite"``, ``"siteGill..."``) or the
-    legacy bare id for a ``site``-prefixed folder (``"Gill..."``).
+    Accepts the folder name itself (``"MySite"``, ``"siteGill..."``, or a
+    nested ``"MySite/2025"``), the flattened id a product carries
+    (``"MySite_2025"``), or the legacy bare id for a ``site``-prefixed
+    folder (``"Gill..."``).
     """
     available = list_sites(root)
     if site in available:
         return site
     if f"site{site}" in available:
         return f"site{site}"
+    matches = [d for d in available if site_id(d) == site_id(site)]
+    if len(matches) == 1:
+        return matches[0]
     raise FileNotFoundError(f"No site folder {site!r} under {root}; "
                             f"available: {', '.join(available) or 'none'}")
 

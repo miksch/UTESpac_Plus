@@ -6,6 +6,7 @@ from typing import Dict
 import numpy as np
 
 from .model import Run, to_legacy_output
+from .site_config import site_id
 
 log = logging.getLogger("utespac")
 
@@ -14,7 +15,7 @@ def product_base_name(info: Dict) -> str:
     """``<Site>_<avgPer>minAvg_<PFtype>_<DetType>_<date>`` for the run facts *info*."""
     pf_type = "GPF_" if info.get("PF", {}).get("globalCalculation") == "global" else "LPF_"
     det_type = "LinDet_" if info.get("detrendingFormat", "linear") == "linear" else "ConstDet_"
-    site_name = info.get("siteFolder", "site").removeprefix("site")
+    site_name = site_id(info.get("siteFolder", "site"))
     return f"{site_name}_{info.get('avgPer', 30)}minAvg_{pf_type}{det_type}{info.get('date', 'unknown')}"
 
 
