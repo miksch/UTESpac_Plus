@@ -118,6 +118,13 @@ class PFConfig:
     avgPer: int = 30
     globalCalcMaxWind: float = 20
     globalCalcMinWind: float = 0.5
+    # Per-height override of globalCalcMinWind ({height [m]: min wind [m/s]}),
+    # for a sonic whose typical flow never clears the site-wide default (e.g.
+    # an in-canopy level) -- the global-PF regression needs enough
+    # above-threshold, direction-diverse points to be well conditioned, and
+    # the threshold tuned for above-canopy sonics can leave too few. Falls
+    # back to globalCalcMinWind for any height not listed.
+    globalCalcMinWindByHeight: Dict[float, float] = field(default_factory=dict)
 
     @classmethod
     def from_config(cls, config=None, **overrides):

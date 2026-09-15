@@ -1,0 +1,29 @@
+# TESTSITE_1Hz -- synthetic regression fixture: one day of a real IRGASON +
+# fine-wire table, decimated to 1 Hz and relabeled onto a placeholder date
+# and placeholder coordinates. Built by tests/fixtures/synthetic_1hz/build_fixture.py.
+tower = 180
+siteElevation = 18.2
+latitude = 41.15
+longitude = -98.92
+angle = 0.0
+
+tableNames = ["TESTSITE_1Hz", "TESTSITE_30min"]
+tableScanFrequency = [1, 0.000555555555556]
+tableNumberOfColumns = [16, 6]
+
+useTrefHMP = true
+avgSlowFreq = 30
+shiftzRef = false
+zRefLowestSon = 10.85
+ascending = false
+
+SSITC_subAvgMin = 5
+displacementHeight = 0
+canopyHeight = 6.0
+useCanopyITC = true
+
+[[sonics]]
+height = 10.85
+orientation = 215
+manufacturer = 1
+hmp_height = 10.72

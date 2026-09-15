@@ -41,20 +41,6 @@ comparison_logs/
 .DS_Store
 .idea/
 
-
-# ── Data tree (data/<SITE>/...): raw, processed, and reference data stay local.
-#    Tracked: the layout README, each site's siteInfo.*, and UTESpac header files.
-data/**
-!data/README.md
-!data/*/
-!data/*/siteInfo.toml
-!data/*/siteInfo.py
-!data/*/siteInfo.m
-!data/*/utespac/
-!data/*/utespac/*_header.dat
-!data/*/scripts/
-!data/*/scripts/*.py
-
 # ── testbed scratch: assistant working space, never tracked ──────────────────
 testbed/scratch/
 
@@ -65,14 +51,14 @@ testbed/scratch/
 library/*.pdf
 library/My Library.bib
 library/extracted/
-# -- committed regression fixtures (data/fixtures/, dev-only like the rest of
-#    data/): keep every file, including the PFinfo.json copy
-!data/fixtures/
-!data/fixtures/**
-data/fixtures/**/__pycache__/
-
 # ── Data tree, task tracker, figures: local only (user ruling 2026-09-07) ─────
-data/
+# data/* (not a bare "data/") so the README exception below still works --
+# a bare "data/" stops git from looking inside it at all, and a negation
+# after it has no effect. This includes data/fixtures/: the pinned
+# regression fixture carries real site coordinates and a real site code,
+# so it stays local like the rest of data/, never git add -f'd.
+data/*
+!data/README.md
 tasks/
 *.png
 *.pdf
