@@ -1,13 +1,13 @@
 """Pinned-fixture regression: the pipeline on the pinned 1 Hz fixture day
-reproduces the expected outputs in data/fixtures/<fixture>/expected/.
+reproduces the expected outputs in tests/fixtures/<fixture>/expected/.
 
 This is the regression safety net for the development tree (MATLAB parity
 was retired 2026-08-22; EddyPro is the external reference, see the audit
 doc). A failure means a numeric or structural change in the pipeline:
 either a defect, or a deliberate change that needs a ledger row in
 tests/KNOWN_DIVERGENCES.md and a re-pin (build_fixture.py pin). The
-fixture data live under data/fixtures/ (dev-only, like the rest of
-data/); when absent, this module skips.
+fixture is synthetic (placeholder site name, coordinates and date) and
+committed; when absent, this module skips.
 """
 
 import glob
@@ -19,11 +19,11 @@ import pytest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _candidates = sorted(
-    d for d in glob.glob(os.path.join(REPO_ROOT, "data", "fixtures", "*"))
+    d for d in glob.glob(os.path.join(REPO_ROOT, "tests", "fixtures", "*"))
     if os.path.isfile(os.path.join(d, "build_fixture.py"))
 )
 if not _candidates:
-    pytest.skip("no pinned fixture under data/fixtures/ on this machine",
+    pytest.skip("no pinned fixture under tests/fixtures/ on this machine",
                 allow_module_level=True)
 FIXTURE_DIR = _candidates[0]
 sys.path.insert(0, FIXTURE_DIR)
