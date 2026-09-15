@@ -181,6 +181,10 @@ def find_global_pf(info: Dict, template: Dict, sensor_info: Dict,
         # ── speed filter (NaN on compact arrays, matching MATLAB lines 104-107) ─
         max_w = info["PF"]["globalCalcMaxWind"]
         min_w = info["PF"]["globalCalcMinWind"]
+        for k, v in info["PF"].get("globalCalcMinWindByHeight", {}).items():
+            if abs(float(k) - z) < 0.01:
+                min_w = v
+                break
         spd_mask = (spd_raw > max_w) | (spd_raw < min_w)
         u_raw[spd_mask] = v_raw[spd_mask] = w_raw[spd_mask] = np.nan
         spd_raw[spd_mask] = np.nan
