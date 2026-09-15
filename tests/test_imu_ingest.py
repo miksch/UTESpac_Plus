@@ -1,15 +1,10 @@
-"""Tests for raw_processing/imu.py (generic IMU ingest helpers)."""
-
-import os
-import sys
+"""Tests for utespac/raw_processing/imu.py (generic IMU ingest helpers)."""
 
 import numpy as np
 import pandas as pd
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                "raw_processing"))
-from imu import IMU_MAP, align_imu, imu_columns, load_imu_files  # noqa: E402
+from utespac.raw_processing.imu import IMU_MAP, align_imu, imu_columns, load_imu_files
 
 
 def test_imu_columns_default_and_suffix():

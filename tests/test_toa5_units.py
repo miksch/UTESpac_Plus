@@ -1,13 +1,10 @@
-"""raw_processing/toa5_tower.py: the <table>_units.dat file written beside
-the header, from a TOA5 units row, a pandas export or a per-column config."""
+"""utespac/raw_processing/toa5_tower.py: the <table>_units.dat file written
+beside the header, from a TOA5 units row, a pandas export or a per-column
+config."""
 
 import os
-import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                "raw_processing"))
-
-from toa5_tower import (clean_unit, header_rows, resolve_units,  # noqa: E402
+from utespac.raw_processing.toa5_tower import (clean_unit, header_rows, resolve_units,
                         source_units, write_header, write_table_units, write_units)
 
 TOA5 = (

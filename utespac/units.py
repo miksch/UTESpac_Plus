@@ -1,7 +1,7 @@
 """Declared input units, and the conversion to the pipeline's internal ones.
 
 The logger tables declare a unit per column (TOA5 row 2, carried to
-``<table>_units.dat`` by :mod:`raw_processing.toa5_tower` and read back by
+``<table>_units.dat`` by :mod:`utespac.raw_processing.toa5_tower` and read back by
 :func:`utespac.import_header.import_units` into ``Sensor.units``).
 :func:`convert` turns a series in a declared unit into the unit the flux
 computation works in -- temperature deg C, relative humidity percent,
