@@ -2,8 +2,17 @@
 
 One folder per site. Everything the pipeline reads or writes for a site
 lives under it; the repo root holds code only. Only this README, each
-site's `siteInfo.toml`, and the UTESpac header files are tracked -- raw,
-processed, and reference data stay local (see `.gitignore`).
+site's `siteInfo.toml`, and the UTESpac header files are tracked in
+`UTESpac_Plus` -- raw, processed, and reference data stay local (see
+`.gitignore`).
+
+This folder need not be `UTESpac_Plus/data`: `utespac_main.py --root`,
+and `UTESPAC_DATA_ROOT`/`--root` on the `testbed/scripts/` entry
+points, take any data root, so one project's sites can live in their
+own private repo (a sibling checkout, say) with `utespac` installed
+from `UTESpac_Plus` as a normal dependency. Both default to
+`<repo>/data` when unset, so a checkout with data nested here (as in
+this repo today) needs no configuration.
 
 ```
 data/
@@ -14,9 +23,11 @@ data/
   <SITE>/
     siteInfo.toml        site facts: sonics, heights, bearings, slope, tables
     scripts/             per-site raw_processing configs (tracked): thin
-                         wrappers over raw_processing/ (card convert,
-                         fast/slow process) with the site's column maps
-                         and date spans
+                         wrappers over utespac.raw_processing (card
+                         convert, fast/slow process) with the site's
+                         column maps and date spans -- import the
+                         installed utespac package, not a relative path,
+                         so they run unchanged from any data root
     raw/
       <table>/           as logged: TOA5 .dat / logger CSV, one folder per
                          raw table; several folders when the heights of one
@@ -43,7 +54,7 @@ pipeline discovers a site by the presence of `siteInfo.toml` (or legacy
 `siteInfo.py`). Legacy `site*` folders at the repo root still resolve,
 but none with tracked files remain.
 
-`raw/` is read-only: `raw_processing` scripts read it and write to
+`raw/` is read-only: the site's `scripts/` read it and write to
 `utespac/`; nothing in the pipeline writes into `raw/`.
 
 ## Per-campaign sites

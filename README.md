@@ -36,7 +36,10 @@ minimal pin set kept for the MATLAB-era workflow.
 ## The data tree
 
 `data/` holds one folder per site and is gitignored — nothing under it ships with the
-repo. A site folder carries:
+repo. It need not be nested under this checkout: `utespac_main.py --root` and
+`UTESPAC_DATA_ROOT`/`--root` on the `testbed/scripts/` entry points point the pipeline
+at any data root (a private, per-project repo, say), falling back to `<repo>/data` when
+unset. A site folder carries:
 
 ```
 data/<SITE>/
