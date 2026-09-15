@@ -62,14 +62,18 @@ testbed/scratch/
 library/*.pdf
 library/My Library.bib
 library/extracted/
-# -- committed regression fixtures (data/fixtures/, dev-only like the rest of
-#    data/): keep every file, including the PFinfo.json copy
+# ── Data tree, task tracker, figures: local only (user ruling 2026-09-07) ─────
+# data/* (not a bare "data/") so the exceptions below still work -- a
+# bare "data/" stops git from looking inside it at all, and a negation
+# after it has no effect. This silently broke both exceptions below
+# (nothing under data/fixtures/ was actually tracked) until 2026-09-14.
+data/*
+!data/README.md
+# committed regression fixtures (dev-only like the rest of data/): keep
+# every file, including the PFinfo.json copy
 !data/fixtures/
 !data/fixtures/**
 data/fixtures/**/__pycache__/
-
-# ── Data tree, task tracker, figures: local only (user ruling 2026-09-07) ─────
-data/
 tasks/
 *.png
 *.pdf
