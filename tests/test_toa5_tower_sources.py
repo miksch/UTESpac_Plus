@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from raw_processing.toa5_tower import process_table, source_specs
+from utespac.raw_processing.toa5_tower import process_table, source_specs
 
 HZ = 1.0
 START = pd.Timestamp("2025-08-01")

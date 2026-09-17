@@ -16,11 +16,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-raw = ["pandas>=2.0"]         # raw_processing/ and generate_ameriflux scripts
+raw = ["pandas>=2.0"]         # utespac.raw_processing and generate_ameriflux scripts
 test = ["pytest>=7"]
 
 [tool.setuptools]
-packages = ["utespac", "utespac.config", "utespac.flux", "ec_coherent", "ec_coherent.config"]
+packages = ["utespac", "utespac.config", "utespac.flux", "utespac.raw_processing", "ec_coherent", "ec_coherent.config"]
 
 [tool.setuptools.package-data]
 "utespac.config" = ["*.toml"]

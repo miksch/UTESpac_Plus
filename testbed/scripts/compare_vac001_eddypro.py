@@ -39,7 +39,8 @@ sys.path.insert(0, ROOT)
 from utespac.run_io import read_run_legacy, run_files   # noqa: E402
 from utespac.testkit import get_header                   # noqa: E402
 
-SITE_DIR = os.path.join(ROOT, "data", "VAC001")
+DATA_ROOT = os.environ.get("UTESPAC_DATA_ROOT", os.path.join(ROOT, "data"))
+SITE_DIR = os.path.join(DATA_ROOT, "VAC001")
 EDDYPRO_GLOB = os.path.join(SITE_DIR, "eddypro", "*", "VAC_001_*_full.csv")
 MATLAB_EPOCH_DAYS = 719529.0
 M_CO2 = 44.01e-3   # kg/mol
@@ -108,7 +109,7 @@ def _frame_from_output(out):
 
 
 def load_utespac(pf, det="LinDet"):
-    files = run_files(os.path.join(ROOT, "data"), "VAC001", avg_per=30, qualifier=f"{pf}_{det}")
+    files = run_files(DATA_ROOT, "VAC001", avg_per=30, qualifier=f"{pf}_{det}")
     if not files:
         raise FileNotFoundError(
             f"no run files *_30minAvg_{pf}_{det}_*.nc under {SITE_DIR}/output")

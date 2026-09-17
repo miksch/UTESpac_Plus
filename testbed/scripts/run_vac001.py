@@ -21,6 +21,9 @@ from utespac import RunConfig, run_utespac  # noqa: E402
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--root", default=os.environ.get("UTESPAC_DATA_ROOT", os.path.join(ROOT, "data")),
+                    help="folder with one sub-folder per site "
+                         "(default: $UTESPAC_DATA_ROOT or <repo>/data)")
     ap.add_argument("--dates", type=int, nargs="*", default=None,
                     help="1-based date rows to process (default: all)")
     ap.add_argument("--site", default="VAC001")
@@ -29,7 +32,7 @@ def main():
 
     logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
     config = RunConfig.from_config(
-        rootFolder=os.path.join(ROOT, "data"),
+        rootFolder=args.root,
         saveCSV=True, saveRawConditionedData=True,
         pf={"globalCalculation": "local", "recalculateGlobalCoefficients": False},
         flux={"detrendingFormat": args.detrend},

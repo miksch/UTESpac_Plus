@@ -5,7 +5,7 @@ header rows.
 
 Ported from an in-house card-conversion notebook (Card
 Convert section). The converter executable and its DLL live in
-raw_processing/utils/ (copied from the same in-house tree,
+utespac/raw_processing/utils/ (copied from the same in-house tree,
 gitignored). Output files are named <table>_<yyyy_mm_dd_HHMMSS>.dat
 using the file-creation timestamp decoded from the TOB3 header line.
 

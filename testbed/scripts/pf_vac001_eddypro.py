@@ -30,7 +30,8 @@ from utespac.pf_coefficients import pf_coefficients      # noqa: E402
 from utespac.rotation import pf_matrix as _build_pf_matrix   # noqa: E402
 from utespac.run_io import read_run_legacy, run_files   # noqa: E402
 
-SITE_DIR = os.path.join(ROOT, "data", "VAC001")
+DATA_ROOT = os.environ.get("UTESPAC_DATA_ROOT", os.path.join(ROOT, "data"))
+SITE_DIR = os.path.join(DATA_ROOT, "VAC001")
 EPOCH = 719529.0
 C_DATA, C_FIT, C_WRONG, C_EP, C_INK = "#2a78d6", "#eb6834", "#e34948", "#1baf7a", "#52514e"
 
@@ -43,7 +44,7 @@ def angles(b1, b2):
 
 def load_means():
     frames = []
-    for f in run_files(os.path.join(ROOT, "data"), "VAC001", avg_per=30, qualifier="LPF_LinDet"):
+    for f in run_files(DATA_ROOT, "VAC001", avg_per=30, qualifier="LPF_LinDet"):
         p = read_run_legacy(f)
         tbl, hdr = p["VAC001_20Hz"], p["VAC001_20HzHeader"][0]
         sd, sdh = p["spdAndDir"], p["spdAndDirHeader"]

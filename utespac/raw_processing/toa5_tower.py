@@ -112,7 +112,7 @@ def source_specs(cfg):
     a key a source omits falls back to the table-level value.
 
     ``lag_s`` is ADDED to the source's timestamps before the join, matching
-    :func:`raw_processing.imu.load_imu_files`, so a logger whose clock runs
+    :func:`utespac.raw_processing.imu.load_imu_files`, so a logger whose clock runs
     *ahead* of the primary takes a negative ``lag_s``. The first source is
     the primary: its clock defines the output grid and its ``lag_s`` is
     normally 0.

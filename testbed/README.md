@@ -15,9 +15,11 @@ a line on [tasks/board.md](../tasks/board.md) before the session ends.
 - scratch/ -- assistant-facing working space: one-off probes, logs,
   comparison figures. Gitignored in full.
 
-Site data stays at the top-level `data/` (see [data/README.md](../data/README.md));
-testbed runs read from it and write pipeline outputs back under
-`data/<SITE>/output/` or figures into scratch/.
+Site data lives under a data root -- `<repo>/data` by default, or
+elsewhere via `UTESPAC_DATA_ROOT`/`--root` (see
+[data/README.md](../data/README.md)) once a site's data moves to its
+own private repo. Testbed runs read from that root and write pipeline
+outputs back under `<root>/<SITE>/output/` or figures into scratch/.
 
 The dated `*.md` gameplans at this level predate the `tasks/` silo and
 stay here as the ec_coherent planning record (the build-out itself is
