@@ -24,6 +24,7 @@ utespac/raw_processing/utils/csidft.dll
 
 # ── PFinfo (computed coefficients, regenerated on each run) ───────────────────
 **/PFinfo.*
+!tests/fixtures/**/PFinfo.json
 
 # ── Python cache ──────────────────────────────────────────────────────────────
 __pycache__/
