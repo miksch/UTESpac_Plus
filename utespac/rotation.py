@@ -3,7 +3,10 @@
 The numerics of ``sonic_rotation``/``pf_coefficients`` as small, testable
 pieces: :class:`PlanarFit` (the Wilczak et al. 2001 regression, its
 rotation matrix and its application), :func:`sector_mask` (the
-wind-direction sectors of a global fit), :func:`yaw_rotate` (per-period
+wind-direction sectors of a global fit), the sector bookkeeping of a
+sectorwise fit (:func:`sector_keys`, :func:`sector_of`,
+:func:`sector_edges_from_histogram`, :func:`fit_planar`,
+:func:`bootstrap_tilt`), :func:`yaw_rotate` (per-period
 yaw into the mean wind) and :func:`rotate_sonics`, which rotates every
 sonic of a run and returns a :class:`RotationResult`; ``utespac.stages.rotate``
 feeds it from the run model.
@@ -141,6 +144,225 @@ def fit_sectors(u_bar, v_bar, w_bar, direction, bins: Sequence[float]
             m = (d > lo) | (d <= hi)
         out[(lo, hi)] = PlanarFit.fit(u[m], v[m], w[m])
     return out
+
+
+# ── sector bookkeeping ───────────────────────────────────────────────────────
+
+N_BOOTSTRAP = 1000      # default resample count of :func:`bootstrap_tilt`
+
+
+def sector_keys(edges: Sequence[float]) -> List[Tuple[float, float]]:
+    """Sector ``(lo, hi)`` keys for *edges*, in :func:`fit_sectors` order.
+
+    :func:`fit_sectors` pairs each edge with the next, closing the list
+    through the first edge, and takes each sector closed on its upper bound.
+    Edges ``(60, 250)`` therefore give ``(60, 250]`` and ``(250, 60]``, the
+    second wrapping through north.
+
+    Parameters
+    ----------
+    edges : sequence of float
+        Sector edges [deg], as passed to :func:`fit_sectors`.
+
+    Returns
+    -------
+    list of tuple of float
+        One ``(lo, hi)`` key per sector; empty for no edges.
+    """
+    e = [float(x) for x in edges]
+    return [(e[i], e[i + 1] if i < len(e) - 1 else e[0]) for i in range(len(e))]
+
+
+def sector_of(direction, edges: Sequence[float]) -> list:
+    """Sector key of each direction [deg], matching :func:`sector_keys`.
+
+    Membership follows :func:`fit_sectors`: open on the lower edge, closed
+    on the upper edge, wrapping through north when ``hi < lo``.
+
+    Parameters
+    ----------
+    direction : array_like
+        Wind directions [deg], any real value; wrapped into [0, 360).
+    edges : sequence of float
+        Sector edges, as passed to :func:`fit_sectors`.
+
+    Returns
+    -------
+    list
+        One ``(lo, hi)`` key per direction, ``None`` where the direction is
+        not finite.
+    """
+    d = np.asarray(direction, dtype=float)
+    keys = sector_keys(edges)
+    out = [None] * d.size
+    flat = np.mod(d.ravel(), 360.0)
+    for lo, hi in keys:
+        m = (flat > lo) & (flat <= hi) if hi > lo else (flat > lo) | (flat <= hi)
+        for i in np.flatnonzero(m & np.isfinite(flat)):
+            out[i] = (lo, hi)
+    return out
+
+
+def sector_label(key: Optional[Tuple[float, float]]) -> str:
+    """Degree range of a sector key, ``all`` for the single-fit key ``(x, x)``
+    and an empty string for ``None``."""
+    if key is None:
+        return ""
+    lo, hi = key
+    return "all" if lo == hi else f"{lo:.0f}-{hi:.0f}"
+
+
+def sector_name(key: Optional[Tuple[float, float]],
+                names: Dict[Tuple[float, float], str]) -> str:
+    """Name of a sector key under the mapping *names*.
+
+    Parameters
+    ----------
+    key : tuple of float or None
+        Sector ``(lo, hi)`` key.
+    names : dict
+        Sector key to name, for example ``{(250.0, 60.0): "A"}``.
+
+    Returns
+    -------
+    str
+        The mapped name; ``all`` for the single-fit key ``(x, x)``; the
+        :func:`sector_label` degree range for a key absent from *names*; an
+        empty string for ``None``.
+    """
+    if key is None:
+        return ""
+    lo, hi = key
+    if lo == hi:
+        return "all"
+    return names.get((float(lo), float(hi)), sector_label(key))
+
+
+def sector_edges_from_histogram(direction, admit, bin_deg: float
+                                ) -> Tuple[List[float], np.ndarray]:
+    """Sector edges at the centre of every empty run of a direction histogram.
+
+    The admitted directions are binned at *bin_deg*; a contiguous run of
+    empty bins is a gap between lobes, and its centre becomes an edge. The
+    runs are found on the circle, so a gap straddling north is one run.
+
+    Parameters
+    ----------
+    direction : array_like
+        Directions [deg], any real value; wrapped into [0, 360).
+    admit : array_like of bool or index
+        Selection of *direction* entering the histogram.
+    bin_deg : float
+        Histogram bin width [deg].
+
+    Returns
+    -------
+    edges : list of float
+        Edge angles [deg], ascending, in the form :func:`fit_sectors`
+        expects; empty when no bin, or every bin, is empty.
+    hist : numpy.ndarray
+        The bin counts.
+    """
+    d = np.mod(np.asarray(direction, dtype=float)[admit], 360.0)
+    d = d[np.isfinite(d)]
+    n_bins = int(round(360.0 / bin_deg))
+    hist, _ = np.histogram(d, bins=np.arange(n_bins + 1) * bin_deg)
+    empty = hist == 0
+    if not empty.any() or empty.all():
+        return [], hist
+    idx = np.flatnonzero(empty)
+    runs, cur = [], [idx[0]]
+    for a, b in zip(idx[:-1], idx[1:]):
+        if b == a + 1:
+            cur.append(b)
+        else:
+            runs.append(cur)
+            cur = [b]
+    runs.append(cur)
+    if len(runs) > 1 and runs[0][0] == 0 and runs[-1][-1] == n_bins - 1:
+        runs[0] = runs[-1] + runs[0]      # a run straddling north
+        runs.pop()
+    edges = []
+    for run in runs:
+        span = len(run) * bin_deg
+        edges.append(float((run[0] * bin_deg + span / 2.0) % 360.0))
+    return sorted(edges), hist
+
+
+def fit_planar(u, v, w, direction, edges: Sequence[float], admit
+               ) -> Tuple[Dict[Tuple[float, float], Optional[PlanarFit]], Optional[PlanarFit]]:
+    """Sectorwise and single-sector planar fits from the admitted period means.
+
+    Parameters
+    ----------
+    u, v, w : numpy.ndarray
+        Period-mean wind components.
+    direction : numpy.ndarray
+        Period-mean wind direction [deg].
+    edges : sequence of float
+        Sector edges, as passed to :func:`fit_sectors`.
+    admit : numpy.ndarray of bool
+        Periods entering the fits.
+
+    Returns
+    -------
+    sectors : dict
+        :func:`fit_sectors` result over *edges*.
+    single : PlanarFit or None
+        The all-direction fit.
+    """
+    sec = fit_sectors(u[admit], v[admit], w[admit], direction[admit], list(edges))
+    single = fit_sectors(u[admit], v[admit], w[admit], direction[admit], [])[(0.0, 0.0)]
+    return sec, single
+
+
+def sector_fit(fits: Dict[Tuple[float, float], Optional[PlanarFit]],
+               fallback: Optional[PlanarFit], key: Optional[Tuple[float, float]],
+               use_sector: bool = True) -> Optional[PlanarFit]:
+    """The planar fit applying to one period: its sector's, or *fallback*.
+
+    *fallback* is returned when *use_sector* is false, when *key* is
+    ``None``, or when the sector has no fit in *fits*.
+    """
+    if not use_sector:
+        return fallback
+    f = fits.get(key) if key is not None else None
+    return f if f is not None else fallback
+
+
+def bootstrap_tilt(u, v, w, n_boot: int = N_BOOTSTRAP, seed: int = 0
+                   ) -> Tuple[float, float]:
+    """Bootstrap standard deviation of a planar fit's pitch and roll [deg].
+
+    Parameters
+    ----------
+    u, v, w : numpy.ndarray
+        Period-mean wind components of the fit.
+    n_boot : int
+        Number of resamples with replacement.
+    seed : int
+        Seed of the ``numpy.random.default_rng`` generator.
+
+    Returns
+    -------
+    sd_pitch, sd_roll : float
+        Population standard deviations over the resamples that gave a fit;
+        NaN for fewer than 4 points or fewer than 10 successful resamples.
+    """
+    n = len(u)
+    if n < 4:
+        return np.nan, np.nan
+    rng = np.random.default_rng(seed)
+    pitch, roll = [], []
+    for _ in range(n_boot):
+        k = rng.integers(0, n, n)
+        f = PlanarFit.fit(u[k], v[k], w[k])
+        if f is not None:
+            pitch.append(f.pitch_deg)
+            roll.append(f.roll_deg)
+    if len(pitch) < 10:
+        return np.nan, np.nan
+    return float(np.std(pitch)), float(np.std(roll))
 
 
 # ── global-fit application ───────────────────────────────────────────────────

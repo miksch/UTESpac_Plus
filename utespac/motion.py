@@ -21,7 +21,8 @@ Conventions (kernel level, SI units):
 - Platform frame is right-handed with z up (x nominal forward, y left);
   the earth frame is z-up. All angles in radians, rates in rad/s,
   accelerations in m/s^2. Unit and axis-sign conversion from logger
-  conventions happens in :func:`utespac.stages.motion`, not here.
+  conventions happens in :func:`utespac.stages.motion` (and, for plain
+  channel arrays, in :func:`to_platform_frame`), not in the kernels.
 - ``T = Rz(yaw) Ry(pitch) Rx(roll)`` maps platform vectors to earth
   (ZYX Euler, ``v_e = T v_p``); positive roll rotates +y toward +z,
   positive pitch rotates +z toward +x.
@@ -43,7 +44,9 @@ G = 9.80665      # [m/s^2] standard gravity
 
 __all__ = ["MotionParams", "MotionResult", "correct_wind", "euler_T", "euler_from_T",
            "accel_tilt", "complementary_attitude", "platform_velocity",
-           "highpass", "lowpass", "integrate", "fill_gaps", "G"]
+           "highpass", "lowpass", "integrate", "fill_gaps", "G",
+           "to_platform_frame", "interp_max_gap", "bandpass", "band_variance",
+           "heave_velocity", "xcorr", "bounded_peak_lag", "pair_on_grid"]
 
 
 # ── configuration and result ─────────────────────────────────────────────────
@@ -288,3 +291,295 @@ def correct_wind(uvw: np.ndarray, params: MotionParams,
 
     corrected = np.einsum("nij,nj->ni", T, uvw) + angular + v_plat
     return MotionResult(corrected, roll, pitch, yaw, v_plat, angular, nan_frac)
+
+
+# ── logger channels to the platform frame ────────────────────────────────────
+
+def to_platform_frame(channels, cfg):
+    """Accelerations, angular rates and attitude in the SI platform frame.
+
+    Applies the axis signs and accelerometer units declared in the site's
+    ``[imu]`` block, converts the angular channels from degrees, and rotates
+    all three triplets through the mounting tilt when one is declared.
+
+    Parameters
+    ----------
+    channels : array_like, shape (n, 9)
+        Raw IMU channels in the column order ``ax, ay, az, gx, gy, gz,
+        roll, pitch, yaw``: accelerometer in ``cfg.accelUnits``, angular
+        rate in deg/s and attitude in deg.
+    cfg : utespac.site_config.IMUInfo
+        Axis signs (``accelSigns``, ``gyroSigns``, ``attitudeSigns``),
+        ``accelUnits`` and the mounting tilt ``mountRoll``, ``mountPitch``,
+        ``mountYaw`` [deg]. ``gyroUnits`` and ``attitudeUnits`` are not
+        consulted: the angular channels are always taken as degrees.
+
+    Returns
+    -------
+    acc : numpy.ndarray, shape (n, 3)
+        Specific force [m/s^2].
+    gyro : numpy.ndarray, shape (n, 3)
+        Angular rate [rad/s].
+    att : numpy.ndarray, shape (n, 3)
+        Roll, pitch and yaw [rad].
+
+    See Also
+    --------
+    utespac.stages.motion : The same conversion on a Run, honouring
+        ``gyroUnits`` and ``attitudeUnits``.
+    """
+    c = np.asarray(channels, dtype=float)
+    acc = c[:, 0:3] * np.asarray(cfg.accelSigns, dtype=float)
+    if cfg.accelUnits == "g":
+        acc = acc * G
+    gyro = np.deg2rad(c[:, 3:6]) * np.asarray(cfg.gyroSigns, dtype=float)
+    att = np.deg2rad(c[:, 6:9]) * np.asarray(cfg.attitudeSigns, dtype=float)
+    if cfg.mountRoll or cfg.mountPitch or cfg.mountYaw:
+        Rm = euler_T(*np.deg2rad([cfg.mountRoll, cfg.mountPitch, cfg.mountYaw]))
+        acc = acc @ Rm.T
+        gyro = gyro @ Rm.T
+        att = np.column_stack(
+            euler_from_T(euler_T(att[:, 0], att[:, 1], att[:, 2]) @ Rm.T))
+    return acc, gyro, att
+
+
+def interp_max_gap(imu_t, imu_ch, target_s, max_gap_s):
+    """Channels linearly interpolated onto target times across short gaps.
+
+    Target times whose enclosing sample interval is longer than
+    *max_gap_s*, or which fall outside the record, are returned as NaN.
+
+    Parameters
+    ----------
+    imu_t : numpy.ndarray, shape (m,)
+        Sample times [s], increasing.
+    imu_ch : numpy.ndarray, shape (m, k)
+        Channels sampled at *imu_t*.
+    target_s : numpy.ndarray, shape (n,)
+        Target times [s], on the same scale as *imu_t*.
+    max_gap_s : float
+        Longest sample interval [s] interpolated across.
+
+    Returns
+    -------
+    numpy.ndarray, shape (n, k)
+        Interpolated channels; all NaN when fewer than two samples exist.
+
+    See Also
+    --------
+    utespac.raw_processing.imu.align_imu : Nearest-sample reindexing onto a
+        uniform grid, without interpolation.
+    """
+    out = np.full((len(target_s), imu_ch.shape[1]), np.nan)
+    if len(imu_t) < 2:
+        return out
+    idx = np.clip(np.searchsorted(imu_t, target_s, side="right") - 1,
+                  0, len(imu_t) - 2)
+    gap = imu_t[idx + 1] - imu_t[idx]
+    bad = (gap > max_gap_s) | (target_s < imu_t[0]) | (target_s > imu_t[-1])
+    for j in range(imu_ch.shape[1]):
+        out[:, j] = np.interp(target_s, imu_t, imu_ch[:, j])
+    out[bad] = np.nan
+    return out
+
+
+# ── motion diagnostics ───────────────────────────────────────────────────────
+
+def bandpass(x, lo, hi, fs, order: int = 4):
+    """Zero-phase Butterworth band-pass of the demeaned series.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        Evenly sampled series without NaN.
+    lo, hi : float
+        Band edges [Hz].
+    fs : float
+        Sampling rate [Hz].
+    order : int, optional
+        Order of the Butterworth prototype.
+
+    Returns
+    -------
+    numpy.ndarray
+        ``x - mean(x)`` filtered forward and backward (``filtfilt`` with
+        transfer-function coefficients).
+    """
+    from scipy import signal
+    b, a = signal.butter(order, [lo / (fs / 2), hi / (fs / 2)], btype="band")
+    return signal.filtfilt(b, a, x - np.mean(x))
+
+
+def band_variance(x, band, fs):
+    """Variance of a series inside a frequency band.
+
+    NaN gaps are interpolated with :func:`fill_gaps` before a fourth-order
+    zero-phase Butterworth band-pass (second-order sections).
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        Evenly sampled series, may contain NaN.
+    band : tuple of float
+        ``(low, high)`` band edges [Hz].
+    fs : float
+        Sampling rate [Hz].
+
+    Returns
+    -------
+    float
+        Band-passed variance, or NaN when fewer than 200 values are finite.
+    """
+    from scipy import signal
+    ok = np.isfinite(x)
+    if ok.sum() < 200:
+        return np.nan
+    filled, _ = fill_gaps(x)
+    sos = signal.butter(4, [band[0] / (fs / 2), band[1] / (fs / 2)],
+                        btype="band", output="sos")
+    return float(np.var(signal.sosfiltfilt(sos, filled - filled.mean())))
+
+
+def heave_velocity(az, fs, lo, hi):
+    """Band-passed vertical velocity from the vertical accelerometer.
+
+    The band-pass removes gravity and the slow tilt-driven part of *az*
+    before and after integration, so the integrator does not wander.
+
+    Parameters
+    ----------
+    az : numpy.ndarray
+        Vertical specific force [g], evenly sampled, without NaN.
+    fs : float
+        Sampling rate [Hz].
+    lo, hi : float
+        Band edges [Hz] of both band-passes.
+
+    Returns
+    -------
+    numpy.ndarray
+        Vertical velocity [m/s] in the band.
+    """
+    return bandpass(np.cumsum(bandpass((az - 1.0) * G, lo, hi, fs)) / fs, lo, hi, fs)
+
+
+def xcorr(x, y, max_lag_s, fs):
+    """Normalized cross-correlation ``corr(x[n], y[n + k])`` over bounded lags.
+
+    Parameters
+    ----------
+    x, y : numpy.ndarray
+        Evenly sampled series of equal length, without NaN.
+    max_lag_s : float
+        Largest absolute lag returned [s].
+    fs : float
+        Sampling rate [Hz].
+
+    Returns
+    -------
+    lags : numpy.ndarray
+        Lags [s]; positive when *x* leads *y*.
+    r : numpy.ndarray
+        Correlation coefficient at each lag, normalized by ``len(x)``.
+    """
+    from scipy import signal
+    x = (x - x.mean()) / x.std()
+    y = (y - y.mean()) / y.std()
+    r = signal.correlate(y, x, mode="full") / len(x)
+    lags = signal.correlation_lags(len(y), len(x), mode="full") / fs
+    m = np.abs(lags) <= max_lag_s
+    return lags[m], r[m]
+
+
+def bounded_peak_lag(x, y, max_lag_s, fs, bound_s):
+    """Largest positive correlation of :func:`xcorr` within a lag bound.
+
+    Narrow-band signals correlate again at every period, so the search is
+    restricted to ``|lag| <= bound_s``.
+
+    Parameters
+    ----------
+    x, y : numpy.ndarray
+        Evenly sampled series of equal length, without NaN.
+    max_lag_s : float
+        Largest absolute lag [s] passed to :func:`xcorr`.
+    fs : float
+        Sampling rate [Hz].
+    bound_s : float
+        Largest absolute lag [s] searched for the peak.
+
+    Returns
+    -------
+    r : float
+        Peak correlation coefficient.
+    lag : float
+        Lag [s] of the peak; positive when *x* leads *y*.
+    """
+    lags, r = xcorr(x, y, max_lag_s, fs)
+    core = np.abs(lags) <= bound_s
+    j = np.where(core)[0][np.argmax(r[core])]
+    return r[j], lags[j]
+
+
+def pair_on_grid(imu_df, son, t0, t1, fs, *, pad_s, min_records, trim_s,
+                 min_overlap_s):
+    """IMU vertical acceleration and sonic wind on one uniform grid.
+
+    IMU records within *pad_s* of ``[t0, t1)`` are screened with
+    :func:`utespac.raw_processing.imu.flag_spikes` at its default limits,
+    duplicate timestamps are averaged, and both records are linearly
+    interpolated onto a grid spanning their overlap, trimmed by *trim_s*
+    at each end. Requires pandas.
+
+    Parameters
+    ----------
+    imu_df : pandas.DataFrame
+        IMU records with the logger channel names of
+        :mod:`utespac.raw_processing.imu` (``time``, ``ax`` ... ``yaw``).
+    son : pandas.DataFrame
+        Sonic records with columns ``TIMESTAMP``, ``Ux``, ``Uy``, ``Uz``.
+    t0, t1 : datetime-like
+        Window start (inclusive) and end (exclusive).
+    fs : float
+        Grid rate [Hz].
+    pad_s : float
+        IMU records taken beyond each end of the window [s].
+    min_records : int
+        Fewest IMU or sonic records accepted in the window.
+    trim_s : float
+        Overlap trimmed from each end before gridding [s].
+    min_overlap_s : float
+        Shortest trimmed overlap accepted [s].
+
+    Returns
+    -------
+    dict or None
+        ``grid`` (epoch seconds), ``rate`` (screened IMU records per
+        second), ``az`` [g], ``u``, ``v``, ``w`` [m/s] on the grid and
+        ``spd`` (mean horizontal speed [m/s]); None when a record or the
+        overlap falls short of the limits.
+    """
+    import pandas as pd
+
+    from utespac.averaging import epoch_s
+    from utespac.raw_processing.imu import flag_spikes
+
+    d = imu_df[(imu_df["time"] >= pd.Timestamp(t0) - pd.Timedelta(seconds=pad_s))
+               & (imu_df["time"] < pd.Timestamp(t1) + pd.Timedelta(seconds=pad_s))]
+    if len(d) < min_records:
+        return None
+    d = d[~flag_spikes(d)].groupby("time", as_index=False).mean()
+    s = son[(son["TIMESTAMP"] >= t0) & (son["TIMESTAMP"] < t1)]
+    if len(s) < min_records:
+        return None
+    ti, ts = epoch_s(d["time"]), epoch_s(s["TIMESTAMP"])
+    lo, hi = max(ti[0], ts[0]) + trim_s, min(ti[-1], ts[-1]) - trim_s
+    if hi - lo < min_overlap_s:
+        return None
+    grid = np.arange(lo, hi, 1 / fs)
+    out = {"grid": grid, "rate": len(d) / (ti[-1] - ti[0])}
+    out["az"] = np.interp(grid, ti, d["az"].to_numpy())
+    for src, name in (("Ux", "u"), ("Uy", "v"), ("Uz", "w")):
+        out[name] = np.interp(grid, ts, s[src].to_numpy().astype(float))
+    out["spd"] = float(np.hypot(out["u"], out["v"]).mean())
+    return out
