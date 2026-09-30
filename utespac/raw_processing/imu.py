@@ -144,9 +144,11 @@ def load_imu_files(pattern, columns, time_column=0, time_format=None,
 def align_imu(imu, grid, max_gap_s=None):
     """Align a separate-logger IMU frame onto the sonic's sample grid.
 
-    Nearest-timestamp match within ``max_gap_s`` (default: one grid
-    interval), NaN beyond it — interpolation across real gaps would
-    smear platform motion into the correction.
+    Nearest-timestamp match within ``max_gap_s``, NaN beyond it —
+    interpolation across real gaps would smear platform motion into the
+    correction. The default is the larger of one grid interval and 0.75
+    of the median IMU interval, so an IMU slower than the grid does not
+    leave a periodic set of scans unmatched.
 
     Parameters
     ----------
@@ -164,6 +166,10 @@ def align_imu(imu, grid, max_gap_s=None):
     """
     if max_gap_s is None:
         max_gap_s = (grid[1] - grid[0]) / pd.Timedelta(seconds=1)
+        if len(imu.index) > 1:
+            stamps = imu.index.values.astype("datetime64[ns]").astype("i8")
+            imu_dt = np.median(np.diff(stamps)) * 1e-9
+            max_gap_s = max(max_gap_s, 0.75 * imu_dt)
     tol = pd.Timedelta(seconds=float(max_gap_s))
     idx = imu.index.get_indexer(grid, method="nearest", tolerance=tol)
     out = pd.DataFrame(index=grid, columns=imu.columns, dtype=float)
