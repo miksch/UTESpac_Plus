@@ -47,6 +47,7 @@ testbed/scratch/
 
 # ── Local dev notes (not tracked) ─────────────────────────────────────────────
 .notes/
+.obsidian/
 
 # ── Literature library: PDFs and personal Zotero export stay local ────────────
 library/*.pdf
