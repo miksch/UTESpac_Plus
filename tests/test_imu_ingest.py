@@ -55,3 +55,17 @@ def test_align_imu_nearest_within_tolerance():
     # default tolerance = one grid step: the gap center still stays NaN
     out2 = align_imu(imu, grid)
     assert np.isnan(out2["IMU_Roll"].iloc[24])
+
+
+def test_align_imu_default_tolerance_slow_imu():
+    # 120 ms IMU on a 50 ms grid: scans fall up to 60 ms from the nearest
+    # IMU sample, past one grid step but within 0.75 IMU intervals (90 ms)
+    t_imu = pd.date_range("2026-07-01", periods=50, freq="120ms")
+    imu = pd.DataFrame({"IMU_Roll": np.arange(50.0)}, index=t_imu)
+    imu = imu.drop(imu.index[20:30])                    # 2.28 s -> 3.60 s
+    grid = pd.date_range("2026-07-01", periods=90, freq="50ms")
+    one_step = align_imu(imu, grid, max_gap_s=0.05)
+    assert one_step["IMU_Roll"].iloc[:48].isna().any()
+    out = align_imu(imu, grid)
+    assert out["IMU_Roll"].iloc[:48].notna().all()
+    assert out["IMU_Roll"].iloc[48:71].isna().all()     # the gap stays NaN
