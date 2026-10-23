@@ -36,9 +36,10 @@ only what is specific to this repo.
 `main` is the release branch and `dev` the integration branch. Feature
 branches are `<area>/<slug>` off `dev`, the area matching the log
 (`fluxes/`, `raw_processing/`, `meta/`, `docs/`), squash-merged into
-`dev`. Unlike the user rule, here nothing lands on `dev` or `main` by a
-direct commit, doc-only edits included; opening a PR, merging one and
-pushing to either branch need the user's go-ahead. `dev` reaches `main`
+`dev`. Doc-only edits (`library/`, the top-level `.md` files) commit
+straight to `dev` and are pushed in the same step, as in dopli-dev;
+anything under `src/` or `tests/` goes through a branch. Opening a PR,
+merging one and pushing to `main` need the user's go-ahead. `dev` reaches `main`
 as a release merge, not a squash, so `main` keeps each `dev` commit
 underneath. The PR description also carries the BUGFIXES entries.
 
