@@ -1,24 +1,56 @@
 # UTESpac_Plus
 
-## Git workflow
+Python port of the UTESpac eddy-covariance pipeline (package `utespac`)
+plus `ec_coherent`, the coherent-structure and spectral methods built
+on it. The shared instructions live at the user level; this file holds
+only what is specific to this repo.
 
-`main` is the release branch and `dev` is the integration branch. Work
-never lands on either by a direct commit.
+## Kinds of work
 
-- Branch from `dev` as `<area>/<short-slug>`, the area matching the log's
-  prefixes (`fluxes/`, `raw_processing/`, `meta/`, `docs/`). One branch per
-  coherent change.
-- Commit and push freely on a feature branch without asking. Opening a PR,
-  merging one, and pushing to `dev` or `main` need the user's go-ahead.
-- Open the PR once the branch is green, not per commit. Squash-merge into
-  `dev`, so `dev` carries one commit per PR and the branch's incremental
-  commits do not land.
-- `dev` reaches `main` as a release merge, not a squash: `main`'s history
-  is the sequence of releases and keeps each `dev` commit underneath.
-- Delete the feature branch after the merge, local and remote.
+- Coding: `utespac/` (flux processing; `raw_processing/` for card
+  conversion and the fast and slow tables), `ec_coherent/`, `tests/`,
+  and the entry point `utespac_main.py`. The packages sit at the repo
+  root, not under `src/`; the coding rule applies to them.
+- Analysis: `testbed/scripts/` holds the runnable demos and campaign
+  validation scripts; `testbed/scratch/` (gitignored) is the working
+  space, and the only place for campaign-specific scripts.
+- Research: `library/`. The PDFs, `My Library.bib` and `extracted/` are
+  gitignored; `index.md` (abbreviated filename to bibkey, several keys
+  on a row where one PDF carries them), `references.bib` and
+  `writeups/` are tracked.
+- `tasks/` is the active silo (board, history, active, on_hold,
+  archive) and is gitignored as a whole: never committed, never
+  staged. `UTESpac_MATLAB/` is the original package and `BUGFIXES.txt`
+  the record of bugs found while porting it.
 
-The PR description is the reviewable unit and carries the long form:
-symptom, approach, the files and symbols touched, test results, BUGFIXES
-entries. Commit messages follow the commit-messages skill — subjects at 72
-characters or fewer, bodies at most two short paragraphs — and do not
-repeat the PR text.
+## Environment
+
+- Env name: `UTESpac_Plus`, with the package installed editable.
+  Invocation as in `machine.md`.
+- Paper extraction: the user-level script with `--papers library
+  --index library/index.md --out library/extracted`; `--check-index`
+  compares the folder with the index in both directions.
+
+## Git
+
+`main` is the release branch and `dev` the integration branch. Feature
+branches are `<area>/<slug>` off `dev`, the area matching the log
+(`fluxes/`, `raw_processing/`, `meta/`, `docs/`), squash-merged into
+`dev`. Doc-only edits (`library/`, the top-level `.md` files) commit
+straight to `dev` and are pushed in the same step, as in dopli-dev;
+anything under `src/` or `tests/` goes through a branch. Opening a PR,
+merging one and pushing to `main` need the user's go-ahead. `dev` reaches `main`
+as a release merge, not a squash, so `main` keeps each `dev` commit
+underneath. The PR description also carries the BUGFIXES entries.
+
+`origin` is `miksch/UTESpac_Plus`; `upstream` is the original
+`Diane1306/UTESpac_Plus`. Real site identifiers stay out of tracked
+files (the pre-PR diff in the coding rule); `data/fixtures/` stays
+local for the same reason.
+
+## Data
+
+`data/` is gitignored except `data/README.md`, each site's
+`siteInfo.toml` and the UTESpac header files. `utespac_main.py --root`
+and `UTESPAC_DATA_ROOT` point the pipeline at any other data root;
+`../vac-proc` keeps its sites that way.
