@@ -89,6 +89,7 @@ gitignored; project entries are curated into `references.bib`.
 | Wang and Zheng - 2016 - Very large scale motions... | Wang2016b | title |
 | Webb et al. - 1980 - Correction of flux measurements for density effects... | Webb1980 | title (2026-08-22; OCR layer, equations garbled -- render pp. 89-91 for eqs. 14, 24, 25, 42-44) |
 | Wilczak et al. - 2001 - Sonic anemometer tilt correction... | Wilczak2001 | title |
+| Mack2026.pdf (Mack and Pirk 2026, Reddy: An open-source toolbox for analyzing eddy-covariance measurements in heterogeneous environments; Zotero citekey Mack2026) | Mack2026 | title (2026-10-15) |
 
 ## Gaps (as of 2026-08-22)
 
