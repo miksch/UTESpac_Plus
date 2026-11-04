@@ -222,10 +222,15 @@
   "scalar_flux_lateral": [
    "time",
    "u_theta_v_cov_pf_10.85",
+   "v_theta_v_cov_pf_10.85",
    "u_h2o_cov_pf_10.85",
+   "v_h2o_cov_pf_10.85",
    "u_h2o_wpl_cov_pf_10.85",
+   "v_h2o_wpl_cov_pf_10.85",
    "u_co2_cov_pf_10.85",
-   "u_co2_wpl_cov_pf_10.85"
+   "v_co2_cov_pf_10.85",
+   "u_co2_wpl_cov_pf_10.85",
+   "v_co2_wpl_cov_pf_10.85"
   ],
   "scaling": [
    "time",

@@ -416,8 +416,9 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
             if rot:
                 r.blank("skewness", "u_skew_pf", "v_skew_pf", "w_skew_pf", "theta_v_skew",
                         "h2o_skew", "h2o_wpl_skew", "co2_skew", "co2_wpl_skew")
-                r.blank("scalar_flux_lateral", "u_theta_v_cov_pf", "u_h2o_cov_pf",
-                        "u_h2o_wpl_cov_pf", "u_co2_cov_pf", "u_co2_wpl_cov_pf")
+                r.blank("scalar_flux_lateral", "u_theta_v_cov_pf", "v_theta_v_cov_pf",
+                        "u_h2o_cov_pf", "v_h2o_cov_pf", "u_h2o_wpl_cov_pf", "v_h2o_wpl_cov_pf",
+                        "u_co2_cov_pf", "v_co2_cov_pf", "u_co2_wpl_cov_pf", "v_co2_wpl_cov_pf")
                 r.blank("transport", "w_h2o_transport_pf", "w_h2o_wpl_transport_pf",
                         "w_co2_transport_pf", "w_co2_wpl_transport_pf")
             else:
@@ -427,10 +428,16 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
                     "h2o_wpl_skew": _skew(H2Op + rhov_ext * 1e3),
                     "co2_skew": _skew(rho_CO2p), "co2_wpl_skew": _skew(rho_CO2p + rhoc_ext)}
                 r.values["scalar_flux_lateral"] = {
-                    "u_theta_v_cov_pf": np.nanmean(uPF_P * ThvP), "u_h2o_cov_pf": np.nanmean(uPF_P * H2Op),
+                    "u_theta_v_cov_pf": np.nanmean(uPF_P * ThvP),
+                    "v_theta_v_cov_pf": np.nanmean(vPF_P * ThvP),
+                    "u_h2o_cov_pf": np.nanmean(uPF_P * H2Op),
+                    "v_h2o_cov_pf": np.nanmean(vPF_P * H2Op),
                     "u_h2o_wpl_cov_pf": np.nanmean(uPF_P * (H2Op + rhov_ext * 1e3)),
+                    "v_h2o_wpl_cov_pf": np.nanmean(vPF_P * (H2Op + rhov_ext * 1e3)),
                     "u_co2_cov_pf": np.nanmean(uPF_P * rho_CO2p),
-                    "u_co2_wpl_cov_pf": np.nanmean(uPF_P * (rho_CO2p + rhoc_ext))}
+                    "v_co2_cov_pf": np.nanmean(vPF_P * rho_CO2p),
+                    "u_co2_wpl_cov_pf": np.nanmean(uPF_P * (rho_CO2p + rhoc_ext)),
+                    "v_co2_wpl_cov_pf": np.nanmean(vPF_P * (rho_CO2p + rhoc_ext))}
                 r.put("transport", "w_h2o_transport_pf", np.nanmean(wPF_P * (H2Op * wPF_P)))
                 r.put("transport", "w_h2o_wpl_transport_pf", np.nanmean(wPF_P * ((H2Op + rhov_ext * 1e3) * wPF_P)))
                 r.put("transport", "w_co2_transport_pf", np.nanmean(wPF_P * (rho_CO2p * wPF_P)))

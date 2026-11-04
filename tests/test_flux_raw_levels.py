@@ -15,7 +15,7 @@ T0_DATENUM = 738000.0
 UPPER, LOWER = 8.0, 3.0    # [m] IRGASON; CSAT3 + LI-7500
 
 _FIELD = {"Ux": "u", "Uy": "v", "Uz": "w", "Ts": "Tson",
-          "H2O": "irgaH2O", "CO2": "irgaCO2", "LiH2O": "LiH2O", "LiCO2": "LiCO2"}
+          "H2O": "irgaH2O", "CO2": "irgaCO2", "LiH2O": "LiH2O", "LiCO2": "LiCO2", "FW": "fw"}
 
 
 def _run(columns):
@@ -64,6 +64,21 @@ def test_two_irga_families_keep_their_own_levels():
     np.testing.assert_allclose(raw["rhoCO2"].sel(height_co2=LOWER).values, co2_lower * 44.0)
     # the averaged products see both levels too
     assert sorted(run.products["latent_heat"]["height"].values) == sorted([UPPER, LOWER])
+
+
+def test_fine_wire_virtual_theta_is_formed_in_kelvin():
+    from utespac.flux.levels import build_level
+    from utespac.flux.reference import reference_state
+    rng = np.random.default_rng(1)
+    cols = {**_sonic(rng, UPPER), f"FW_{UPPER:g}": 20.0 + rng.normal(0, 0.2, N)}
+    run = _run(cols)
+    ref = reference_state(run)
+    lev = build_level(run, 0, ref, ref.n, "u")
+    q = lev.q_fast_local
+    assert np.all(q > 0)
+    # float64 round-off on values near 300 K; the Celsius form gives ~0.12 K against ~1.8 K
+    np.testing.assert_allclose(lev.Vtheta_fw - lev.theta_fw,
+                               0.61 * q * (lev.theta_fw + 273.15), rtol=1e-9)
 
 
 # ── the written products on this machine ────────────────────────────────────

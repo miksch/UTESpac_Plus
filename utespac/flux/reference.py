@@ -102,6 +102,11 @@ def reference_state(run: Run) -> ReferenceState:
         if np.nansum(~np.isnan(P_kPa_avg)) > 0 and \
                 np.abs((np.nanmedian(P_kPa_avg) - P_ref_kPa) / P_ref_kPa) < 0.05:
             log.info(f"Barometer found. Median P = {np.nanmedian(P_kPa_avg):.3g} kPa")
+            gaps = np.isnan(P_kPa_avg)
+            if gaps.any():
+                P_kPa_avg = np.where(gaps, P_ref_kPa, P_kPa_avg)
+                log.info(f"Barometer gaps: {int(gaps.sum())} periods filled with "
+                         f"P_ref = {P_ref_kPa:.3g} kPa.")
         else:
             P_kPa_avg = None
 

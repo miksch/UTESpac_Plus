@@ -251,7 +251,9 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
         fw = run.hf(sfw).copy()
         fw_flag = _flags(run, sfw, N)
         theta_fw = fw + GAMMA_DRY * (height - ref.z_ref)
-        Vtheta_fw = theta_fw * (1.0 + 0.61 * q_fast_local)      # MATLAB fluxes.m:566
+        # theta_v = theta (1 + 0.61 q) in kelvin; MATLAB fluxes.m:566 applied
+        # the factor to the Celsius value.
+        Vtheta_fw = (theta_fw + 273.15) * (1.0 + 0.61 * q_fast_local) - 273.15
 
     # ---- H2O at this height ----
     # Resolved per height, not per run: a tower may carry an EC150-style
