@@ -346,3 +346,27 @@ Bug Fixes from the 2026-08 Code Audit
          indexing its own column; a level without a carried analyser
          writes nothing. The two-level tower's HF files were regenerated
          2026-09-07.
+
+22. Fine-wire virtual potential temperature scaled the Celsius value
+    File: fluxes.m:566 -- utespac/flux/levels.py build_level
+    ----------------------------------------------------------------
+    Bug: The fine-wire path formed theta_v = theta (1 + 0.61 q) on the
+         Celsius theta_fw, so the humidity term was 0.61 q theta_C
+         instead of 0.61 q theta_K, about 1.7 K short at q = 10 g/kg,
+         and w'theta_v' from the fine wire lost the 0.61 (273.15) w'q'
+         share. The sonic path already worked in kelvin.
+    Fix: The factor is applied to theta_fw + 273.15 and the result
+         returned to deg C. Fixture re-pinned 2026-11-04 (row in
+         tests/KNOWN_DIVERGENCES.md).
+
+23. Barometer gaps dropped every density-dependent flux of the period
+    File: Python only -- utespac/flux/reference.py
+    ----------------------------------------------------------------
+    Bug: Once the whole-series median check accepted the barometer,
+         a period with no barometer sample kept P_kPa_avg = NaN, so
+         rho_air_ref, cp_ref, H, LE and the WPL terms of that period
+         were NaN. MATLAB behaved the same way.
+    Fix: NaN periods of P_kPa_avg take the series reference pressure
+         P_ref_kPa, logged with the count of filled periods. Periods
+         with a barometer sample are unchanged. Fixture re-pinned
+         2026-11-04 (row in tests/KNOWN_DIVERGENCES.md).
