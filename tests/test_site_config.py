@@ -89,3 +89,33 @@ def test_slope_axis_validated(tmp_path):
     (tmp_path / "siteInfo.toml").write_text('slopeAxis = "w"\n')
     with pytest.raises(ValueError, match="slopeAxis"):
         load_site_info(tmp_path)
+
+
+def test_split_layout_resolves_config_and_data_roots(tmp_path, monkeypatch):
+    from utespac.find_files import find_files
+    from utespac.run_config import RunConfig
+    from utespac.save_data import output_dir
+    monkeypatch.chdir(tmp_path)                   # no cwd config/ overrides
+    cfg_site = tmp_path / "config" / "SiteS"
+    data_site = tmp_path / "data" / "SiteS"
+    (cfg_site / "utespac").mkdir(parents=True)
+    (data_site / "utespac").mkdir(parents=True)
+    (cfg_site / "siteInfo.toml").write_text("tower = 7\n")
+    (data_site / "siteInfo.toml").write_text("tower = 99\n")    # decoy: data root
+    header = '"TIMESTAMP","Ux_10.85"\n'
+    (cfg_site / "utespac" / "SiteS_1Hz_header.dat").write_text(header)   # decoy
+    (cfg_site / "utespac" / "SiteS_1Hz_20240601000000.txt").write_text("x\n")
+    inp = data_site / "utespac"
+    (inp / "SiteS_20Hz_header.dat").write_text(header)
+    (inp / "SiteS_20Hz_20240601000000.txt").write_text("2024,153,0,0.0\n")
+
+    config = RunConfig.from_config(rootFolder=str(tmp_path / "config"),
+                                   dataFolder=str(tmp_path / "data"))
+    _, data_files, table_names, info = find_files(config.to_info(), site="SiteS")
+    assert info["siteFolder"] == "SiteS" and info["tower"] == 7
+    assert table_names == ["SiteS_20Hz"]
+    assert [os.path.normpath(f) for row in data_files for f in row if f] == \
+        [str(inp / "SiteS_20Hz_20240601000000.txt")]
+    assert (info["rootFolder"], info["dataFolder"]) == \
+        (str(tmp_path / "config"), str(tmp_path / "data"))
+    assert os.path.normpath(output_dir(info)) == str(data_site / "output")

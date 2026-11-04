@@ -12,7 +12,7 @@ import numpy as np
 from .flux.tables import height_label
 from .get_data import get_data
 from .pf_coefficients import pf_coefficients
-from .site_config import list_sites, site_id
+from .site_config import data_root, list_sites, site_id
 from .stp_dn import stp_dn
 from .wind_stats import wind_direction_speed
 
@@ -43,7 +43,9 @@ def find_global_pf(info: Dict, template: Dict, sensor_info: Dict,
     * Date barriers split the data into windows; within each window the
       selection is either all data at once or day-by-day approval (the
       console prompter shows a cumulative pitch/roll figure per bin).
-    * The result is saved to ``<siteFolder>/PFinfo.json`` (:mod:`utespac.pf_info`).
+    * The result is saved to ``<rootFolder>/<siteFolder>/PFinfo.json``, beside
+      ``siteInfo.toml`` in the configuration root (:mod:`utespac.pf_info`); the
+      LPF products it fits are read from the data root.
 
     Every decision (skip a height, bin boundaries, date barriers, use-all vs
     day-by-day, accepted days, final confirmation) comes from ``prompter``
@@ -77,6 +79,7 @@ def find_global_pf(info: Dict, template: Dict, sensor_info: Dict,
         avg_per=info["avgPer"],
         qualifier="LPF",
         rows=0,
+        data_folder=data_root(info),
     )
 
     # ── determine sonic heights ───────────────────────────────────────────────

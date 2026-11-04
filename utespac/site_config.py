@@ -234,6 +234,17 @@ def resolve_site_dir(root, site) -> str:
                             f"available: {', '.join(available) or 'none'}")
 
 
+def data_root(info) -> str:
+    """Data root of a legacy ``info`` dict.
+
+    ``info["dataFolder"]`` when set, else ``info["rootFolder"]`` (the
+    configuration root), so an ``info`` built before the data root existed
+    resolves the nested layout as before.
+    """
+    folder = info.get("dataFolder")
+    return info["rootFolder"] if folder is None else folder
+
+
 def site_input_dir(site_path) -> Path:
     """Folder holding the UTESpac header and 48-h data files for a site.
 

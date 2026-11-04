@@ -67,10 +67,15 @@ def run_utespac(config: Optional[RunConfig] = None, *, site: str, dates="all",
     Parameters
     ----------
     config : RunConfig
-        Run configuration (``RunConfig.from_config(rootFolder=...)``). Either
-        ``config`` or a legacy ``info`` dict must be given.
+        Run configuration (``RunConfig.from_config(rootFolder=...,
+        dataFolder=...)``). Site discovery, ``siteInfo.toml`` and
+        ``PFinfo.json`` resolve against ``rootFolder``; the header and data
+        files and the ``output/`` products resolve against ``dataFolder``,
+        which defaults to ``rootFolder``. Either ``config`` or a legacy
+        ``info`` dict must be given.
     site : str
-        Site folder name (or bare legacy id) under ``rootFolder``.
+        Site folder name (or bare legacy id) under ``rootFolder``; the same
+        name locates the site's files under ``dataFolder``.
     dates : "all" | int | list[int]
         Date rows to process (1-based), as ``find_files`` understands them.
     prompter : PFPrompter, optional

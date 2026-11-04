@@ -6,7 +6,7 @@ from typing import Dict
 import numpy as np
 
 from .model import Run, to_legacy_output
-from .site_config import site_id
+from .site_config import data_root, site_id
 
 log = logging.getLogger("utespac")
 
@@ -19,8 +19,17 @@ def product_base_name(info: Dict) -> str:
     return f"{site_name}_{info.get('avgPer', 30)}minAvg_{pf_type}{det_type}{info.get('date', 'unknown')}"
 
 
+def output_dir(info: Dict) -> str:
+    """Product folder ``<dataFolder>/<siteFolder>/output`` for the run facts *info*.
+
+    ``dataFolder`` is the data root; an *info* without it falls back to
+    ``rootFolder`` (:func:`utespac.site_config.data_root`).
+    """
+    return os.path.join(data_root(info), info["siteFolder"], "output")
+
+
 def save_data(run: Run) -> Dict[str, str]:
-    """Write the products of *run* to ``<rootFolder>/<siteFolder>/output``.
+    """Write the products of *run* to :func:`output_dir`, under the data root.
 
     Produces:
     - the run netCDF ``<base>.nc`` (``utespac-run-3``, :mod:`utespac.run_io`) — always
@@ -41,7 +50,7 @@ def save_data(run: Run) -> Dict[str, str]:
     info = run.site
     paths: Dict[str, str] = {}
     base_name = product_base_name(info)
-    out_dir = os.path.join(info["rootFolder"], info["siteFolder"], "output")
+    out_dir = output_dir(info)
     os.makedirs(out_dir, exist_ok=True)
 
     output = to_legacy_output(run)

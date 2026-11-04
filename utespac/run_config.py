@@ -184,11 +184,17 @@ _DEFAULT_TEMPLATE = {
 class RunConfig:
     """Run-level configuration (``run.toml``) plus the three stage configs.
 
-    ``rootFolder`` is the directory holding one folder per site (the
-    ``data/`` tree); it is machine-specific and never read from the
-    packaged TOML.
+    ``rootFolder`` is the configuration root: one folder per site, each
+    holding ``siteInfo.toml`` and ``PFinfo.json``; site discovery resolves
+    against it. ``dataFolder`` is the data root: ``<dataFolder>/<site>/``
+    holds the UTESpac header and 48-h data files (in its ``utespac/``
+    sub-folder when present) and receives the products in ``output/``.
+    ``dataFolder`` defaults to ``rootFolder`` (see :attr:`data_root`), so a
+    single ``data/`` tree carries both. Both are machine-specific and never
+    read from the packaged TOML.
     """
     rootFolder: Optional[str] = None
+    dataFolder: Optional[str] = None
     UTESpacVersion: str = "5.0-Python"
     avgPer: int = 30
     saveRawConditionedData: bool = True
@@ -205,7 +211,7 @@ class RunConfig:
         ``config`` follows :func:`utespac.config.resolve` for ``run.toml``;
         ``qc``/``pf``/``flux`` are a stage dataclass, a dict of overrides, or
         ``None`` (auto-load that stage's TOML). Keyword ``overrides`` are
-        ``RunConfig`` fields (``rootFolder`` included).
+        ``RunConfig`` fields (``rootFolder`` and ``dataFolder`` included).
         """
         raw = _config.resolve("run", config, flatten=False)
         known = {"run", "output", "template"}
@@ -232,6 +238,11 @@ class RunConfig:
                   "flux": _stage(flux, FluxConfig)}
         return cls(**{**vals, **stages, **overrides})
 
+    @property
+    def data_root(self) -> Optional[str]:
+        """Data root: ``dataFolder``, or ``rootFolder`` when it is unset."""
+        return self.rootFolder if self.dataFolder is None else self.dataFolder
+
     def with_(self, **changes) -> "RunConfig":
         """Copy with top-level fields changed (``dataclasses.replace``)."""
         _check_unknown(type(self), changes, "run")
@@ -249,12 +260,13 @@ class RunConfig:
         """The legacy ``info`` dict the processing stages read.
 
         Site facts are added later by ``find_files`` (``SiteInfo.apply_to``),
-        as before.
+        as before. ``info["dataFolder"]`` carries :attr:`data_root`.
         """
         if self.rootFolder is None:
             raise ValueError("RunConfig.rootFolder is not set")
         info: Dict[str, Any] = {
             "rootFolder": str(self.rootFolder),
+            "dataFolder": str(self.data_root),
             "UTESpacVersion": self.UTESpacVersion,
             "avgPer": self.avgPer,
             "saveRawConditionedData": self.saveRawConditionedData,
