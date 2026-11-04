@@ -95,8 +95,15 @@ def load_imu_files(pattern, columns, time_column=0, time_format=None,
     Parameters
     ----------
     pattern : str
-        Glob for the IMU files (delimited text with a names row; pass
-        ``read_kwargs`` for other layouts).
+        Glob for the IMU files: delimited text, one record per line,
+        under a names row. ``read_kwargs`` adjusts that layout (separator,
+        skipped lines) but cannot reach a format that spreads one record
+        over several lines, such as the tagged ``DATALOG.TXT``. Such a
+        format is parsed by its own reader
+        (:func:`utespac.raw_processing.imu_datalog.parse_datalog`), and
+        the caller renames its channels to the UTESpac IMU names, adds the
+        clock lag, sets the timestamps as a sorted DatetimeIndex and passes
+        that frame to :func:`align_imu` directly.
     columns : dict
         {UTESpac IMU name: source column name}, e.g.
         ``imu_columns({"IMU_Roll": "roll_deg", ...})`` output. Missing

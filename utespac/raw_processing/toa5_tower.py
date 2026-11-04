@@ -10,11 +10,14 @@ Pipeline per 48-h window:
   1. Select the TOA5 files overlapping the window (indexed by first
      record timestamp — no manual startid/endid bookkeeping)
   2. Load, concatenate, de-duplicate (common.load_cr_files)
-  3. Fast tables: validate date / sample rate / coverage
-  4. Reindex onto the uniform 48-h grid (common.build_48h_index)
-  5. Slow tables: optionally interpolate across timestamp jitter
-  6. Map raw logger columns to UTESpac names (cfg["columns"])
-  7. Write <prefix>_<table>_<d1>000000_<d2>000000.txt (headerless),
+  3. Null each sonic level's wind and sonic temperature on its own
+     faulted samples (mask_sonic_faults; on unless cfg["fault_mask"] is
+     False), before any vector statistic is formed
+  4. Fast tables: validate date / sample rate / coverage
+  5. Reindex onto the uniform 48-h grid (common.build_48h_index)
+  6. Slow tables: optionally interpolate across timestamp jitter
+  7. Map raw logger columns to UTESpac names (cfg["columns"])
+  8. Write <prefix>_<table>_<d1>000000_<d2>000000.txt (headerless),
      <prefix>_<table>_header.dat and <prefix>_<table>_units.dat into the
      site folder
 """
@@ -99,7 +102,7 @@ ALIGN_MIN_HIT = 0.9
 
 #: Table-level keys a ``sources`` entry inherits when it omits them.
 SOURCE_KEYS = ("raw_pattern", "columns", "read_kwargs", "raw_units",
-               "loader", "header_row", "units_row")
+               "loader", "header_row", "units_row", "fault_mask")
 
 
 def source_specs(cfg):
@@ -108,7 +111,8 @@ def source_specs(cfg):
     A table is assembled from one raw source by default. ``cfg["sources"]``
     declares several -- one per logger when the heights of one UTESpac
     table are logged separately -- each with its own ``raw_pattern``,
-    ``columns``, ``read_kwargs``, ``raw_units``, ``loader`` and ``lag_s``;
+    ``columns``, ``read_kwargs``, ``raw_units``, ``loader``,
+    ``fault_mask`` and ``lag_s``;
     a key a source omits falls back to the table-level value.
 
     ``lag_s`` is ADDED to the source's timestamps before the join, matching
@@ -196,6 +200,95 @@ def level_columns(base_map, height, src_suffix=""):
     """
     h = f"{height:g}"
     return {f"{out}_{h}": f"{src}{src_suffix}" for out, src in base_map.items()}
+
+
+#: CSAT3 diagnostic words that mark a sample carrying no valid wind: the
+#: special-case codes 0xF000, 0xF001 and 0xF03F (61503, the head did not
+#: respond on SDM). The low six bits of any other word are a sample counter.
+SONIC_FAULT_CODES = (61440, 61441, 61503)
+
+#: Value a Campbell logger writes into a sonic field that has no sample.
+SONIC_SENTINEL = -99999.0
+
+#: UTESpac base names nulled on a level's faulted samples.
+SONIC_MASK_FIELDS = ("Ux", "Uy", "Uz", "T_Sonic")
+
+#: UTESpac base name of the per-level sonic diagnostic word.
+SONIC_DIAG_FIELD = "diagnostic"
+
+
+def sonic_levels(columns):
+    """Group a table's sonic source columns by level.
+
+    Parameters
+    ----------
+    columns : dict
+        ``{output name: source column}``; output names are
+        ``f"{base}_{height}"`` as written by :func:`level_columns`.
+
+    Returns
+    -------
+    dict
+        ``{height label: {"fields": [source, ...], "diagnostic": source or
+        None}}`` for every level that maps at least one of
+        :data:`SONIC_MASK_FIELDS`.
+    """
+    levels = {}
+    for out, src in columns.items():
+        parts = out.rsplit("_", 1)
+        if len(parts) != 2:
+            continue
+        base, h = parts
+        if base in SONIC_MASK_FIELDS:
+            levels.setdefault(h, {"fields": [], "diagnostic": None})["fields"].append(src)
+        elif base == SONIC_DIAG_FIELD:
+            levels.setdefault(h, {"fields": [], "diagnostic": None})["diagnostic"] = src
+    return {h: lv for h, lv in levels.items() if lv["fields"]}
+
+
+def mask_sonic_faults(raw, columns):
+    """Null each sonic level's wind and sonic temperature on its faulted samples.
+
+    A sample of one level is faulted where that level's diagnostic word is
+    one of :data:`SONIC_FAULT_CODES`, or where any of its wind or sonic
+    temperature fields holds :data:`SONIC_SENTINEL`. Levels are masked
+    independently, the diagnostic column itself is left as logged, and
+    columns of a level with no faulted sample are not touched. A level
+    whose diagnostic is not mapped in *columns* is masked on the sentinel
+    alone.
+
+    Parameters
+    ----------
+    raw : pandas.DataFrame
+        Raw samples keyed by source column name; modified in place.
+    columns : dict
+        ``{output name: source column}`` of the table or source.
+
+    Returns
+    -------
+    raw : pandas.DataFrame
+        The masked frame.
+    counts : dict
+        ``{height label: number of faulted samples}`` for each level with
+        at least one.
+    """
+    counts = {}
+    for h, lv in sonic_levels(columns).items():
+        present = [src for src in lv["fields"] if src in raw.columns]
+        if not present:
+            continue
+        values = raw[present].apply(pd.to_numeric, errors="coerce")
+        fault = (values == SONIC_SENTINEL).any(axis=1).to_numpy().copy()
+        diag = lv["diagnostic"]
+        if diag is not None and diag in raw.columns:
+            word = pd.to_numeric(raw[diag], errors="coerce")
+            fault |= word.isin(SONIC_FAULT_CODES).to_numpy()
+        if not fault.any():
+            continue
+        for src in present:
+            raw[src] = values[src].where(~fault)
+        counts[h] = int(fault.sum())
+    return raw, counts
 
 
 def write_header(out_dir, table_name, columns):
@@ -395,7 +488,7 @@ def process_table(cfg):
             the heights of one UTESpac table are logged separately. Each
             entry may set ``raw_pattern``, ``columns``, ``read_kwargs``,
             ``raw_units``, ``loader``, ``header_row``, ``units_row``,
-            ``name`` and ``lag_s``, inheriting the table-level value for
+            ``fault_mask``, ``name`` and ``lag_s``, inheriting the table-level value for
             anything it omits; see :func:`source_specs`. Output columns are
             written in ``sources`` order. The first source is the primary:
             it defines the window, and a window it fails is skipped, while a
@@ -430,6 +523,11 @@ def process_table(cfg):
             names row and a units row). When given, every matched file is
             loaded for every window (no first-timestamp indexing), so use
             it for small slow tables only.
+        fault_mask : bool, optional
+            Null each sonic level's ``Ux``, ``Uy``, ``Uz`` and ``T_Sonic``
+            on the samples :func:`mask_sonic_faults` marks faulted, per
+            level and before the reindex (default True). A ``sources``
+            entry may set its own value.
 
     Returns
     -------
@@ -508,7 +606,12 @@ def process_table(cfg):
                 # Shift onto the primary's clock before the window is cut.
                 if spec["lag_s"]:
                     raw.index = raw.index + pd.Timedelta(seconds=spec["lag_s"])
-                raw = raw[(raw.index >= w0) & (raw.index <= w1)]
+                raw = raw[(raw.index >= w0) & (raw.index <= w1)].copy()
+                if spec.get("fault_mask", True):
+                    raw, nulled = mask_sonic_faults(raw, spec["columns"])
+                    for h, k in nulled.items():
+                        print(f"  {tag}: fault mask nulled {k:,} sample(s) "
+                              f"of the {h} m sonic.")
 
             ok = raw is not None
             if ok and validate:
