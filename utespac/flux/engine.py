@@ -24,6 +24,7 @@ from ..find_eta import find_eta
 from ..nandetrend import nandetrend
 from ..sonic_temperature import air_temperature_perturbation
 from ..stability import psi_h, psi_m
+from ..units import M_CO2
 from .levels import LevelInputs
 from .reference import Md, Mv, ReferenceState
 
@@ -379,7 +380,7 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
                 P_seg_kPa = np.full(s1 - s0, ref.P_ref_kPa)
             ppm_CO2 = np.nanmean(rho_CO2_seg * 1000.0 * 8.314
                                  * (lev.theta_son_air[s0:s1] + 273.15)
-                                 / (44.01 * P_seg_kPa * 1e3))
+                                 / (M_CO2 * P_seg_kPa * 1e3))
 
             r.put("sigma", "co2_sigma", np.nanstd(rho_CO2_seg))
             r.put("sigma", "co2_wpl_sigma", np.nanstd(rho_CO2_seg / 1e6 + rhoc_ext) * 1e6)

@@ -4,6 +4,7 @@ with an EC150-style IRGA on one sonic and a LI-7500 on another gets one
 tower with an IRGASON above a CSAT3 + LI-7500)."""
 
 import numpy as np
+import pytest
 import xarray as xr
 
 from utespac import stages
@@ -18,7 +19,7 @@ _FIELD = {"Ux": "u", "Uy": "v", "Uz": "w", "Ts": "Tson",
           "H2O": "irgaH2O", "CO2": "irgaCO2", "LiH2O": "LiH2O", "LiCO2": "LiCO2", "FW": "fw"}
 
 
-def _run(columns):
+def _run(columns, unit_of=None):
     t64 = to_datetime64(T0_DATENUM + np.arange(N) / (FS * 86400.0))
     ds = xr.Dataset({name: (TIME_HF, series) for name, series in columns.items()},
                     coords={TIME_HF: t64})
@@ -26,7 +27,8 @@ def _run(columns):
     sensors = Sensors()
     for name in columns:
         kind, height = name.split("_")
-        sensors.append(Sensor(_FIELD[kind], "X_1min", name, float(height), 0.0, 1))
+        sensors.append(Sensor(_FIELD[kind], "X_1min", name, float(height), 0.0, 1,
+                              (unit_of or {}).get(name)))
     labels = ["TIMESTAMP"] + list(columns)
     info = {"avgPer": 30, "siteElevation": 0.0, "qRef": 10.0,
             "saveRawConditionedData": True, "detrendingFormat": "constant"}
@@ -79,6 +81,45 @@ def test_fine_wire_virtual_theta_is_formed_in_kelvin():
     # float64 round-off on values near 300 K; the Celsius form gives ~0.12 K against ~1.8 K
     np.testing.assert_allclose(lev.Vtheta_fw - lev.theta_fw,
                                0.61 * q * (lev.theta_fw + 273.15), rtol=1e-9)
+
+
+def _level(cols, unit_of=None):
+    from utespac.flux.levels import build_level
+    from utespac.flux.reference import reference_state
+    run = _run(cols, unit_of)
+    ref = reference_state(run)
+    return build_level(run, 0, ref, ref.n, "u")
+
+
+@pytest.mark.parametrize("h2o_unit, h2o, h2o_gm3, co2_unit, co2, co2_mgm3", [
+    ("mmol/m^3", 600.0, 600.0 * 0.018, "mmol/m^3", 16.0, 16.0 * 44.0),
+    ("g/m^3", 10.0, 10.0, "mg/m^3", 700.0, 700.0),
+])
+def test_li7500_density_follows_the_declared_unit(h2o_unit, h2o, h2o_gm3, co2_unit, co2, co2_mgm3):
+    rng = np.random.default_rng(2)
+    cols = {**_sonic(rng, LOWER), f"LiH2O_{LOWER}": np.full(N, h2o),
+            f"LiCO2_{LOWER}": np.full(N, co2)}
+    lev = _level(cols, {f"LiH2O_{LOWER}": h2o_unit, f"LiCO2_{LOWER}": co2_unit})
+    # the fixed factors 0.018 and 44.0 round the molar masses 18.0153 and 44.01 (8.5e-4, 2.3e-4)
+    np.testing.assert_allclose(lev.h2o, h2o_gm3, rtol=1e-3)
+    np.testing.assert_allclose(lev.co2, co2_mgm3, rtol=1e-3)
+
+
+@pytest.mark.parametrize("unit, offset", [("K", 273.15), (None, 273.15), ("deg C", 0.0)])
+def test_fine_wire_is_read_in_deg_C(unit, offset):
+    rng = np.random.default_rng(3)
+    fw_C = 20.0 + rng.normal(0, 0.2, N)
+    cols = {**_sonic(rng, UPPER), f"FW_{UPPER:g}": fw_C + offset}
+    lev = _level(cols, {f"FW_{UPPER:g}": unit})
+    # float64 round-off of the K -> deg C offset
+    np.testing.assert_allclose(lev.fw, fw_C, rtol=1e-12)
+
+
+def test_wind_in_an_unsupported_unit_is_refused():
+    rng = np.random.default_rng(4)
+    cols = _sonic(rng, UPPER)
+    with pytest.raises(ValueError, match="wind: unknown unit 'cm/s'"):
+        _level(cols, {f"Ux_{UPPER:g}": "cm/s"})
 
 
 # ── the written products on this machine ────────────────────────────────────

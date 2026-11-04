@@ -53,7 +53,8 @@ def condition(run: Run, template: Dict[str, str]) -> Run:
         labels = run.headers[name][0]
         mat = _table_matrix(ds, labels)
         hz = float(ds.attrs.get("scan_hz", 20))
-        mat, spike, nan = qc_table(mat, labels, info, template, hz)
+        mat, spike, nan = qc_table(mat, labels, info, template, hz,
+                                   header_units=run.header_units.get(name))
         for j, lab in enumerate(labels):
             if j:
                 ds[lab].values[:] = mat[:, j]

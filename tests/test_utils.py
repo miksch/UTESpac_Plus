@@ -311,6 +311,20 @@ class TestSatVaporPressure:
         assert q == pytest.approx(r / (1.0 + r), rel=1e-4)   # 621.97 vs 0.622
 
 
+@pytest.mark.parametrize("T, T_unit, P, P_unit", [
+    (293.15, "K", 900.0, "hPa"),     # below 1000, the undeclared fallback would read kPa
+    (20.0, "deg C", 90.0, "kPa"),
+    (293.15, None, 90.0, None),      # undeclared: K above a median of 200, kPa below 1000
+])
+def test_virtual_pot_temp_reads_declared_units(T, T_unit, P, P_unit):
+    """Dry air (RH 0) at 90 kPa and 293.15 K: rho_d = P / (Rd T)."""
+    _, _, _, rho_dry, _ = get_virtual_pot_temp(0.0, 0.0, np.array([T]), np.array([0.0]),
+                                               P_air=np.array([P]), use_p_elevation=False,
+                                               T_unit=T_unit, P_unit=P_unit)
+    # float64 round-off of the deg C -> K offset
+    np.testing.assert_allclose(rho_dry, 90000.0 / (287.058 * 293.15), rtol=1e-12)
+
+
 # ── find_delta_time ──────────────────────────────────────────────────────────
 
 class TestFindDeltaTime:

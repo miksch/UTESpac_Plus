@@ -5,24 +5,59 @@ spike removal with consecutive-flag filtering, per-period spike/NaN
 fractions); :func:`utespac.stages.condition` runs it over the run model.
 """
 
-from typing import Dict, Sequence, Tuple
+from typing import Dict, Optional, Sequence, Tuple
 import numpy as np
 from scipy.interpolate import interp1d
 
+from . import units
 from .averaging import block_average
 from .consec_flag_removal import consec_flag_removal
 from .strfndw import strfndw
 
+#: Quantity (:data:`utespac.units.INTERNAL`) of each sensor class whose
+#: absolute limits are stated in the pipeline's internal unit; the other
+#: classes are compared as logged.
+LIMIT_QUANTITY = {
+    "Tson": "temperature", "fw": "temperature", "T": "temperature",
+    "RH": "humidity", "P": "pressure",
+    "irgaH2O": "h2o_density", "KH2O": "h2o_density", "irgaCO2": "co2_density",
+}
+
 
 def qc_table(tbl: np.ndarray, header_names: Sequence[str], info: Dict, template: Dict[str, str],
-             scan_hz: float) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+             scan_hz: float, header_units: Optional[Sequence[str]] = None
+             ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """QC one table in place (column 0 is the datenum time axis).
 
-    Returns ``(tbl, spike_flag, nan_flag)``: the conditioned table (limits
-    applied, spikes interpolated) and the per-period boolean flags
-    ``(n_periods, n_cols)`` — True where the period's spike (NaN) fraction
-    reaches ``spikeTest.maxPercent`` (``nanTest.maxPercent``); column 0 is
-    always False. Tables slower than 1 Hz skip the spike test.
+    Parameters
+    ----------
+    tbl : ndarray
+        ``[datenum, columns...]`` as logged.
+    header_names : sequence of str
+        Column labels, aligned with the columns of *tbl*.
+    info : dict
+        Site and QC settings (``spikeTest``, ``absoluteLimitsTest``,
+        ``nanTest``, ``avgPer``).
+    template : dict
+        Sensor class -> column-label pattern.
+    scan_hz : float
+        Sampling rate of the table; below 1 Hz the spike test is skipped.
+    header_units : sequence of str, optional
+        Declared unit per column (``Run.header_units``), "" where none.
+        The absolute limits of the classes in :data:`LIMIT_QUANTITY` are
+        stated in the internal unit, so those columns are compared after
+        :func:`utespac.units.convert`; the stored column stays as logged.
+        An undeclared unit takes the magnitude fallback without a warning;
+        the flux stage logs it when it converts the same column.
+
+    Returns
+    -------
+    tbl : ndarray
+        The conditioned table: limits applied, spikes interpolated.
+    spike_flag, nan_flag : ndarray of bool
+        Per-period flags ``(n_periods, n_cols)``, True where the period's
+        spike (NaN) fraction reaches ``spikeTest.maxPercent``
+        (``nanTest.maxPercent``); column 0 is always False.
     """
     spike_def_cfg = info["spikeTest"]["spikeDef"]
     abs_lim_cfg = info["absoluteLimitsTest"]
@@ -32,6 +67,7 @@ def qc_table(tbl: np.ndarray, header_names: Sequence[str], info: Dict, template:
     # Build per-column spike definitions and absolute limits
     spike_def = np.full(n_cols, spike_def_cfg["otherInstrument"])
     min_max = np.full((2, n_cols), np.nan)
+    quantity = [None] * n_cols
     spike_def[0] = np.nan  # timestamp column is never spiked
 
     for field, pattern in template.items():
@@ -40,17 +76,12 @@ def qc_table(tbl: np.ndarray, header_names: Sequence[str], info: Dict, template:
         if field == "otherInstrument" or not pattern:
             continue
         matched_cols = strfndw(list(header_names), pattern)
-        # Ensure Tson is in Celsius
-        if field == "Tson":
-            for c in matched_cols:
-                med = np.nanmedian(tbl[:, c])
-                if med > 250:
-                    tbl[:, c] -= 273.15
         for c in matched_cols:
             spike_def[c] = spike_def_cfg[field]
             lims = abs_lim_cfg[field]
             min_max[0, c] = lims[0]
             min_max[1, c] = lims[1]
+            quantity[c] = LIMIT_QUANTITY.get(field)
 
     # Also mark sonic diagnostic column as NaN for spike purposes
     if "sonDiagnostic" in template:
@@ -63,10 +94,14 @@ def qc_table(tbl: np.ndarray, header_names: Sequence[str], info: Dict, template:
         for c in strfndw(list(header_names), template["imuYaw"]):
             spike_def[c] = np.nan
 
-    # 1. Absolute limits
+    # 1. Absolute limits, judged in the internal unit of the column's quantity
     for c in range(n_cols):
         if not np.isnan(min_max[0, c]):
-            bad = (tbl[:, c] < min_max[0, c]) | (tbl[:, c] > min_max[1, c])
+            judged = tbl[:, c]
+            if quantity[c] is not None:
+                unit = header_units[c] if header_units is not None else None
+                judged = units.convert(judged, unit, quantity[c], warn=False)
+            bad = (judged < min_max[0, c]) | (judged > min_max[1, c])
             tbl[bad, c] = np.nan
 
     # 2. Spike removal (skipped for slow tables — too few samples per window)

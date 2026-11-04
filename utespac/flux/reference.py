@@ -24,7 +24,7 @@ log = logging.getLogger("utespac")
 
 Rd = 287.058   # J/(kg·K)
 Rv = 461.495   # J/(kg·K)
-Mv = 18.0153   # g/mol  H2O
+Mv = units.M_H2O   # g/mol  H2O
 Md = 28.97     # g/mol  dry air
 
 

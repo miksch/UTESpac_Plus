@@ -5,13 +5,15 @@ The logger tables declare a unit per column (TOA5 row 2, carried to
 :func:`utespac.import_header.import_units` into ``Sensor.units``).
 :func:`convert` turns a series in a declared unit into the unit the flux
 computation works in -- temperature deg C, relative humidity percent,
-pressure kPa, vapour density g m-3, CO2 density mg m-3.
+pressure kPa, vapour density g m-3, CO2 density mg m-3, wind m s-1.
 
 Where a table predates the units file the unit is unknown, and the
 magnitude heuristics that ``fluxes.m`` used stand in: a temperature whose
-median exceeds 250 is Kelvin, a pressure whose median exceeds 200 is hPa,
-relative humidity is percent. Each such assumption is logged once per run
-and per sensor (``reset_warnings`` at the start of a run).
+median exceeds 250 is Kelvin, a pressure whose median exceeds 200 is hPa
+(below 1000 is kPa when Pa is asked for), relative humidity is percent,
+an LI-7500 (``LiH2O``, ``LiCO2``) density is mmol m-3. Each such
+assumption is logged once per run and per sensor (``reset_warnings`` at
+the start of a run).
 """
 
 import logging
@@ -21,6 +23,9 @@ import numpy as np
 
 log = logging.getLogger("utespac")
 
+M_H2O = 18.0153   # [g mol-1] molar mass of water vapour
+M_CO2 = 44.01     # [g mol-1] molar mass of CO2
+
 #: Unit the flux computation works in, per quantity.
 INTERNAL = {
     "temperature": "deg C",
@@ -28,6 +33,7 @@ INTERNAL = {
     "pressure": "kPa",
     "h2o_density": "g m-3",
     "co2_density": "mg m-3",
+    "wind": "m s-1",
 }
 
 # {quantity: {normalized unit: (scale, offset) onto the internal unit}}
@@ -39,9 +45,11 @@ _CONVERSIONS: Dict[str, Dict[str, Tuple[float, float]]] = {
     "pressure": {"kpa": (1.0, 0.0), "hpa": (0.1, 0.0), "mbar": (0.1, 0.0),
                  "mb": (0.1, 0.0), "pa": (0.001, 0.0)},
     "h2o_density": {"gm-3": (1.0, 0.0), "kgm-3": (1000.0, 0.0),
-                    "mgm-3": (0.001, 0.0)},
+                    "mgm-3": (0.001, 0.0), "mmolm-3": (M_H2O * 1e-3, 0.0)},
     "co2_density": {"mgm-3": (1.0, 0.0), "gm-3": (1000.0, 0.0),
-                    "kgm-3": (1.0e6, 0.0), "ugm-3": (0.001, 0.0)},
+                    "kgm-3": (1.0e6, 0.0), "ugm-3": (0.001, 0.0),
+                    "mmolm-3": (M_CO2, 0.0)},
+    "wind": {"ms-1": (1.0, 0.0), "m/s": (1.0, 0.0)},
 }
 
 
@@ -70,18 +78,41 @@ def _kPa_or_hPa(values: np.ndarray) -> np.ndarray:
     return values / 10.0 if np.nanmedian(values) > 200 else values
 
 
+def _Pa_or_kPa(values: np.ndarray) -> np.ndarray:
+    """Pa from a series that may be kPa (median below 1000)."""
+    return values * 1000.0 if np.nanmedian(values) < 1000 else values
+
+
 def _as_is(values: np.ndarray) -> np.ndarray:
     return values
 
 
-# {(quantity, normalized target): (heuristic, what it assumes)}
-_FALLBACKS: Dict[Tuple[str, str], Tuple[Callable, str]] = {
+def _li7500_h2o(values: np.ndarray) -> np.ndarray:
+    """g m-3 from LI-7500 mmol m-3 with the legacy ``fluxes.m`` factor 0.018."""
+    return values * 0.018
+
+
+def _li7500_co2(values: np.ndarray) -> np.ndarray:
+    """mg m-3 from LI-7500 mmol m-3 with the legacy ``fluxes.m`` factor 44.0."""
+    return values * 44.0
+
+
+# {(quantity, normalized target[, sensor field]): (heuristic, what it assumes)};
+# a key carrying the sensor's template field (``Sensor.field``) wins over the
+# two-element key. The LI-7500 entries keep the rounded legacy factors so an
+# undeclared table reproduces the earlier numbers; a declared mmol m-3 uses
+# M_H2O and M_CO2 (relative difference 8.5e-4 and 2.3e-4).
+_FALLBACKS: Dict[Tuple[str, ...], Tuple[Callable, str]] = {
     ("temperature", "degc"): (_degC_or_kelvin, "read as deg C, as K above a median of 250"),
     ("temperature", "k"): (_kelvin_or_degC, "read as K, as deg C below a median of 200"),
     ("humidity", "%"): (_as_is, "read as percent"),
     ("pressure", "kpa"): (_kPa_or_hPa, "read as kPa, as hPa above a median of 200"),
+    ("pressure", "pa"): (_Pa_or_kPa, "read as Pa, as kPa below a median of 1000"),
     ("h2o_density", "gm-3"): (_as_is, "read as g m-3"),
+    ("h2o_density", "gm-3", "LiH2O"): (_li7500_h2o, "read as LI-7500 mmol m-3"),
     ("co2_density", "mgm-3"): (_as_is, "read as mg m-3"),
+    ("co2_density", "mgm-3", "LiCO2"): (_li7500_co2, "read as LI-7500 mmol m-3"),
+    ("wind", "ms-1"): (_as_is, "read as m s-1"),
 }
 
 _warned = set()
@@ -112,13 +143,15 @@ def convert(values, unit: Optional[str], quantity: str, target: Optional[str] = 
     unit : str or None
         Unit declared for the column (``Sensor.units``); "" or None when the
         table carries no units file.
-    quantity : {'temperature', 'humidity', 'pressure', 'h2o_density', 'co2_density'}
+    quantity : {'temperature', 'humidity', 'pressure', 'h2o_density', 'co2_density', 'wind'}
         What the series measures.
     target : str, optional
         Unit to convert to; defaults to ``INTERNAL[quantity]`` (the flux
         computation also asks for temperature in ``'K'``).
     sensor : Sensor or str, optional
-        Named in the fallback warning, and the key it is deduplicated by.
+        Named in the fallback warning, and the key it is deduplicated by; a
+        Sensor's ``field`` also selects a class-specific fallback (LI-7500
+        densities are mmol m-3).
     warn : bool, optional
         Log the fallback assumption (default True).
 
@@ -146,7 +179,9 @@ def convert(values, unit: Optional[str], quantity: str, target: Optional[str] = 
     declared = normalize(unit)
 
     if not declared:
-        fallback, assumption = _FALLBACKS.get((quantity, tgt), (_as_is, "read as given"))
+        fallback, assumption = _FALLBACKS.get(
+            (quantity, tgt, getattr(sensor, "field", None)),
+            _FALLBACKS.get((quantity, tgt), (_as_is, "read as given")))
         key = (_name(sensor), quantity, tgt)
         if warn and key not in _warned:
             _warned.add(key)
