@@ -6,6 +6,12 @@ eqs. 1-4), sign-aware ejection/sweep derived values reproducing UTESpac's
 find_eta/find_delta_flux/find_delta_time exactly at H = 0, and the
 Li & Bo 2019 eq. 11 octant partition. Invariant: fractions sum to 1 at
 H = 0 (quadrants) and always (octants).
+
+Horizontal-flux planes (``uTs``, ``urhov``: no w' member) carry the quadrant
+counts and fractions under neutral Q1-Q4 labels only. The ejection/sweep
+derived values (Li & Bou-Zeid 2011 eqs. 8-9, 16-17) classify by the sign of
+w' and assume vertical transport, so they are not computed for those planes
+and their variables are absent from the ``/quadrant`` Dataset.
 """
 
 from typing import Dict, Optional, Sequence, Tuple
@@ -21,13 +27,30 @@ OCTANT_GROUP = "octant"
 
 # plane (x1, x2): quadrant by signs, Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-).
 # uw on (u', w') -- Wallace et al. 1972 layout (Q2 ejection, Q4 sweep);
-# scalars on (w', c') -- Li & Bo 2019 eq. 10 (labels sign-aware, see the note).
-PAIRS = {"uw": ("u_pf", "w_pf"), "wTs": ("w_pf", "ts"), "wrhov": ("w_pf", "rho_h2o"), "wrhoCO2": ("w_pf", "rho_co2")}
+# scalars on (w', c') -- Li & Bo 2019 eq. 10 (labels sign-aware, see the note);
+# horizontal scalar fluxes on (u', c') -- neutral Q1-Q4 labels, no derived values.
+PAIRS = {"uw": ("u_pf", "w_pf"), "wTs": ("w_pf", "ts"), "wrhov": ("w_pf", "rho_h2o"), "wrhoCO2": ("w_pf", "rho_co2"),
+         "uTs": ("u_pf", "ts"), "urhov": ("u_pf", "rho_h2o")}
 QUADRANTS = ("Q1", "Q2", "Q3", "Q4")
 # Li & Bo 2019 eq. 11 sign triples (u', w', c') for octants O1..O8
 OCTANT_SIGNS = ((1, 1, 1), (-1, 1, 1), (-1, 1, -1), (1, 1, -1),
                 (1, -1, 1), (-1, -1, 1), (-1, -1, -1), (1, -1, -1))
 OCTANTS = ("O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8")
+DERIVED = ("delta_S", "delta_D", "eta", "exuberance")
+
+
+def w_index(pair: str) -> Optional[int]:
+    """Index (0 or 1) of w' in the plane of :data:`PAIRS` entry *pair*, None without w'.
+
+    Planes without w' are horizontal-flux planes, for which the ejection/sweep
+    derived values of :func:`derived_h0` are undefined.
+    """
+    a, b = PAIRS[pair]
+    if a == "w_pf":
+        return 0
+    if b == "w_pf":
+        return 1
+    return None
 
 
 def quadrant_stats(x1: np.ndarray, x2: np.ndarray, hole_sizes: Sequence[float],
@@ -134,7 +157,13 @@ def _prime(win, ih, names, pc):
 
 
 def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
-    """Quadrant statistics for every window and pair; the ``/quadrant`` Dataset."""
+    """Quadrant statistics for every window and pair; the ``/quadrant`` Dataset.
+
+    Pairs without w' (:func:`w_index` None) get the per-quadrant fractions,
+    counts and covariance only; ``delta_S``, ``delta_D``, ``eta`` and
+    ``exuberance`` assume vertical transport (Li & Bou-Zeid 2011 eqs. 8-9,
+    16-17) and are omitted for them.
+    """
     qc, pc = cfg.quadrant, cfg.preprocess
     pairs = [k for k in qc.pairs if all(m in ("u_pf", "v_pf", "w_pf") or m in hf.ds for m in PAIRS[k])]
     names = list(dict.fromkeys(["u_pf", "v_pf", "w_pf"] + [m for k in pairs for m in PAIRS[k]]))
@@ -145,8 +174,8 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
     T = {k: np.full((nr, nh, nq, nH), np.nan) for k in pairs}
     count = {k: np.zeros((nr, nh, nq, nH), dtype=np.int64) for k in pairs}
     cov = {k: np.full((nr, nh), np.nan) for k in pairs}
-    der = {k: {d: np.full((nr, nh), np.nan) for d in ("delta_S", "delta_D", "eta", "exuberance")}
-           for k in pairs}
+    der = {k: {d: np.full((nr, nh), np.nan) for d in DERIVED}
+           for k in pairs if w_index(k) is not None}
 
     for win in iter_windows(hf, variables=names, records=records):
         i = win.index
@@ -161,7 +190,9 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
                 st = quadrant_stats(prime[a], prime[b], holes, qc.hole_norm)
                 S[k][i, ih], T[k][i, ih], count[k][i, ih] = st["S"], st["T"], st["count"]
                 cov[k][i, ih] = st["total"]
-                d = derived_h0(prime[a], prime[b], w_is=(0 if a == "w_pf" else 1))
+                if k not in der:
+                    continue
+                d = derived_h0(prime[a], prime[b], w_is=w_index(k))
                 for name, v in d.items():
                     der[k][name][i, ih] = v
 
@@ -180,6 +211,8 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
             "long_name": f"time fraction per quadrant of the {plane} plane outside the hole"})
         ds[f"count_{k}"] = (dims4, count[k], {"long_name": "samples per quadrant outside the hole"})
         ds[f"cov_{k}"] = (dims, cov[k], {"long_name": f"total {a}'{b}' covariance (fraction denominator)"})
+        if k not in der:
+            continue
         ds[f"delta_S_{k}"] = (dims, der[k]["delta_S"], {
             "long_name": "ejection minus sweep flux fraction, sign-aware (= UTESpac delta_flux_ctrb)"})
         ds[f"delta_D_{k}"] = (dims, der[k]["delta_D"], {
@@ -190,7 +223,9 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
             "long_name": "countergradient over downgradient flux (= eta - 1)"})
     ds.attrs.update(hole_norm=qc.hole_norm, detrend_method=pc.detrend,
                     quadrant_layout="Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-) on the plane in each "
-                                    "variable's long_name; uw: Wallace et al. 1972; scalars: Li & Bo 2019 eq. 10",
+                                    "variable's long_name; uw: Wallace et al. 1972; scalars: Li & Bo 2019 eq. 10; "
+                                    "planes without w' (uTs, urhov): neutral labels, no ejection/sweep "
+                                    "derived values",
                     closure="S_frac sums to 1 over quadrant at H = 0",
                     library_note="library/writeups/ec_quadrant.md")
     return ds

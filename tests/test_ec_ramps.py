@@ -272,3 +272,114 @@ def test_module_run_writes_the_ramps_group(tmp_path):
     with pytest.raises(ValueError):
         run_file(path, ECConfig.from_config(modules=("ramps",),
                                             ramps={"a_max_s": 100.0, "sr_alpha_mode": "bogus"}))
+
+
+# ---------------------------------------------------------------- Thomas & Foken 2005 detector
+
+TF_FS = 2.0
+TF_T = np.arange(0.0, 1800.0, 1.0 / TF_FS)
+TF05_GRID = ramps.tf_duration_grid(8.0, 140.0, 0.5)        # TF05 p. 97 grid
+TF05_RAMP_GAPS = np.array([60, 340, 110, 280, 70, 112])     # gaps spanning 60-340 s, TF05 p. 100
+
+
+def _tf_prepared(x, grid):
+    pad = ramps.tf_pad_width(TF_FS, grid.max())
+    return ramps.bior_lowpass(np.pad(ramps.tf_normalise(x), pad)), pad
+
+
+def test_tf2005_triple_sine_matches_table3():
+    x = sum(np.sin(2 * np.pi * TF_T / p) for p in (10.0, 60.0, 230.0))
+    xf, pad = _tf_prepared(x, TF05_GRID)
+    W = ramps.tf_wavelet_variance(xf, TF_FS, TF05_GRID, pad)
+    D_e, maxima = ramps.tf_event_duration(W, TF05_GRID)
+    # TF05 Table 3 targets; tolerances are the reported precision of the published values
+    assert D_e == pytest.approx(30.5, abs=1.0)
+    assert maxima.size == 2
+    assert maxima[1] == pytest.approx(118.0, abs=4.0)
+    events = ramps.tf_crossings(xf, TF_FS, -1, D_e, pad)
+    T_x, sigma = ramps.tf_spacing_stats(events)
+    assert events.size == 30
+    assert T_x == pytest.approx(59.9, abs=0.5)
+    assert sigma == pytest.approx(1.7, abs=0.5)
+
+
+def test_tf2005_seven_ramps_detected_at_the_drops():
+    starts = 64.0 + np.concatenate([[0.0], np.cumsum(TF05_RAMP_GAPS + 100.0)])
+    x = np.zeros_like(TF_T)
+    for s0 in starts:
+        m = (TF_T >= s0) & (TF_T < s0 + 100.0)
+        x[m] = (TF_T[m] - s0) / 100.0
+    drops = starts + 100.0
+    xf, pad = _tf_prepared(x, TF05_GRID)
+    D_e, _ = ramps.tf_event_duration(ramps.tf_wavelet_variance(xf, TF_FS, TF05_GRID, pad), TF05_GRID)
+    # TF05 Table 3: D_e ~ 100 s for 100 s ramps, T_x = mean gap + ramp length = 262 s
+    assert D_e == pytest.approx(99.5, abs=6.0)
+    events = ramps.tf_crossings(xf, TF_FS, -1, D_e, pad)
+    assert events.size == 7
+    assert np.all(np.abs(events - drops) < 20.0)           # within a fifth of the ramp length
+    assert ramps.tf_spacing_stats(events)[0] == pytest.approx(262.0, abs=5.0)
+
+
+@pytest.mark.parametrize("r, sign", [(0.4, -1), (-0.4, +1)])
+def test_tf2005_table2_sign_selects_the_crossing_direction(r, sign):
+    assert ramps.tf_crossing_sign(r) == sign
+    t = np.arange(0.0, 60.0, 0.5)
+    step_down = np.where(t < 30.0, 1.0, -1.0)
+    found = ramps.tf_crossings(step_down, TF_FS, sign, 10.0)
+    if sign < 0:
+        assert found.size == 1 and found[0] == pytest.approx(30.0, abs=0.5)   # one sample
+    else:
+        assert np.all(np.abs(found - 30.0) > 5.0)
+
+
+def test_tf2005_block_average_20_to_2_hz():
+    x = np.arange(65536, dtype=float)
+    y = ramps.block_average(x, 20.0, 2.0)
+    assert y.size == 6553
+    assert y[0] == pytest.approx(4.5)
+    assert y[-1] == pytest.approx(np.mean(x[65520:65530]))
+    with pytest.raises(ValueError, match="positive integer"):
+        ramps.block_average(x, 20.0, 3.0)
+
+
+def test_tf2005_conditional_average_of_exact_ramp_and_flux_split():
+    D_e = 40.0
+    t = np.arange(0.0, 2000.0, 1.0 / TF_FS)
+    times = np.arange(100.0, 1900.0, 2 * D_e + 17.0)
+    x = np.zeros_like(t)
+    for ti in times:
+        m = (t >= ti - D_e) & (t < ti)
+        x[m] = (t[m] - (ti - D_e)) / D_e
+    binned, fine, n_used = ramps.tf_conditional_average(x, TF_FS, times, D_e)
+    assert n_used == times.size
+    lag = ramps.tf_lag_grid()
+    expected = np.where(lag < 0, lag + 1.0, 0.0)            # planted ramp over [-D_e, 0], zero after
+    away = np.abs(lag * D_e) > 1.0 / TF_FS                  # interpolation across the drop
+    np.testing.assert_allclose(fine[away], expected[away], atol=0.02)   # 0.02 of the ramp height
+    np.testing.assert_allclose(binned[:11], np.linspace(1 / 24, 21 / 24, 11), atol=0.02)
+    f = ramps.tf_flux_split(x, 0.5 * x, TF_FS, times, D_e)
+    assert f["F_cs"] == pytest.approx(f["F_ej"] + f["F_sw"], abs=1e-12)   # Z11 eq. 3 identity
+    # closed form: F_ej = (1 / 2) 0.5 int_0^1 s^2 ds = 1/12, F_sw = 0; 2e-3 covers the lag
+    # points within one sample of the drop
+    assert f["F_ej"] == pytest.approx(1.0 / 12.0, abs=2e-3)
+    assert f["F_sw"] == pytest.approx(0.0, abs=2e-3)
+
+
+@pytest.mark.parametrize("with_q", [True, False])
+def test_detect_tf2005_on_a_20_hz_record(with_q):
+    rng = np.random.default_rng(1)
+    n = 65536
+    t = np.arange(n) / 20.0
+    T = np.sin(2 * np.pi * t / 60.0) + 0.3 * rng.normal(size=n)
+    w = 0.5 * np.sin(2 * np.pi * t / 60.0) + rng.normal(size=n)
+    q = T + rng.normal(size=n) if with_q else None
+    ev = ramps.detect_tf2005(T, w, 20.0, others={"rho_h2o": q},
+                             pairs={"wTs": ("w_pf", "ts"), "wq": ("w_pf", "rho_h2o")})
+    assert ev.r_Tw > 0 and ev.sign == -1
+    assert ev.D_e == pytest.approx(30.0, rel=0.15)          # half the planted 60 s period
+    assert ev.n > 40
+    f = ev.flux["wTs"]
+    assert f["F_cs"] == pytest.approx(f["F_ej"] + f["F_sw"], abs=1e-12)
+    assert ev.f_tc == pytest.approx(ev.n * ev.D_e / ev.length_s)
+    assert np.isfinite(ev.comp["rho_h2o"]).all() == with_q
+    assert np.isfinite(ev.flux["wq"]["F_cs"]) == with_q

@@ -147,3 +147,22 @@ def test_run_octant_single_triplet_and_missing_signal(tmp_path):
         do = qd.run_octant(hf, cfg)
     assert do.attrs["octant_triplets"] == "u,w,ts"   # rho_h2o triplet skipped
     assert "flux_frac_u_w_ts_uw" in do and "flux_frac_w_ts_rho_h2o_wts" not in do
+
+
+def test_horizontal_pair_uts_has_fractions_and_no_derived_values(tmp_path):
+    # u'Ts' carries no w': neutral Q1-Q4 fractions only, no ejection/sweep values
+    assert qd.w_index("uTs") is None and qd.w_index("urhov") is None
+    assert qd.w_index("uw") == 1 and qd.w_index("wTs") == 0
+    path, _ = make_hf(tmp_path / "hf3.nc", fs=FS, window_s=300.0, n_records=2)
+    cfg = ECConfig.from_config({"quadrant": {"pairs": ["uTs", "urhov", "wTs"]}})
+    with open_hf(path) as hf:
+        ds = qd.run(hf, cfg)
+    for k in ("uTs", "urhov"):
+        s0 = ds[f"S_frac_{k}"].isel(hole=0).values.sum(axis=-1)
+        t0 = ds[f"dur_frac_{k}"].isel(hole=0).values.sum(axis=-1)
+        assert np.isfinite(s0).all()
+        assert np.allclose(s0, 1.0, atol=1e-9)
+        assert np.allclose(t0, 1.0, atol=1e-9)
+        for d in qd.DERIVED:
+            assert f"{d}_{k}" not in ds
+    assert all(f"{d}_wTs" in ds for d in qd.DERIVED)

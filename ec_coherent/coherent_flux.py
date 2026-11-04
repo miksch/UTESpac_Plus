@@ -14,7 +14,7 @@ import xarray as xr
 
 from . import preprocess as pp
 from .io import HFFile, iter_windows, token
-from .quadrant import PAIRS, quadrant_stats
+from .quadrant import PAIRS, quadrant_stats, w_index
 from .ramps import _slope_for, detect, log_scales
 
 GROUP = "coherent_flux"
@@ -224,7 +224,9 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
                     continue
                 xp, yp = prime[a], prime[b]
                 cov[k][i, ih] = float(np.nanmean(xp * yp))
-                q = quadrant_fraction(xp, yp, holes, w_is=(0 if a == "w_pf" else 1))
+                if w_index(k) is None:
+                    continue
+                q = quadrant_fraction(xp, yp, holes, w_is=w_index(k))
                 for f in ("F_ej", "F_sw", "F_coh"):
                     qd[k][f][i, ih] = q[f]
                 if not (np.isfinite(xp).all() and np.isfinite(yp).all()):

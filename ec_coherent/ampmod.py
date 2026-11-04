@@ -2,6 +2,12 @@
 
 Science and sources: library/writeups/ec_ampmod.md. Single-point form; the
 cutoff-scale substitution for the missing z_i is the registered deviation.
+
+:func:`run` computes the single-point coefficient only: the large-scale
+signal and the small-scale envelope are correlated at zero lag, and the
+lagged form (Salesky & Anderson 2018 eq. 1.7) is not implemented. The
+Hilbert envelope is computed by FFT (``scipy.signal.hilbert``), so it
+treats each window as periodic and wraps at the ends.
 """
 
 from typing import Dict, Optional, Sequence, Tuple
@@ -36,7 +42,8 @@ def envelope(x: np.ndarray) -> np.ndarray:
 
 def am_coefficient(b_l: np.ndarray, env_l: np.ndarray) -> float:
     """R = correlation of the large-scale modulator with the filtered envelope
-    [CITED] Mathis 2009 eq. 5.1; Salesky & Anderson 2018 eq. 1.6 (fluctuating parts)."""
+    [CITED] Salesky & Anderson 2018 eq. 1.6, both factors primed (fluctuating
+    parts); not Mathis 2009 eq. 5.1."""
     b = b_l - np.mean(b_l)
     e = env_l - np.mean(env_l)
     denom = np.sqrt(np.mean(b ** 2)) * np.sqrt(np.mean(e ** 2))
@@ -53,6 +60,9 @@ def spectral_gap(x: np.ndarray, fs: float, n_per_decade: int = 10) -> float:
     large/small cutoff (Salesky & Anderson 2018 p. 141: "the spectral plateau
     separating the inner and outer peaks"). NaN when the binned curve has no
     interior minimum below the global maximum (no scale separation resolved).
+    [HOUSE] The gap test is: the two largest maxima at least half a decade
+    apart, an interior minimum between them, and a dip of at least 10 % of
+    the smaller of the two peaks.
     """
     spec = sp.spectrum(x, fs)
     pos = spec.f > 0
@@ -78,7 +88,7 @@ def spectral_gap(x: np.ndarray, fs: float, n_per_decade: int = 10) -> float:
     i_min = i_lo + int(np.argmin(p[i_lo: i_hi + 1]))
     if i_min in (i_lo, i_hi):
         return np.nan
-    if p[i_min] > 0.9 * min(p[i_lo], p[i_hi]):    # dip depth >= 10 % of the smaller peak [ASSUMED]
+    if p[i_min] > 0.9 * min(p[i_lo], p[i_hi]):    # dip depth >= 10 % of the smaller peak [HOUSE]
         return np.nan
     return float(fb[i_min])
 
@@ -90,6 +100,8 @@ def cutoff_frequency(cfg, x_mod: np.ndarray, fs: float, U: float, z: float
     Modes (locked decision 3; deviation register in ec_ampmod.md):
     ``spectral_gap`` from *x_mod* with the ``delta`` value as fallback;
     ``delta``: lambda_c = cfg.delta_m; ``scaled``: lambda_c = cfg.z_mult * z.
+    [HOUSE] The ``delta`` and ``scaled`` modes, and the ``delta`` fallback
+    of ``spectral_gap``.
     """
     mode = cfg.cutoff_mode
     if mode == "spectral_gap":
@@ -111,7 +123,11 @@ _FLUX_PAIRS = {"uw": ("u_pf", "w_pf"), "wTs": ("w_pf", "ts"), "wrhov": ("w_pf", 
 
 
 def _flux_series(prime: Dict[str, np.ndarray], key: str) -> Optional[np.ndarray]:
-    """Instantaneous-flux series ('uw' -> u'w') from the perturbation dict, or None."""
+    """Instantaneous-flux series ('uw' -> u'w') from the perturbation dict, or None.
+
+    [HOUSE] The product of the two perturbation series, treated as a signal
+    whose envelope is modulated; None when a member is missing or not finite.
+    """
     if key not in _FLUX_PAIRS:
         raise ValueError(f"ampmod flux {key!r}; expected one of {sorted(_FLUX_PAIRS)}")
     a, b = _FLUX_PAIRS[key]
@@ -122,7 +138,12 @@ def _flux_series(prime: Dict[str, np.ndarray], key: str) -> Optional[np.ndarray]
 
 
 def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
-    """Amplitude-modulation group for every window and height; the ``/amplitude_mod`` Dataset."""
+    """Amplitude-modulation group for every window and height; the ``/amplitude_mod`` Dataset.
+
+    Single-point only: R is the zero-lag coefficient, the Salesky & Anderson
+    2018 eq. 1.7 lag is not implemented, and the Hilbert envelope wraps at
+    the window ends.
+    """
     ac, pc = cfg.ampmod, cfg.preprocess
     mods = list(ac.modulators)
     sigs = list(ac.signals)
@@ -179,7 +200,7 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
         tm, ta = token(m), token(a)
         ds[f"R_{tm}L_{ta}S"] = (dims, arr, {
             "long_name": f"amplitude-modulation coefficient of small-scale {ta} ({kind}) by large-scale {tm}",
-            "reference": "Mathis et al. 2009 eq. 5.1; Salesky & Anderson 2018 eq. 1.6 (single-point)"})
+            "reference": "Salesky & Anderson 2018 eq. 1.6 (single-point, zero lag)"})
     ds["cutoff_lambda"] = (dims, lam_c, {"units": "m", "long_name": "large/small cutoff wavelength lambda_c"})
     ds["cutoff_f"] = (dims, f_c, {"units": "Hz", "long_name": "large/small cutoff frequency U_mean/lambda_c"})
     ds["cutoff_source"] = (dims, source, {

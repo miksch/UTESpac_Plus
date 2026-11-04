@@ -13,6 +13,7 @@ dependencies = [
     "matplotlib>=3.7",
     "xarray>=2024.1",     # the labeled run model (tasks/archive/migration/2026-08-22_labeled-run-model.md)
     "netCDF4>=1.6",       # the products are netCDF (utespac.run_io, utespac.export_hf)
+    "PyWavelets>=1.4",    # ec_coherent.ramps bior_lowpass (Thomas and Foken 2005 detector)
 ]
 
 [project.optional-dependencies]
