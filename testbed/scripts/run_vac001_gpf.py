@@ -28,9 +28,13 @@ from utespac import RunConfig, run_utespac, ScriptedPFSelection  # noqa: E402
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--root", default=os.environ.get("UTESPAC_DATA_ROOT", os.path.join(ROOT, "data")),
-                    help="folder with one sub-folder per site "
-                         "(default: $UTESPAC_DATA_ROOT or <repo>/data)")
+    ap.add_argument("--root", default=None,
+                    help="configuration root: one sub-folder per site with its "
+                         "siteInfo.toml and PFinfo.json (default: <repo>/data when "
+                         "it holds the site, else $UTESPAC_DATA_ROOT)")
+    ap.add_argument("--data-root", default=os.environ.get("UTESPAC_DATA_ROOT"),
+                    help="data root: <site>/utespac input files and <site>/output "
+                         "products (default: $UTESPAC_DATA_ROOT, else --root)")
     ap.add_argument("--dates", type=int, nargs="*", default=None)
     ap.add_argument("--site", default="VAC001")
     ap.add_argument("--detrend", choices=["linear", "constant"], default="constant")
@@ -39,10 +43,14 @@ def main():
     ap.add_argument("--bins", type=float, nargs="*", default=[],
                     help="direction-bin boundaries [deg] for every height (default: none)")
     args = ap.parse_args()
+    if args.root is None:
+        repo_data = os.path.join(ROOT, "data")
+        args.root = (repo_data if os.path.isdir(os.path.join(repo_data, args.site))
+                     else os.environ.get("UTESPAC_DATA_ROOT", repo_data))
 
     logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
     config = RunConfig.from_config(
-        rootFolder=args.root,
+        rootFolder=args.root, dataFolder=args.data_root,
         saveCSV=True, saveRawConditionedData=True,
         pf={"globalCalculation": "global",
             "recalculateGlobalCoefficients": not args.reuse_pf},

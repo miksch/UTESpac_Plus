@@ -8,7 +8,9 @@
 # a provenance note says otherwise.
 
 [spikeTest]
-maxRuns = 20                 # despiking passes
+method = "sigma"             # "sigma" (mean/std, iterative) or "mad" (Mauder et al. 2013)
+madThreshold = 7.0           # q of the MAD test, [CITED] Mauder et al. (2013) Eq. (1), p. 124
+maxRuns = 20                 # despiking passes (sigma only)
 windowSizeFraction = 1       # window = avgPer * fraction
 maxConsecutiveOutliers = 10  # longer runs are not spikes
 maxPercent = 2               # [%] flag the period when more than this is spiked

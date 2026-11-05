@@ -1,9 +1,14 @@
 """ec_coherent.ramps: MHAT transform, wavelet variance, duration scale, zero-crossing detection."""
 
+import inspect
+import warnings
+
 import numpy as np
 import pytest
+import xarray as xr
 
 from ec_coherent import ECConfig, io as ecio, ramps
+from ec_coherent import preprocess as pp
 from ec_coherent.cli import run_file
 from ec_helpers import make_hf
 
@@ -383,3 +388,259 @@ def test_detect_tf2005_on_a_20_hz_record(with_q):
     assert ev.f_tc == pytest.approx(ev.n * ev.D_e / ev.length_s)
     assert np.isfinite(ev.comp["rho_h2o"]).all() == with_q
     assert np.isfinite(ev.flux["wq"]["F_cs"]) == with_q
+
+
+TF_REC = 36000                       # samples in one 1800 s record at 20 Hz
+
+
+def _tf_sine(fs=20.0, seed=1):
+    """In-phase 60 s sine in ts and w over one 1800 s record at *fs*."""
+    rng = np.random.default_rng(seed)
+    t = np.arange(int(round(1800.0 * fs))) / fs
+    s = np.sin(2 * np.pi * t / 60.0)
+    return (20.0 + s + 0.3 * rng.normal(size=t.size),
+            0.5 * s + rng.normal(size=t.size))
+
+
+def _tf_plant(directory, fs, cells, heights=(3.0,), n_records=2):
+    """HF file whose ts and w_pf carry *cells*, {(record, height): (ts, w)}.
+
+    A None series keeps the synthetic one of ``make_hf``. Returns the path
+    and the planted series as stored (float32 cast back to float).
+    """
+    src, _ = make_hf(directory / "src.nc", fs=fs, window_s=1800.0,
+                     n_records=n_records, heights=heights)
+    ds = xr.open_dataset(src).load()
+    n = int(round(1800.0 * fs))
+    ts, w = ds["ts"].values.copy(), ds["w_pf"].values.copy()
+    stored = {}
+    for (i, ih), (a, b) in cells.items():
+        sl = slice(i * n, (i + 1) * n)
+        if a is not None:
+            ts[sl, ih] = a
+        if b is not None:
+            w[sl, ih] = b
+        stored[(i, ih)] = (ts[sl, ih].astype(float), w[sl, ih].astype(float))
+    ds["ts"] = (("time", "height"), ts)
+    ds["w_pf"] = (("time", "height"), w)
+    path = directory / "SYN_hf_GPF_ConstDet_2024_06_01.nc"
+    ms = "milliseconds since 1970-01-01 00:00:00"
+    ds.to_netcdf(path, engine="netcdf4",
+                 encoding={"time": {"units": ms}, "record": {"units": ms}})
+    return str(path), stored
+
+
+def _tf_run(path, **ramps_cfg):
+    cfg = ECConfig.from_config(
+        modules=("ramps",),
+        ramps={"signals": ("ts",), "sr_signals": (), "a_max_s": 100.0,
+               **ramps_cfg})
+    return ecio.read_group(run_file(path, cfg), "ramps")
+
+
+@pytest.fixture(scope="module")
+def tf_sine_path(tmp_path_factory):
+    """Record 0 carries the 60 s sine of :func:`_tf_sine`, record 1 flat w."""
+    cells = {(0, 0): _tf_sine(), (1, 0): (None, np.zeros(TF_REC))}
+    path, _ = _tf_plant(tmp_path_factory.mktemp("tf_sine"), 20.0, cells)
+    return path
+
+
+def test_run_tf2005_off_leaves_the_ramps_group_unchanged(tf_sine_path):
+    path = tf_sine_path
+    off, on = _tf_run(path), _tf_run(path, tf2005=True)
+    tf_vars = {k for k in on.data_vars if k.startswith("tf_")}
+    assert not any(k.startswith("tf_") for k in off.data_vars)
+    assert not any(k.startswith("tf2005") for k in off.attrs)
+    assert set(off.data_vars) == set(on.data_vars) - tf_vars
+    for k in off.data_vars:
+        np.testing.assert_array_equal(off[k].values, on[k].values)
+
+
+def test_run_tf2005_on_recovers_the_planted_sine(tf_sine_path):
+    ds = _tf_run(tf_sine_path, tf2005=True)
+    sine, flat = ds.isel(record=0, height=0), ds.isel(record=1, height=0)
+    assert "Thomas and Foken (2005)" in ds.attrs["tf2005_method"]
+    # TF05 Table 2, daytime: positive r, crossings from + to -
+    assert float(sine["tf_r_Tw"]) > 0 and float(sine["tf_sign"]) == -1
+    # half the 60 s period, within one 1 s step of the duration grid
+    assert float(sine["tf_D_e"]) == pytest.approx(30.0, abs=1.0)
+    # 30 planted periods in 1800 s, one crossing each; the edge may cost one
+    assert abs(float(sine["tf_n_events"]) - 30.0) <= 1.0
+    # TF05 Table 3 recovers T_x = 59.9 s for a 60 s sine; 5 % fails a 10 %
+    # change
+    assert float(sine["tf_mean_spacing"]) == pytest.approx(60.0, rel=0.05)
+    # L is exactly 1800 s (3600 samples at 2 Hz): the same float64 product,
+    # so only rounding separates the two
+    assert float(sine["tf_f_tc"]) == pytest.approx(
+        float(sine["tf_n_events"]) * float(sine["tf_D_e"]) / 1800.0,
+        rel=1e-12)
+    # Z11 eq. 3 identity on terms of order one in sigma units: float64
+    # rounding only
+    assert float(sine["tf_F_cs_wTs"]) == pytest.approx(
+        float(sine["tf_F_ej_wTs"]) + float(sine["tf_F_sw_wTs"]), abs=1e-9)
+    assert float(sine["tf_F_tot_wTs"]) > 0              # in-phase w and ts
+    for k in (v for v in ds.data_vars if v.startswith("tf_")):
+        assert np.isfinite(float(sine[k])), k
+        # flat w: the detector returns nothing
+        assert np.isnan(float(flat[k])), k
+
+
+def _tf_saw(t, period, rise=0.8):
+    """Sawtooth in [0, 1]: rise over *rise* of the period, then a fast drop."""
+    ph = (t % period) / period
+    return np.where(ph < rise, ph / rise, (1.0 - ph) / (1.0 - rise))
+
+
+def _tf_expected(ts, w, fs=20.0):
+    """``tf_`` record scalars of a direct :func:`ramps.detect_tf2005` call."""
+    ev = ramps.detect_tf2005(ts, w, fs)
+    f = ev.flux["wTs"]
+    return {"tf_D_e": ev.D_e, "tf_n_events": ev.n, "tf_mean_spacing": ev.T_x,
+            "tf_sigma_Tx": ev.sigma_Tx, "tf_f_tc": ev.f_tc, "tf_r_Tw": ev.r_Tw,
+            "tf_sign": ev.sign, "tf_F_cs_wTs": f["F_cs"],
+            "tf_F_ej_wTs": f["F_ej"], "tf_F_sw_wTs": f["F_sw"],
+            "tf_F_tot_wTs": f["F_tot"]}
+
+
+@pytest.fixture(scope="module")
+def tf_planted(tmp_path_factory):
+    """Three records at two heights, run with ``tf2005`` on.
+
+    Record 0 carries ramps of 60 s at the lower height, with a w mean of
+    0.8, and of 100 s at the upper one. Record 1 carries 80 s ramps with a
+    700-sample gap in ts and w at the lower height (1.9 %, below
+    ``nan_max_frac``) and a w that is 25 % NaN at the upper one (rejected).
+    Record 2 carries a 1200 s sine in ts and w at the lower height, whose
+    wavelet variance rises over the whole duration grid (no maximum before
+    its 600 s half period), and 80 s ramps
+    with a ts that is 25 % NaN at the upper one (rejected).
+    """
+    rng = np.random.default_rng(3)
+    t = np.arange(TF_REC) / 20.0
+
+    def cell(period, w_mean):
+        saw = _tf_saw(t, period)
+        ts = 20.0 + saw + 0.3 * rng.normal(size=t.size)
+        w = (w_mean + 0.6 * (saw - 0.5) + 0.3 * np.sin(2 * np.pi * t / 37.0)
+             + 0.5 * rng.normal(size=t.size))
+        return ts, w
+
+    cells = {(0, 0): cell(60.0, 0.8), (0, 1): cell(100.0, 0.0)}
+    ts, w = cell(80.0, 0.0)
+    ts[10000:10700] = np.nan
+    w[10000:10700] = np.nan
+    cells[(1, 0)] = (ts, w)
+    ts, w = cell(80.0, 0.0)
+    w[:9000] = np.nan
+    cells[(1, 1)] = (ts, w)
+    slow = np.sin(2 * np.pi * t / 1200.0)
+    cells[(2, 0)] = (20.0 + slow + 0.05 * rng.normal(size=t.size),
+                     0.5 * slow + 0.3 * rng.normal(size=t.size))
+    ts, w = cell(80.0, 0.0)
+    ts[:9000] = np.nan
+    cells[(2, 1)] = (ts, w)
+    path, stored = _tf_plant(tmp_path_factory.mktemp("tf"), 20.0, cells,
+                             heights=(3.0, 10.0), n_records=3)
+    return stored, _tf_run(path, tf2005=True)
+
+
+@pytest.mark.parametrize("cell", [(0, 0), (0, 1), (1, 0)])
+def test_run_tf2005_matches_a_direct_call(tf_planted, cell):
+    stored, ds = tf_planted
+    got = ds.isel(record=cell[0], height=cell[1])
+    ts, w = (pp.fill_gaps(x, 0.1).x for x in stored[cell])
+    expected = _tf_expected(ts, w)
+    assert np.isfinite(list(expected.values())).all()
+    assert set(expected) == {k for k in ds.data_vars if k.startswith("tf_")}
+    for k, v in expected.items():
+        # same samples and arithmetic as the run; 1e-9 is rounding only
+        assert float(got[k]) == pytest.approx(v, rel=1e-9), k
+
+
+@pytest.mark.parametrize("cell, accepted", [((1, 0), True), ((1, 1), False),
+                                            ((2, 1), False)])
+def test_run_tf2005_leaves_a_rejected_window_nan(tf_planted, cell,
+                                                 accepted):
+    _, ds = tf_planted
+    got = ds.isel(record=cell[0], height=cell[1])
+    finite = [bool(np.isfinite(float(got[k])))
+              for k in ds.data_vars if k.startswith("tf_")]
+    assert all(finite) if accepted else not any(finite)
+
+
+@pytest.mark.parametrize("cell, has_max", [((0, 0), True), ((2, 0), False)])
+def test_run_tf2005_without_a_variance_maximum(tf_planted, cell, has_max):
+    _, ds = tf_planted
+    got = ds.isel(record=cell[0], height=cell[1])
+    kept = ("tf_r_Tw", "tf_sign")
+    rest = [k for k in ds.data_vars if k.startswith("tf_") and k not in kept]
+    assert len(rest) == 9
+    for k in kept:
+        assert np.isfinite(float(got[k])), k
+    for k in rest:
+        # without D_e the run writes only r and the crossing direction
+        assert np.isfinite(float(got[k])) == has_max, k
+
+
+def test_run_tf2005_keeps_the_mean_of_w(tf_planted):
+    stored, ds = tf_planted
+    ts, w = stored[(0, 0)]
+    primed = _tf_expected(pp.detrend(ts, "block"), pp.detrend(w, "block"))
+    got = ds.isel(record=0, height=0)
+    for k in ("tf_F_ej_wTs", "tf_F_sw_wTs"):
+        # TF05 p. 97 divides w by sigma_w only; the planted mean shifts the
+        # ejection and sweep terms by more than a tenth of their value
+        assert abs(primed[k] - float(got[k])) > 0.1 * abs(float(got[k])), k
+
+
+def test_run_tf2005_writes_units_and_long_names(tf_planted):
+    _, ds = tf_planted
+    units = {"tf_D_e": "s", "tf_mean_spacing": "s", "tf_sigma_Tx": "s",
+             "tf_F_cs_wTs": "1", "tf_F_ej_wTs": "1", "tf_F_sw_wTs": "1",
+             "tf_F_tot_wTs": "1"}
+    flux = "w Ts' (w not mean-removed), in sigma_w sigma_Ts"
+    long_names = {
+        "tf_D_e": ("characteristic event duration D_e, first clearly "
+                   "expressed Morlet variance maximum of ts (Thomas and "
+                   "Foken 2005)"),
+        "tf_F_cs_wTs": (f"coherent flux F_cs = F_ej + F_sw of {flux} "
+                        "(Zhang et al. 2011)"),
+        "tf_F_ej_wTs": (f"ejection flux F_ej over [-D_e, 0] of {flux} "
+                        "(Zhang et al. 2011)"),
+        "tf_F_sw_wTs": (f"sweep flux F_sw over [0, D_e] of {flux} "
+                        "(Zhang et al. 2011)"),
+        "tf_F_tot_wTs": (f"total flux in the event windows of {flux} "
+                         "(Zhang et al. 2011)"),
+    }
+    for k in (v for v in ds.data_vars if v.startswith("tf_")):
+        assert ds[k].attrs.get("units") == units.get(k), k
+    for k, long_name in long_names.items():
+        assert ds[k].attrs["long_name"] == long_name, k
+
+
+def test_run_tf2005_records_the_detector_defaults(tf_planted):
+    _, ds = tf_planted
+    sig = inspect.signature(ramps.detect_tf2005).parameters
+    grid = ramps.tf_duration_grid()
+    assert ds.attrs["tf2005_prominence"] == sig["prominence"].default
+    assert ds.attrs["tf2005_durations_s"] == (
+        f"{grid[0]:g} to {grid[-1]:g} by {grid[1] - grid[0]:g}")
+
+
+@pytest.mark.parametrize("fs, usable", [(4.0, True), (5.0, False),
+                                        (1.0, False)])
+def test_run_tf2005_needs_an_integer_multiple_of_2_hz(tmp_path, fs, usable):
+    path, _ = _tf_plant(tmp_path, fs, {(0, 0): _tf_sine(fs)}, n_records=1)
+    if usable:
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", message="tf2005")
+            ds = _tf_run(path, tf2005=True).isel(record=0, height=0)
+    else:
+        msg = f"tf2005: sampling rate {fs:g} Hz is not an integer multiple"
+        with pytest.warns(UserWarning, match=msg) as caught:
+            ds = _tf_run(path, tf2005=True).isel(record=0, height=0)
+        assert sum("tf2005" in str(c.message) for c in caught) == 1
+    finite = [bool(np.isfinite(float(ds[k])))
+              for k in ds.data_vars if k.startswith("tf_")]
+    assert all(finite) if usable else not any(finite)

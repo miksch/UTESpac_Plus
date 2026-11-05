@@ -4,7 +4,8 @@ screen and the Lenschow, Mann and Kristensen (2000) noise variance."""
 import numpy as np
 import pytest
 
-from utespac.flux.covariance import (LMK_EXPONENT, despike_mask, detrend_block,
+from utespac.flux.covariance import (LAG_MIN_PAIRS, LMK_EXPONENT, despike_mask,
+                                     detrend_block, lag_max_abs_cov,
                                      lagged_covariances, noise_variance_lmk,
                                      peak_lag)
 
@@ -105,6 +106,37 @@ def test_non_increasing_bounds_skip_the_sub_covariances():
     ad, _, a_ok = detrend_block(a)
     _, _, sub = lagged_covariances(ad, a_ok, ad, a_ok, 2, np.array([0, 300, 300, 600]))
     assert sub is None
+
+
+@pytest.mark.parametrize("shift, sign", [(3, 1.0), (3, -1.0), (-3, 1.0)])
+def test_lag_max_abs_cov_recovers_a_planted_shift_across_gaps(shift, sign):
+    """A scalar delayed by *shift* samples, with gaps in both series, returns
+    ``shift / fs``; a negative covariance peaks at the same lag."""
+    rng = np.random.default_rng(11)
+    n, fs = 6000, 20.0
+    w = rng.standard_normal(n)
+    c = sign * np.roll(w, shift) + 0.1 * rng.standard_normal(n)
+    c[1000:1200] = np.nan
+    w[3000:3050] = np.nan
+    assert lag_max_abs_cov(w, c, fs, 2.0) == shift / fs
+
+
+@pytest.mark.parametrize("shift, n, n_gap, max_lag_s, expected", [
+    (39, 6000, 0, 2.0, 39 / 20.0),                 # inside the window
+    (40, 6000, 0, 2.0, 0.35),                      # peak on the window edge
+    (3, LAG_MIN_PAIRS, 0, 2.0, 3 / 20.0),          # just enough finite pairs
+    (3, LAG_MIN_PAIRS, 1, 2.0, 0.35),              # one pair short, gap in w
+    (3, 6000, 0, 0.01, 0.35),                      # window under one sample
+    (5, 6000, 0, 0.29, 5 / 20.0),                  # 5.8 samples round to 6
+])
+def test_lag_max_abs_cov_falls_back_to_the_default(shift, n, n_gap, max_lag_s,
+                                                    expected):
+    rng = np.random.default_rng(13)
+    w = rng.standard_normal(n)
+    c = np.roll(w, shift) + 0.05 * rng.standard_normal(n)
+    w[:n_gap] = np.nan
+    lag = lag_max_abs_cov(w, c, 20.0, max_lag_s, default_lag_s=0.35)
+    assert lag == expected
 
 
 def test_peak_lag_is_nan_when_no_covariance_is_finite():

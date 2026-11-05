@@ -1,13 +1,17 @@
 """utespac.flux.quality: the Foken and Wichura (1996) stationarity statistic
-and classes, the Finkelstein and Sims (2001) random error, and the sliding
-RSSI statistics."""
+and classes, the Mahrt et al. (1998) flux intermittency, the Finkelstein and
+Sims (2001) random error, and the sliding RSSI statistics."""
+
+import warnings
 
 import numpy as np
 import pytest
 
-from utespac.flux.quality import (FOKEN_CLASS_EDGES, foken_class,
+from utespac.flux.quality import (FOKEN_CLASS_EDGES, MEAN_W_FLAG_EDGES,
+                                  flux_intermittency, foken_class, mean_w_flag,
                                   random_error_fs2001, rssi_threshold_below,
-                                  sliding_rssi_snr, stationarity_fw96)
+                                  sliding_rssi_snr, stationarity_fw96,
+                                  wind_constancy)
 
 
 # ── stationarity ─────────────────────────────────────────────────────────────
@@ -47,6 +51,114 @@ def test_foken_class_boundaries(stat, expected):
 def test_foken_class_accepts_other_edges():
     assert foken_class(40.0, edges=(50.0, 200.0)) == 1
     assert foken_class(250.0, edges=(50.0, 200.0)) == 3
+
+
+# ── flux intermittency ───────────────────────────────────────────────────────
+
+# Sub-blocks 1, 2, 3, 4: mean 2.5, squared deviations 2.25 + 0.25 + 0.25 +
+# 2.25 = 5, sample variance 5 / 3; over a total of 2 the index is
+# sqrt(5 / 3) / 2 = 0.6455.
+FI_HAND = np.sqrt(5.0 / 3.0) / 2.0
+
+
+def test_flux_intermittency_is_zero_for_identical_sub_blocks():
+    assert flux_intermittency(np.full(6, 0.5), 0.5) == 0.0
+
+
+@pytest.mark.parametrize("sub", [
+    [1.0, 2.0, 3.0, 4.0],
+    [1.0, np.nan, 2.0, 3.0, np.nan, 4.0],     # missing sub-blocks are skipped
+])
+def test_flux_intermittency_hand_case(sub):
+    # float round-off on four terms
+    assert flux_intermittency(np.array(sub), 2.0) == \
+        pytest.approx(FI_HAND, rel=1e-12)
+
+
+@pytest.mark.parametrize("total", [2.0, -2.0])
+def test_flux_intermittency_uses_the_magnitude_of_the_total(total):
+    # float round-off on four terms
+    assert flux_intermittency(np.array([1.0, 2.0, 3.0, 4.0]), total) == \
+        pytest.approx(FI_HAND, rel=1e-12)
+
+
+@pytest.mark.parametrize("sub,total,expected", [
+    ([1.0, 2.0, 3.0, 4.0], 2.0, FI_HAND),
+    ([1.0, 2.0, 3.0, 4.0], 0.0, np.nan),
+    ([1.0, 2.0, 3.0, 4.0], np.nan, np.nan),
+    ([1.0, 2.0], np.inf, np.nan),
+    ([1.0, np.nan, 3.0], 2.0, np.sqrt(2.0) / 2.0),   # two finite sub-blocks
+    ([1.0, np.inf, 3.0], 2.0, np.sqrt(2.0) / 2.0),   # inf sub-block skipped
+    ([1.0, np.nan, np.nan], 2.0, np.nan),     # one finite sub-block
+    ([np.nan, np.nan], 2.0, np.nan),
+])
+def test_flux_intermittency_is_nan_without_warning_for_an_undefined_index(
+        sub, total, expected):
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        fi = flux_intermittency(np.array(sub), total)
+    # float round-off on four terms
+    assert fi == pytest.approx(expected, rel=1e-12, nan_ok=True)
+    assert not caught
+
+
+@pytest.mark.filterwarnings("error")
+def test_flux_intermittency_is_inf_for_a_subnormal_total():
+    assert flux_intermittency(np.array([1.0, 2.0]), 5e-324) == np.inf
+
+
+# ── mean vertical wind and wind constancy ────────────────────────────────────
+
+def test_mean_w_flag_edges_are_the_mauder_2013_thresholds():
+    assert MEAN_W_FLAG_EDGES == (0.10, 0.15)
+
+
+@pytest.mark.parametrize("w,expected", [
+    (0.0, 0), (0.05, 0), (0.10, 0),        # open on the 0.10 edge
+    (0.1001, 1), (0.12, 1), (0.15, 1),     # open on the 0.15 edge
+    (0.1501, 2), (0.5, 2),
+    (-0.12, 1), (-0.2, 2),                 # magnitude of the mean
+    (np.nan, 2),
+])
+def test_mean_w_flag_boundaries(w, expected):
+    assert mean_w_flag(w) == expected
+
+
+def test_mean_w_flag_accepts_other_edges():
+    assert mean_w_flag(0.25, edges=(0.2, 0.3)) == 1
+
+
+def _wind_means(direction_deg, speed):
+    """Vector-mean magnitude and scalar mean speed of a horizontal wind."""
+    rad = np.deg2rad(direction_deg)
+    u, v = speed * np.cos(rad), speed * np.sin(rad)
+    return np.hypot(u.mean(), v.mean()), np.hypot(u, v).mean()
+
+
+@pytest.mark.parametrize("direction,expected", [
+    (np.full(600, 30.0), 1.0),                       # fixed direction
+    (np.r_[np.full(300, 30.0), np.full(300, 210.0)], 0.0),   # reversal
+    # quarter turn
+    (np.r_[np.full(300, 0.0), np.full(300, 90.0)], np.sqrt(0.5)),
+])
+def test_wind_constancy_closed_forms(direction, expected):
+    vec, spd = _wind_means(direction, np.full(direction.size, 3.0))
+    # float round-off on sums of 600 equal terms
+    assert wind_constancy(vec, spd) == pytest.approx(expected, abs=1e-9)
+
+
+@pytest.mark.parametrize("vec,spd,expected", [
+    (0.0, 0.0, np.nan), (1.0, np.nan, np.nan), (1.0, np.inf, np.nan),
+    (np.inf, np.inf, np.nan), (np.inf, 2.0, np.nan),
+    (2.0, 4.0, 0.5), (0.0, 2.0, 0.0),
+])
+def test_wind_constancy_is_nan_only_for_an_undefined_ratio(vec, spd, expected):
+    assert wind_constancy(vec, spd) == pytest.approx(expected, nan_ok=True)
+
+
+@pytest.mark.filterwarnings("error")
+def test_wind_constancy_is_inf_on_overflow():
+    assert wind_constancy(np.float64(1e308), np.float64(1e-308)) == np.inf
 
 
 # ── random error ─────────────────────────────────────────────────────────────

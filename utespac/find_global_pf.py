@@ -12,6 +12,7 @@ import numpy as np
 from .flux.tables import height_label
 from .get_data import get_data
 from .pf_coefficients import pf_coefficients
+from .rotation import sector_keys
 from .site_config import data_root, list_sites, site_id
 from .stp_dn import stp_dn
 from .wind_stats import wind_direction_speed
@@ -29,6 +30,132 @@ def _matlab_to_datetime(serial):
 def _compute_direction(u, v, bearing, manufact):
     """Wind direction [0, 360) from u/v (``wind_stats.wind_direction_speed``)."""
     return wind_direction_speed(u, v, bearing, manufact)[0]
+
+
+def direction_span(direction) -> float:
+    """Width of the smallest arc that holds every direction.
+
+    Parameters
+    ----------
+    direction : array_like
+        Wind directions [deg]; NaN entries are ignored.
+
+    Returns
+    -------
+    float
+        Arc width [deg], 0 for a single direction, NaN for none. The arc may
+        wrap through north: 350 and 10 deg span 20 deg.
+    """
+    d = np.asarray(direction, dtype=float).ravel()
+    d = np.sort(np.mod(d[np.isfinite(d)], 360.0))
+    if d.size == 0:
+        return float("nan")
+    gaps = np.diff(np.append(d, d[0] + 360.0))
+    return float(360.0 - gaps.max())
+
+
+def _sector_width(lo: float, hi: float) -> float:
+    """Width [deg] of the sector ``(lo, hi]``, 360 when ``lo == hi``."""
+    width = (hi - lo) % 360.0
+    return 360.0 if width == 0.0 else width
+
+
+def pf_sample(u, v, w, direction, bins: List[float]) -> Dict[str, tuple]:
+    """Size and direction span of the planar-fit sample in each sector.
+
+    Parameters
+    ----------
+    u, v, w : array_like
+        Period-mean winds [m s-1]; NaN marks a period left out by the flags
+        or the wind-speed filter.
+    direction : array_like
+        Wind direction of each period [deg].
+    bins : list of float
+        Sector edges [deg] as passed to
+        :func:`~utespac.pf_coefficients.pf_coefficients`; empty for one
+        all-direction sector.
+
+    Returns
+    -------
+    dict
+        ``{sector key: (n_periods, dir_span)}`` with the keys of
+        :func:`~utespac.pf_coefficients.pf_coefficients`.
+    """
+    u, v, w, d = (np.asarray(a, dtype=float) for a in (u, v, w, direction))
+    ok = np.isfinite(u) & np.isfinite(v) & np.isfinite(w) & np.isfinite(d)
+    if not bins:
+        sectors = {"degrees_0_to_0": ok}
+    else:
+        sectors = {}
+        for (lo, hi) in sector_keys(bins):
+            if hi > lo:
+                m = (d > lo) & (d <= hi)
+            else:
+                m = (d > lo) | (d <= hi)
+            sectors[f"degrees_{lo:g}_to_{hi:g}"] = ok & m
+    return {key: (int(m.sum()), direction_span(d[m]))
+            for key, m in sectors.items()}
+
+
+def guard_pf_sample(coef: Dict[str, np.ndarray], sample: Dict[str, tuple],
+                    z: float, min_periods: int, min_span: float,
+                    action: str = "warn") -> Dict[str, np.ndarray]:
+    """Flag the sectors whose planar-fit sample is too small or too narrow.
+
+    A flagged sector is logged as a warning; under ``action="nan"`` its
+    coefficients are also set to NaN.
+
+    Parameters
+    ----------
+    coef : dict
+        ``{sector key: [b0, b1, b2]}`` from ``pf_coefficients``; changed in
+        place under ``action="nan"``.
+    sample : dict
+        ``{sector key: (n_periods, dir_span)}`` from :func:`pf_sample`.
+    z : float
+        Sonic height [m], for the warning.
+    min_periods : int
+        ``PFConfig.globalCalcMinPeriods``.
+    min_span : float
+        ``PFConfig.globalCalcMinDirSpan`` [deg]. A sector narrower than
+        twice this needs half its own width instead, so a sectorwise fit is
+        held to the spread its sector allows.
+    action : {"warn", "nan"}
+        ``PFConfig.globalCalcSampleAction``: ``"warn"`` keeps the fit and
+        logs a warning, ``"nan"`` also sets the coefficients to NaN.
+
+    Returns
+    -------
+    dict
+        *coef*, with the rejected sectors' coefficients NaN under ``"nan"``.
+
+    Raises
+    ------
+    ValueError
+        If *action* is neither ``"warn"`` nor ``"nan"``.
+    """
+    if action not in ("warn", "nan"):
+        raise ValueError("globalCalcSampleAction must be 'warn' or 'nan', "
+                         f"got {action!r}")
+    for key, (n, span) in sample.items():
+        lo, hi = (float(x) for x in key[len("degrees_"):].split("_to_"))
+        # [HOUSE] a sector narrower than twice min_span needs half its width
+        need_span = min(float(min_span), 0.5 * _sector_width(lo, hi))
+        if n >= min_periods and span >= need_span:
+            continue
+        taken = "coefficients set to NaN" if action == "nan" else "fit kept"
+        hint = (" A per-height pf.globalCalcMinWindByHeight can admit more"
+                " periods." if n < min_periods else "")
+        log.warning(
+            "Global planar fit at %g m, sector %s: %d period(s) pass the "
+            "wind filter over a %.1f deg direction span (thresholds "
+            "globalCalcMinPeriods=%d, globalCalcMinDirSpan=%.1f deg, needs "
+            "%.1f deg for this sector); %s (globalCalcSampleAction=%r).%s",
+            z, key, n, span, min_periods, float(min_span), need_span, taken,
+            action, hint)
+        if action == "nan":
+            coef[key] = np.full(3, np.nan)
+    return coef
 
 
 def find_global_pf(info: Dict, template: Dict, sensor_info: Dict,
@@ -94,6 +221,7 @@ def find_global_pf(info: Dict, template: Dict, sensor_info: Dict,
 
     table_names = data.get("tableNames", [])
     pf_info: Dict = {}
+    pf_samples: Dict = {}       # (n_periods, dir_span), pf_info's nesting
 
     for ii, z in enumerate(z_vals):
         # ── skip (MATLAB: skipFlag = input(...)) ─────────────────────────────
@@ -239,6 +367,10 @@ def find_global_pf(info: Dict, template: Dict, sensor_info: Dict,
 
         cm_key = f"cm_{round(z * 100)}"
         pf_info[cm_key] = {}
+        pf_samples[cm_key] = {}
+        min_n = info["PF"]["globalCalcMinPeriods"]
+        min_span = info["PF"]["globalCalcMinDirSpan"]
+        action = info["PF"]["globalCalcSampleAction"]
 
         # ── iterate through windows (MATLAB lines 204-345) ───────────────────
         for d_start, d_end, local_days in windows:
@@ -263,7 +395,10 @@ def find_global_pf(info: Dict, template: Dict, sensor_info: Dict,
                     np.column_stack([local_u, local_v, local_w, local_dir]),
                     bins,
                 )
-                pf_info[cm_key][day_key] = coef
+                sample = pf_sample(local_u, local_v, local_w, local_dir, bins)
+                pf_info[cm_key][day_key] = guard_pf_sample(
+                    coef, sample, z, min_n, min_span, action)
+                pf_samples[cm_key][day_key] = sample
             else:
                 # ── day-by-day path (MATLAB lines 232-344) ────────────────────
                 prompter.begin_day_by_day(z, bins)
@@ -312,26 +447,33 @@ def find_global_pf(info: Dict, template: Dict, sensor_info: Dict,
                 prompter.end_day_by_day(z)
 
                 if cum_coef is not None:
-                    pf_info[cm_key][day_key] = cum_coef
+                    sample = pf_sample(cum_u, cum_v, cum_w, cum_dir, bins)
+                    pf_info[cm_key][day_key] = guard_pf_sample(
+                        cum_coef, sample, z, min_n, min_span, action)
+                    pf_samples[cm_key][day_key] = sample
                 else:
                     log.warning("No days accepted for window %s — skipping.", day_key)
 
     # ── build infoString and save ─────────────────────────────────────────────
     pf_info["infoString"] = _build_info_string(pf_info)
-    save_pf_info(pf_info, site_path, site=info["siteFolder"])
+    save_pf_info(pf_info, site_path, site=info["siteFolder"],
+                 samples=pf_samples)
     log.info("PFinfo saved to %s\n%s", site_path, format_pf_info(pf_info))
 
     prompter.confirm(pf_info)
     return pf_info
 
 
-def save_pf_info(pf_info: Dict, site_path, site: Optional[str] = None) -> Dict[str, str]:
+def save_pf_info(pf_info: Dict, site_path, site: Optional[str] = None,
+                 samples: Optional[Dict] = None) -> Dict[str, str]:
     """Write ``PFinfo.json`` (labeled :class:`~utespac.pf_info.PFTable`) into
-    *site_path*; returns ``{"json": path}``. The legacy ``PFinfo.pkl`` is no
-    longer written (migration step 5); :func:`load_pf_info` still reads one."""
+    *site_path*; returns ``{"json": path}``. *samples* carries the
+    ``(n_periods, dir_span)`` of each fit in the ``cm_/day_/degrees_`` nesting.
+    The legacy ``PFinfo.pkl`` is no longer written (migration step 5);
+    :func:`load_pf_info` still reads one."""
     from .pf_info import PFTable
     json_path = os.path.join(site_path, "PFinfo.json")
-    PFTable.from_legacy(pf_info, site=site).save(json_path)
+    PFTable.from_legacy(pf_info, site=site, samples=samples).save(json_path)
     return {"json": json_path}
 
 

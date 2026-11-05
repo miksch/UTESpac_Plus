@@ -12,6 +12,7 @@ gitignored; project entries are curated into `references.bib`.
 |---|---|---|
 | Anctil et al. - 1994 - Eddy-Correlation Measurements of Air-Sea Fluxes from a Discus Buoy | Anctil1994 | visual (scan; no text layer -- render pages for extraction; 2026-08-24) |
 | 1-4020-2265-4.pdf (Lee, Massman & Law eds. 2004, Handbook of Micrometeorology, whole book; ch. 9 = Foken2004, ch. 2 = Moncrieff2004) | Foken2004, Moncrieff2004 | title (2026-08-22; ch. 2 2026-08-23) |
+| 7500DS_Manual_16770.pdf (LI-COR 2021, Using the LI-7500DS Open Path CO2/H2O Analyzer and the SmartFlux 3 System, Publication Number 984-16770) | LICOR7500DS | title (2026-11-05) |
 | A_1018909000098.pdf (Pahlow, Parlange & Porté-Agel 2001, On Monin–Obukhov similarity in the stable ABL) | Pahlow2001 | title (2026-08-22) |
 | atot-jtech-d-15-0109_1.pdf (Flügge et al. 2016, Comparison of direct covariance flux measurements from an offshore tower and a buoy) | Flugge2016 | title (2026-08-24) |
 | Antonia et al. - 1979 - Temperature Ramps... | Antonia1979 | visual (scan; no text layer -- render pages for extraction) |
@@ -20,6 +21,7 @@ gitignored; project entries are curated into `references.bib`.
 | Aubinet et al. - 2012 - Eddy Covariance A Practical Guide... (whole book; ch. 4 = Foken2012, ch. 3 = Rebmann2012) | Foken2012, Rebmann2012 | title (2026-08-22; ch. 3 2026-08-23) |
 | Atta - 1977 - Effect of coherent structures... | Atta1977 | title (scan with OCR layer) |
 | Balakumar and Adrian - 2007 - Large- and very-large... | Balakumar2007 | title |
+| Banerjee et al. - 2007 - Presentation of anisotropy properties of turbulence... | Banerjee2007 | title (2026-11-05) |
 | Barthlott et al. - 2007 - Long-term study of coherent structures... | Barthlott2007 | title (2026-09-24; time cover TC eq. 11) |
 | Blackwelder and Kaplan - 1976 - On the wall structure... | Blackwelder1976 | title |
 | Castellví and Snyder - 2009 - On the performance of surface renewal... | Castellvi2009 | title (2026-08-23) |
@@ -28,6 +30,7 @@ gitignored; project entries are curated into `references.bib`.
 | Collineau and Brunet - 1993 - ...part I Wavelet analysis | Collineau1993 | title |
 | De Bruin et al. - 1993 - A verification of some methods... | DeBruin1993 | title (2026-08-22) |
 | Collineau and Brunet - 1993 - ...part II Time-scales... | Collineau1993a | title |
+| csat3.pdf (Campbell Scientific 2017, CSAT3 Three Dimensional Sonic Anemometer instruction manual, Revision 4/17) | CampbellCSAT3 | title (2026-11-05) |
 | Desjardins' et al. - AN EVALUATION OF AIRCRAFT FLUX... | Desjardins1989 | title |
 | Edson et al. - 1998 - Direct Covariance Flux Estimates from Mobile Platforms... | Edson1998 | title (2026-08-24) |
 | Foken and Wichura - 1996 - Tools for quality assessment... | Foken1996 | title |
@@ -41,6 +44,7 @@ gitignored; project entries are curated into `references.bib`.
 | Huang et al. - 1998 - The empirical mode decomposition and the Hilbert spectrum... | Huang1998 | title (2026-09-18) |
 | Hutchins and Marusic - 2007 - Evidence of very long... | Hutchins2007 | title |
 | Hutchins et al. - 2012 - Towards Reconciling... | Hutchins2012 | title |
+| irgason_man.pdf (Campbell Scientific 2017, IRGASON Integrated CO2/H2O Open-Path Gas Analyzer and 3D Sonic Anemometer instruction manual, Revision 8/17) | CampbellIRGASON | title (2026-11-05) |
 | Kaimal and Gaynor - 1991 - Another look at sonic thermometry | Kaimal1991 | title (2026-08-22) |
 | Kaimal et al. - 1972 - Spectral characteristics... | Kaimal1972 | title |
 | Katul et al. - 2001 - Multiscale analysis of vegetation surface fluxes... | Katul2001 | visual (broken font encoding -- extracted text is garbled; rendered p.1 confirms title/authors/DOI; 2026-09-18) |
@@ -56,26 +60,33 @@ gitignored; project entries are curated into `references.bib`.
 | Lilly and Olhede - 2009 - Higher-Order Properties of Analytic Wavelets | Lilly2009 | title (2026-09-18) |
 | Lilly and Olhede - 2012 - Generalized Morse Wavelets... | Lilly2012 | title (2026-09-18) |
 | Lu and Willmarth - 1973 - Measurements of the structure... | Lu1973 | title |
+| Mahrt - 1998 - Flux Sampling Errors for Aircraft and Towers | Mahrt1998 | title (2026-11-05) |
+| Mahrt - 1998 - Nocturnal Boundary-Layer Regimes | Mahrt1998a | title (2026-11-05) |
 | Mahrt - 2009 - Characteristics of Submeso Winds in the Stable Boundary Layer | Mahrt2009 | title (2026-09-18) |
 | Mangan et al. - 2022 - Integrated Quadrant Analysis... | Mangan2022 | title |
 | Maraun and Kurths - 2004 - Cross wavelet analysis significance testing... | Maraun2004 | title (2026-09-18) |
 | Marusic et al. - 2010 - Predictive Model for Wall-Bounded... | Marusic2010 | title |
+| Massman - 2000 - A simple method for estimating frequency response corrections... | Massman2000 | title (2026-11-05) |
 | Mathis et al. - 2009 - Large-scale amplitude modulation... | Mathis2009 | title |
+| Mauder et al. - 2013 - A strategy for quality and uncertainty assessment... | Mauder2013 | title (2026-11-05) |
 | Miller et al. - 2008 - Platform Motion Effects on Measurements of Turbulence... | Miller2008 | title (2026-08-24) |
 | Mortarini et al. - 2022 - Vertical propagation of submeso and coherent structure in a tall and dense amazon forest in differen... | Mortarini2022 | title (2026-09-18) |
 | Nieuwstadt - 1984 - The Turbulent Structure of the Stable, Nocturnal... | Nieuwstadt1984 | visual (scan; no text layer -- render pages for extraction; 2026-08-22) |
 | Paw U et al. - 2005 - Surface Renewal Estimates... | PawU2005 | title |
 | Prytherch et al. - 2015 - Motion-correlated flow distortion and wave-induced biases... | Prytherch2015 | title (2026-08-24) |
 | Raupach - 1981 - Conditional statistics of Reynolds stress... | Raupach1981 | title |
+| Ross and Grant - 2015 - A new continuous planar fit method... | Ross2015 | title (2026-11-05) |
 | Schotanus et al. - 1983 - Temperature measurement with a sonic anemometer... | Schotanus1983 | title (2026-08-22; OCR layer, equations partly garbled -- render pp. 82-83 for eqs. 3-8) |
 | Salesky and Anderson - 2018 - Buoyancy effects... | Salesky2018 | title |
 | Salesky and Anderson - 2020 - Coherent Structures Modulate... | Salesky2020 | title |
 | Spano - 1997 - Surface renewal analysis for sensible heat... | Spano1997 | title |
 | Sorbjan - 1986 - On similarity in the atmospheric boundary layer | Sorbjan1986 | title (2026-08-22) |
+| Stiperski and Calaf - 2018 - Dependence of near-surface similarity scaling on the anisotropy... | Stiperski2018 | title (2026-11-05) |
 | Stull - 1988 - An Introduction to Boundary Layer Meteorology | Stull1988 | title (book) |
 | Sun et al. - 2015 - Review of wave‐turbulence interactions in the stable... | Sun2015 | title (2026-09-18) |
 | Talluru et al. - 2014 - Amplitude modulation of all three... | Talluru2014 | title |
 | Taylor - 1938 - The Spectrum of Turbulence | Taylor1938 | title |
+| Thomas and Foken - 2005 - Detection of long-term coherent exchange... | Thomas2005 | title (2026-11-05) |
 | Thomas and Foken - 2007 - Flux contribution of coherent... | Thomas2007 | title |
 | Thomas and Foken - 2007 - Organised Motion in a Tall Spruce... | Thomas2007b | title |
 | Torrence and Compo - 1998 - A Practical Guide to Wavelet... | Torrence1998 | title |
@@ -89,6 +100,7 @@ gitignored; project entries are curated into `references.bib`.
 | Wang and Zheng - 2016 - Very large scale motions... | Wang2016b | title |
 | Webb et al. - 1980 - Correction of flux measurements for density effects... | Webb1980 | title (2026-08-22; OCR layer, equations garbled -- render pp. 89-91 for eqs. 14, 24, 25, 42-44) |
 | Wilczak et al. - 2001 - Sonic anemometer tilt correction... | Wilczak2001 | title |
+| Zhang et al. - 2011 - Coherent structures and flux contribution... | Zhang2011 | title (2026-11-05) |
 | Mack2026.pdf (Mack and Pirk 2026, Reddy: An open-source toolbox for analyzing eddy-covariance measurements in heterogeneous environments; Zotero citekey Mack2026) | Mack2026 | title (2026-10-15) |
 
 ## Gaps (as of 2026-08-22)

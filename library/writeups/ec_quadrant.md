@@ -121,6 +121,26 @@ $Q2 = 2.86 \pm 0.27$ near neutral) is *not* the stress fraction $S_i$ --
 the four values sum to ~2.3, consistent with flux fraction over time
 fraction; not used as a target.
 
+## Other conventions -- Mack & Pirk (2026) [@Mack2026]
+
+Quadrant numbering and hole normalisation already differ between the
+sources above (the Wallace1972 layout, the scalar layout of Li & Bo eq.
+10, the RMS-normalised hole of their eq. 9), so a toolbox's quadrant
+output is comparable only once its convention is known. For the Reddy
+toolbox, its paper describes the quadrant module only as follows:
+"Quadrant analysis decomposes the high-frequency data used for the ﬂux
+calculation (i.e. two scalars, such as vertical velocity w and a scalar
+T , q, c, ...) into four event types, allowing to assess how and by what
+type of structures the ﬂux is transported" and "Reddy provides the option
+to visualize a normalized scatter plot indicating the number and ﬂux
+contributions of the four quadrants for different hyperbolic hole size
+(i.e. intensities) and to derive simple measures for ﬂow organization,
+such as ejection–sweep ratio, exuberance (Shaw et al. 1983) or
+organization ratio (Mack et al. 2024)" (§2.3, p. 8). The paper states
+neither its quadrant numbering nor how the hyperbolic hole is
+normalised, so the correspondence between Reddy's outputs and
+`quadrant_stats` is not established from this source.
+
 ## What the code does
 
 `quadrant.py`: `quadrant_stats` (per pair: $S_{i,H}$, $T_{i,H}$, counts

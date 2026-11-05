@@ -1,5 +1,7 @@
 """ec_coherent.spectra: closure identities, ogive, log-binning, Kaimal curves, module run."""
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -46,6 +48,109 @@ def test_ogive_runs_from_the_nyquist_bin_to_the_covariance(series):
     assert og[-1] == pytest.approx(np.real(cs.S[-1]) * (cs.f[1] - cs.f[0]))
     assert og[0] == pytest.approx(np.mean(u * w), rel=1e-6)
     assert og[0] == pytest.approx(spx.integrate(cs.f, cs.S), rel=1e-9)
+
+
+DF = 1.0 / 7200.0               # 2-h record
+F_OG = np.arange(3601) * DF
+F_AVG = 4 * DF                  # 30-min averaging period
+
+
+def _cospectrum(below=0.0, inside=0.0):
+    """Cospectrum with *below* on the lines under F_AVG and *inside* on 300
+    lines above it."""
+    co = np.zeros_like(F_OG)
+    co[1:4] = below
+    co[100:400] = inside
+    return co
+
+
+@pytest.mark.parametrize(
+    "co, abs_floor, tol, ratio, converged, undetermined", [
+        (_cospectrum(inside=1e-2), 1e-6, 0.1, 1.0, True, False),
+        # all covariance above F_AVG
+        (-_cospectrum(inside=1e-2), 1e-6, 0.1, 1.0, True, False),
+        # negative flux clears the floor
+        (_cospectrum(below=1.0, inside=1e-2), None, 0.1, 0.5, False, False),
+        # 3 lines x 1 = 300 lines x 0.01
+        (_cospectrum(below=1.0, inside=1e-2), None, 0.6, 0.5, True, False),
+        # |1 - 0.5| within tol 0.6
+        (_cospectrum(inside=1e-12), 1e-6, 0.1, np.nan, False, True),
+        # near-zero flux under the floor
+        (_cospectrum(), None, 0.1, np.nan, False, True),
+        # zero ogive, no floor
+    ])
+def test_ogive_convergence(co, abs_floor, tol, ratio, converged,
+                           undetermined):
+    out = spx.ogive_convergence(F_OG, spx.ogive(F_OG, co), F_AVG, tol=tol,
+                                abs_floor=abs_floor)
+    # constructed sums are exact to rounding; 1e-12 is far below a 10 %
+    # change
+    np.testing.assert_allclose(out[0], ratio, atol=1e-12)
+    assert out[1:] == (converged, undetermined)
+
+
+def test_ogive_convergence_non_finite_at_f_avg_is_undetermined():
+    og = spx.ogive(F_OG, _cospectrum(inside=1e-2))
+    og[4] = np.nan          # F_AVG sits on line 4; Og(f_min) stays finite
+    ratio, converged, undetermined = spx.ogive_convergence(
+        F_OG, og, F_AVG, abs_floor=1e-6)
+    assert np.isnan(ratio) and (converged, undetermined) == (False, True)
+
+
+F5 = np.arange(5.0)
+
+
+@pytest.mark.parametrize(
+    "og, f_avg, kw, ratio, converged, undetermined", [
+        ([2.0, 2.0, 1.0, 1.0, 0.0], 2.0, {"tol": 0.5}, 0.5, True, False),
+        # |1 - ratio| == tol
+        ([1.0, 1.0, 2.0, 2.0, 0.0], 2.0, {}, 2.0, False, False),
+        # ratio above 1 + tol
+        ([16.0, 16.0, 14.0, 0.0, 0.0], 2.0, {}, 0.875, False, False),
+        # 0.125 off: outside tol 0.1
+        ([16.0, 16.0, 15.0, 0.0, 0.0], 2.0, {}, 0.9375, True, False),
+        # 0.0625 off: inside tol 0.1
+        ([4.0, 4.0, 4.0, 2.0, 0.0], 2.5, {}, 0.75, False, False),
+        # linear between lines 2 and 3
+        ([4.0, 4.0, 4.0, 2.0, 0.0], 0.0, {}, 1.0, True, False),
+        # f_avg on the first line
+        ([4.0, 4.0, 4.0, 2.0, 0.0], 4.0, {}, 0.0, False, False),
+        # f_avg on the last line
+        ([1.0, 1.0, 1.0, 0.0, 0.0], 1.0, {"abs_floor": 1.0}, 1.0, True,
+         False),
+        # |Og(f_min)| at the floor
+        ([np.nan, 1.0, 1.0, 1.0, 0.0], 2.0, {}, np.nan, False, True),
+        # non-finite Og(f_min)
+        (np.array([2.0, 2.0, 1.0, 1.0, 0.0]) + 5j, 2.0, {}, 0.5, False,
+         False),
+        # real part only
+    ])
+def test_ogive_convergence_on_a_constructed_ogive(og, f_avg, kw, ratio,
+                                                  converged, undetermined):
+    # dyadic inputs: every ratio and comparison is exact in floating point
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        out = spx.ogive_convergence(F5, og, f_avg, **kw)
+    np.testing.assert_equal(out[0], ratio)
+    assert out[1:] == (converged, undetermined)
+
+
+AXIS = "strictly ascending 1-D axis matching Og"
+
+
+@pytest.mark.parametrize("f, og, f_avg, match", [
+    (F_OG, None, 2 * F_OG[-1], "outside the ogive frequency axis"),
+    (F_OG, None, -DF, "outside the ogive frequency axis"),
+    (F_OG[[0, 1, 3, 2, 4, 5]], None, F_AVG, AXIS),   # interior lines swapped
+    (F_OG[[0, 1, 1, 2, 3, 4]], None, F_AVG, AXIS),   # repeated line
+    (np.r_[F_OG[:3], np.nan, F_OG[4:6]], None, F_AVG, AXIS),  # NaN line
+    (np.array([]), None, F_AVG, AXIS),                # empty axis
+    (F5, np.ones((2, 5)), 2.0, AXIS),                 # 2-D ogive
+])
+def test_ogive_convergence_rejects(f, og, f_avg, match):
+    og = np.linspace(1.0, 0.0, len(f)) if og is None else og
+    with pytest.raises(ValueError, match=match):
+        spx.ogive_convergence(f, og, f_avg)
 
 
 def test_log_bin_averages_and_conserves_the_sum_of_counts(series):

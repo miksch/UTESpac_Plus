@@ -34,7 +34,10 @@ def _date_to_datenum(d: date) -> int:
 @dataclass(frozen=True)
 class PFRecord:
     """One planar fit: a sonic height, a date window (inclusive days) and a
-    wind-direction sector; ``sector_lo == sector_hi`` means all directions."""
+    wind-direction sector; ``sector_lo == sector_hi`` means all directions.
+    ``n_periods`` and ``dir_span`` describe the regression sample (None
+    when the record predates them or was not fitted here; ``dir_span`` is
+    NaN for a sample of no periods and is written to JSON as ``null``)."""
     height: float          # [m]
     date_start: str        # ISO date
     date_end: str          # ISO date
@@ -43,6 +46,8 @@ class PFRecord:
     b0: float
     b1: float
     b2: float
+    n_periods: Optional[int] = None    # periods passing the wind filter
+    dir_span: Optional[float] = None   # [deg] smallest arc holding them
 
 
 @dataclass
@@ -58,8 +63,14 @@ class PFTable:
 
     # ── legacy dict ─────────────────────────────────────────────────────────
     @classmethod
-    def from_legacy(cls, pf_info: Dict, site: Optional[str] = None) -> "PFTable":
-        """Build from the ``cm_/day_/degrees_`` dict written by ``find_global_pf``."""
+    def from_legacy(cls, pf_info: Dict, site: Optional[str] = None,
+                    samples: Optional[Dict] = None) -> "PFTable":
+        """Build from the ``cm_/day_/degrees_`` dict of ``find_global_pf``.
+
+        *samples* mirrors that nesting with ``(n_periods, dir_span)`` leaves
+        and fills the records' sample fields where present.
+        """
+        samples = samples or {}
         records = []
         for cm_key, windows in pf_info.items():
             if cm_key == "infoString":
@@ -75,8 +86,13 @@ class PFTable:
                     if not s:
                         raise ValueError(f"unrecognised PFinfo sector key {sec_key!r}")
                     b0, b1, b2 = (float(c) for c in np.asarray(coef, dtype=float)[:3])
-                    records.append(PFRecord(height, d0.isoformat(), d1.isoformat(),
-                                            float(s.group(1)), float(s.group(2)), b0, b1, b2))
+                    n, span = (samples.get(cm_key, {}).get(day_key, {})
+                               .get(sec_key, (None, None)))
+                    records.append(PFRecord(
+                        height, d0.isoformat(), d1.isoformat(),
+                        float(s.group(1)), float(s.group(2)), b0, b1, b2,
+                        None if n is None else int(n),
+                        None if span is None else float(span)))
         return cls(records, site=site, info_string=pf_info.get("infoString"))
 
     def to_legacy(self) -> Dict:
@@ -123,8 +139,14 @@ class PFTable:
 
     # ── persistence ─────────────────────────────────────────────────────────
     def to_dict(self) -> Dict:
-        d = {"format": FORMAT, "site": self.site,
-             "records": [asdict(r) for r in self.records]}
+        records = []
+        for r in self.records:
+            rec = asdict(r)
+            span = rec["dir_span"]
+            if span is not None and not np.isfinite(span):
+                rec["dir_span"] = None          # strict JSON has no NaN
+            records.append(rec)
+        d = {"format": FORMAT, "site": self.site, "records": records}
         if self.info_string is not None:
             d["info_string"] = self.info_string
         return d
@@ -133,7 +155,14 @@ class PFTable:
     def from_dict(cls, d: Dict) -> "PFTable":
         if d.get("format") != FORMAT:
             raise ValueError(f"not a {FORMAT} document: format={d.get('format')!r}")
-        return cls([PFRecord(**r) for r in d["records"]], site=d.get("site"),
+        records = []
+        for r in d["records"]:
+            r = dict(r)
+            # a recorded sample with a null span had no periods: NaN, as fitted
+            if r.get("n_periods") is not None and r.get("dir_span") is None:
+                r["dir_span"] = float("nan")
+            records.append(PFRecord(**r))
+        return cls(records, site=d.get("site"),
                    info_string=d.get("info_string"))
 
     def save(self, path) -> None:

@@ -3,8 +3,9 @@
 :func:`detrend_block` forms a block-mean anomaly with zeros in place of
 missing samples, :func:`lagged_covariances` the whole-block and sub-block
 covariance at every lag of a window, and :func:`peak_lag` the lag of the
-largest covariance and how far it stands above the outer lags.
-:func:`despike_mask`
+largest covariance and how far it stands above the outer lags;
+:func:`lag_max_abs_cov` turns the two into the time lag of a scalar
+against the vertical wind. :func:`despike_mask`
 screens amplitude spikes against a rolling median, and
 :func:`noise_variance_lmk` estimates the white-noise variance of a series
 from its lag-zero autocovariance (Lenschow, Mann and Kristensen 2000).
@@ -139,6 +140,78 @@ def peak_lag(lags, cov):
     back = np.sqrt(np.nanmean(cov[outer & ok] ** 2)) if (outer & ok).any() else np.nan
     ratio = abs(cov[j]) / back if np.isfinite(back) and back > 0 else np.inf
     return int(lags[j]), float(ratio)
+
+
+# [ASSUMED] Fewest finite (w, c) pairs a block needs for a lag search; an
+# arbitrary floor that keeps a near-empty block from returning a lag set by
+# a handful of samples.
+LAG_MIN_PAIRS = 100
+
+
+def lag_max_abs_cov(w, c, fs, max_lag_s, default_lag_s=0.0):
+    """Time lag of a scalar against *w* by covariance maximisation.
+
+    The lag is that of the largest ``|cov(w, c)|`` over the window
+    ``[-max_lag_s, max_lag_s]`` (:func:`lagged_covariances`,
+    :func:`peak_lag`), with missing samples handled pairwise.
+
+    Parameters
+    ----------
+    w, c : array_like
+        One block of the vertical wind and of the scalar; NaN marks a
+        missing sample.
+    fs : float
+        Scan rate [Hz].
+    max_lag_s : float
+        Half-width of the search window [s].
+    default_lag_s : float, optional
+        Lag returned when the search does not resolve one [s].
+
+    Returns
+    -------
+    float
+        Lag [s]; positive when *c* is delayed relative to *w*, so
+        ``c[i + lag * fs]`` pairs with ``w[i]``. *default_lag_s* when the
+        window is shorter than one sample, when fewer than
+        :data:`LAG_MIN_PAIRS` samples are finite in both series, or when the
+        peak sits on the window edge.
+
+    Notes
+    -----
+    Rebmann et al. (2012), Sect. 3.2.3.2, p. 73 [CITED]: "Lag times can be
+    estimated for each averaging interval by performing a cross correlation
+    analysis between the scalar of interest and the vertical wind
+    component." and "The time lag that is selected is those that produces
+    the highest correlation." The source names electronic delay, sensor
+    separation and tube travel (p. 72); its Fig. 3.5 example and search
+    window are closed-path (7 m tube). Here the delay is sensor separation
+    and electronics. The search maximises the covariance of the block
+    rather than the correlation coefficient [ASSUMED]; the two peak at the
+    same lag while the block variances do not change with lag. The
+    absolute value admits a negative flux [ASSUMED] (the source's Fig. 3.5
+    shows negative correlations for CO2 and does not state the sign
+    convention).
+
+    The source bounds the search by "a defined search window as determined
+    from mass flow, tube dimensions, and typical wall interactions" and,
+    where the limits are exceeded, recommends "to use the value of the
+    preceding averaging interval" (p. 73). Here the window half-width is
+    the caller's (2 s by default in ``flux.toml``, [ASSUMED]) and a peak on
+    the window edge, taken as a limit exceeded, returns the fixed
+    *default_lag_s* instead of the preceding interval's lag ([ASSUMED]).
+    """
+    w = np.asarray(w, dtype=float)
+    c = np.asarray(c, dtype=float)
+    max_lag = int(round(float(max_lag_s) * float(fs)))
+    wd, _, w_ok = detrend_block(w)
+    cd, _, c_ok = detrend_block(c)
+    if np.count_nonzero(w_ok & c_ok) < LAG_MIN_PAIRS:
+        return float(default_lag_s)
+    lags, cov, _ = lagged_covariances(wd, w_ok, cd, c_ok, max_lag)
+    k, _ = peak_lag(lags, cov)
+    if not np.isfinite(k) or abs(k) >= max_lag:
+        return float(default_lag_s)
+    return k / float(fs)
 
 
 def despike_mask(x, window, n_mad):

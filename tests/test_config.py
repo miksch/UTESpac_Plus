@@ -20,10 +20,20 @@ LEGACY_INFO = {
     "detrendingFormat": "linear",
     "PF": {"globalCalculation": "global", "recalculateGlobalCoefficients": True,
            "avgPer": 30, "globalCalcMaxWind": 20, "globalCalcMinWind": 0.5,
-           "globalCalcMinWindByHeight": {}},
+           "globalCalcMinWindByHeight": {}, "globalCalcMinPeriods": 30,
+           "globalCalcMinDirSpan": 90.0, "globalCalcSampleAction": "warn"},
     "qRef": 12,
     "stabilitySource": "hoegstroem1988",
-    "spikeTest": {"maxRuns": 20, "windowSizeFraction": 1, "maxConsecutiveOutliers": 10,
+    "lagSearch": "off",
+    "lagMax": 2.0,
+    "spectralCorrection": "off",
+    "sonicPathLength": None,
+    "irgaPathLength": None,
+    "irgaSeparationLateral": None,
+    "irgaSeparationLongitudinal": None,
+    "spikeTest": {"method": "sigma", "madThreshold": 7.0,
+                  "maxRuns": 20, "windowSizeFraction": 1,
+                  "maxConsecutiveOutliers": 10,
                   "maxPercent": 2,
                   "spikeDef": {"u": 3.5, "v": 3.5, "w": 5.0, "Tson": 3.5, "fw": 3.5,
                                "irgaCO2": 3.5, "irgaH2O": 3.5, "KH2O": 3.5, "cup": 3.5,
@@ -104,12 +114,56 @@ def test_unknown_keys_raise(tmp_path, monkeypatch):
         PFConfig.from_config(maxWind=5)
     with pytest.raises(ValueError, match="globalCalculation"):
         PFConfig.from_config(globalCalculation="planar")
+    assert PFConfig.from_config(
+        globalCalcSampleAction="nan").globalCalcSampleAction == "nan"
+    msg = "pf.globalCalcSampleAction must be 'warn' or 'nan', got 'drop'"
+    with pytest.raises(ValueError, match=msg):
+        PFConfig.from_config(globalCalcSampleAction="drop")
     with pytest.raises(ValueError, match="detrendingFormat"):
         FluxConfig.from_config(detrendingFormat="quadratic")
     with pytest.raises(ValueError, match="stabilitySource"):
         FluxConfig.from_config(stabilitySource="kansas1968")
+    with pytest.raises(ValueError,
+                       match="lagSearch must be 'off', 'h2o_co2' or 'all'"):
+        FluxConfig.from_config(lagSearch="sometimes")
+    assert FluxConfig.from_config(lagSearch="all").lagSearch == "all"
+    assert FluxConfig.from_config(lagSearch="h2o_co2").lagSearch == "h2o_co2"
     with pytest.raises(ValueError):
         RunConfig().to_info()                  # rootFolder unset
+
+
+# Arbitrary round geometry [m]; not the dimensions of any instrument.
+_GEOMETRY = {"sonicPathLength": 0.1, "irgaPathLength": 0.2,
+             "irgaSeparationLateral": 0.3, "irgaSeparationLongitudinal": 0.4}
+
+
+@pytest.mark.parametrize("missing", sorted(_GEOMETRY))
+def test_massman2000_requires_each_geometry_key(tmp_path, monkeypatch,
+                                                missing):
+    monkeypatch.chdir(tmp_path)
+    geometry = {k: v for k, v in _GEOMETRY.items() if k != missing}
+    with pytest.raises(ValueError, match=f"needs flux.{missing}$"):
+        FluxConfig.from_config(spectralCorrection="massman2000", **geometry)
+
+
+@pytest.mark.parametrize("mode", ["off", "massman2000"])
+@pytest.mark.parametrize("key", sorted(_GEOMETRY))
+def test_negative_geometry_key_is_refused(tmp_path, monkeypatch, key, mode):
+    monkeypatch.chdir(tmp_path)
+    zero = FluxConfig.from_config(spectralCorrection=mode,
+                                  **{**_GEOMETRY, key: 0.0})
+    assert getattr(zero, key) == 0.0
+    with pytest.raises(ValueError, match=f"flux.{key} must not be negative"):
+        FluxConfig.from_config(spectralCorrection=mode,
+                               **{**_GEOMETRY, key: -0.1})
+
+
+@pytest.mark.parametrize("mode", ["massman", "on"])
+def test_unknown_spectral_correction_is_refused(tmp_path, monkeypatch, mode):
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(ValueError, match="spectralCorrection must be 'off' "
+                                         "or 'massman2000'"):
+        FluxConfig.from_config(spectralCorrection=mode)
 
 
 def test_cwd_override_and_partial_file(tmp_path, monkeypatch):

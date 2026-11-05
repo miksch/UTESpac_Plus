@@ -87,7 +87,7 @@ The overlay is drawn for $0.01 < f < 4$ only. The validation site is flat and th
 sonic is above any canopy, so $z$ is the sonic height; $u_*$ is the per-record
 `ustar_pf` ancillary, $T_*$ is formed from the window's own $\overline{w'T'}$.
 
-## Ogive -- Foken & Wichura (1996) eq. 10, p. 89 [@Foken1996]; Desjardins et al. (1989) pp. 61-62 [@Desjardins1989]
+## Ogive -- Foken & Wichura (1996) eq. 10, p. 90 [@Foken1996]; Desjardins et al. (1989) pp. 61-62 [@Desjardins1989]
 
 Foken & Wichura: "The necessary averaging time can be determined by the
 use of an 'ogive' function. This function is defined as the cumulative
@@ -142,3 +142,67 @@ U/f, k = 2 pi f/U"), plus the provenance globals copied from the HF file.
 | Kaimal 1972: 16 x 4096-point segment averaging + band averaging | full-record periodogram + log-band averaging (default); Welch via `nperseg` | keep $1/T$ for the ogive; exact closure | closure tests; figure overlay against eq. 21 |
 | no taper stated | boxcar default, Hann optional `[ASSUMED]`; stored in attrs | boxcar closes Parseval exactly; Hann measured 0.74-1.09 on validation-site windows (above) | closure tests; figure |
 | Kaimal curves are for the Kansas surface layer at $z/L=0$ | overlay only for $0.01<f<4$, QC use | stated validity range p. 579 | figure |
+| Foken 2008 p. 114: the ogive "approaches a constant value (flux) for low frequencies" and a longer averaging interval "gives no significant changes"; no number given | `ogive_convergence` ratio $Og(f_{avg})/Og(f_{min})$ `[HOUSE]`, converged when $\lvert 1 - \text{ratio} \rvert \le$ `tol = 0.1` `[ASSUMED]` | a relative tolerance is needed to turn the qualitative criterion into a verdict | `tests/test_ec_spectra.py` (ratios 1.0 and 0.5 by construction; boundary and default-`tol` cases on a constructed ogive) |
+| none | `ogive_convergence` `abs_floor` (default None, units of the ogive) `[ASSUMED]` | a relative criterion is unusable near zero flux; below the floor the verdict is undetermined | `tests/test_ec_spectra.py` (near-zero cospectrum) |
+
+The MR gap-scale deviations (`mrd.gap_scale_median`,
+`mrd.gap_scale(tau_min=...)`) are in the register of
+[ec_mrd.md](ec_mrd.md).
+
+## Averaging-interval adequacy
+
+Two helpers judge whether an averaging period $T_{avg}$ resolves the
+flux: the ogive ratio below and the MR cospectral gap (`ec_mrd.md`).
+The ogive's use as an averaging-time test is Foken & Wichura's (1996,
+p. 90, written for surface-layer eddy-correlation measurements with
+sonic anemometers): "While normally averaging times of about 20-30 min
+are used in the surface layer, the averaging time should be tested by
+the ogive function for measurements during stable stratification
+conditions and at higher levels above the surface." `[CITED]` The
+convergence criterion is qualitative in
+Foken (2008) [@Foken2008], "Spectral Correction in the Low Frequency
+Range", p. 114, after the ogive definition (his eq. 4.16, p. 113): "If
+the value of the integral approaches a constant value (flux) for low
+frequencies, and if an enhancement of the averaging interval gives no
+significant changes, then no additional correction is necessary."
+`[CITED]` His example is the momentum-flux ogive of the LITFASS-2003
+experiment (Fig. 4.3, p. 114), for which, citing Foken et al. (2006b),
+"in about 80% of all cases the ogive converged within an averaging time
+of 30 min" (p. 114). The ratio form and the tolerance below are not in
+the source.
+
+`spectra.ogive_convergence(f, Og, f_avg, tol=0.1, abs_floor=None)`
+returns `(ratio, converged, undetermined)`. The ratio `[HOUSE]` is
+$Og(f_{avg}) / Og(f_{min})$, with $f_{avg} = 1/T_{avg}$ and $f_{min}$
+the lowest frequency of the record, where the ogive equals the record
+covariance: the share of the record covariance carried by periods
+shorter than $T_{avg}$, meaningful when the record is longer than
+$T_{avg}$. `converged` is $\lvert 1 - \text{ratio} \rvert \le$ `tol`
+(`tol = 0.1` `[ASSUMED]`). When $\lvert Og(f_{min}) \rvert$ is below
+`abs_floor` `[ASSUMED]`, or zero, the ratio is NaN and the verdict
+undetermined, because a relative criterion is unusable near zero flux.
+
+Vickers & Mahrt (2003) [@Vickers2003], §4 p. 664, define the gap scale
+that `mrd.gap_scale` implements: "The algorithm scans the MR cospectra
+[Eq. (3)] beginning with the shortest averaging timescale and
+progressing to longer timescales. The first peak in the cospectra is
+identified by a decrease in magnitude with increasing scale and is
+associated with turbulence. The gap between turbulence and mesoscale
+motions is identified when the cospectra either increase or level off
+at an averaging time scale longer than the scale associated with the
+turbulence peak. A leveling off is identified when the accumulative flux
+changes by 1% or less with an increase in timescale." They applied it
+to 1-h periods of sonic anemometer data from the CASES99, BORRIS95 and
+MICROFRONTS datasets (pp. 663-664), so the 1 % rule and the 1-h period
+belong to those records. The optional
+`tau_min` (config `mrd.gap_tau_min`, default None) starts the peak scan
+at the first scale $\ge$ `tau_min` `[HOUSE]`; with None the scan is the
+published one and every existing number is unchanged.
+
+Per-record gap scales are noisy; p. 665: "there is significant random
+sampling error in an individual 1-h estimate of the gap scale. Instead
+of this approach, we determine the gap scale for each hour of data for
+each sonic anemometer and then average the gap scale over the entire
+experiment to reduce random errors." `mrd.gap_scale_median(gaps)`
+takes the NaN-aware median over records (axis 0) instead of the mean
+`[ASSUMED]`, NaN when fewer than three records are finite `[ASSUMED]`.

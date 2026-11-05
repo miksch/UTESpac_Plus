@@ -39,7 +39,8 @@ sys.path.insert(0, ROOT)
 from utespac.run_io import read_run_legacy, run_files   # noqa: E402
 from utespac.testkit import get_header                   # noqa: E402
 
-DATA_ROOT = os.environ.get("UTESPAC_DATA_ROOT", os.path.join(ROOT, "data"))
+CONFIG_ROOT = os.path.join(ROOT, "data")
+DATA_ROOT = os.environ.get("UTESPAC_DATA_ROOT", CONFIG_ROOT)
 SITE_DIR = os.path.join(DATA_ROOT, "VAC001")
 EDDYPRO_GLOB = os.path.join(SITE_DIR, "eddypro", "*", "VAC_001_*_full.csv")
 MATLAB_EPOCH_DAYS = 719529.0
@@ -109,7 +110,9 @@ def _frame_from_output(out):
 
 
 def load_utespac(pf, det="LinDet"):
-    files = run_files(DATA_ROOT, "VAC001", avg_per=30, qualifier=f"{pf}_{det}")
+    config_root = CONFIG_ROOT if os.path.isdir(os.path.join(CONFIG_ROOT, "VAC001")) else DATA_ROOT
+    files = run_files(config_root, "VAC001", avg_per=30,
+                      qualifier=f"{pf}_{det}", data_root=DATA_ROOT)
     if not files:
         raise FileNotFoundError(
             f"no run files *_30minAvg_{pf}_{det}_*.nc under {SITE_DIR}/output")

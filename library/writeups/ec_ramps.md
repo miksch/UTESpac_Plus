@@ -1,11 +1,15 @@
 # ec_coherent ramp detection
 
-Step 4 of the gameplan ("Ramp detection on T, u, and TKE"): the wavelet
-detector (Collineau & Brunet zero-crossing method), the structure-function
-detector (Van Atta / Spano / Paw U), and the TKE trigger (Mangan et al.
-2022). Written 2026-08-23 from fresh `pdftotext` extractions; equations of
+Step 4 of the gameplan ("Ramp detection on T, u, and TKE"): four
+detectors, the wavelet detector (Collineau & Brunet zero-crossing method),
+the structure-function detector (Van Atta / Spano / Paw U), the TKE
+trigger (Mangan et al. 2022) and, off by default, the Thomas & Foken
+(2005) wavelet detector with the Zhang et al. (2011) flux split. Written
+2026-08-23 from fresh `pdftotext` extractions; equations of
 the scanned or garbled pages (Van Atta pp. 167-168, Spano pp. 260-261,
-Paw U et al. 2005 pp. 460-461) read off the rendered pages. Code in
+Paw U et al. 2005 pp. 460-461) read off the rendered pages. In quotes,
+the line-break hyphens of the extractions are closed up ("coher- ent" is
+quoted as "coherent"); no other character of a quote is changed. Code in
 [ec_coherent/ramps.py](../../ec_coherent/ramps.py).
 
 ## What a ramp is -- Gao, Shaw & Paw U (1989) §3.1 p. 353, §3.2 pp. 355-356 [@Gao1989]
@@ -414,6 +418,198 @@ regression factor $\alpha$ (their eq. 3) and points to structure
 functions as future work (p. 135); the structure-function realisation is
 Spano's, above.
 
+## Thomas & Foken (2005) detection -- `detect_tf2005` [@Thomas2005]
+
+Source instrument and campaign: WALDATEM-2003 at the FLUXNET
+Waldstein/Weidenbrunnen site, Germany, a 33 m sampling height over spruce
+forest of 19 m mean canopy height, a Gill R3-50 sonic with a LI-7500 open
+path gas analyser, both at 20 Hz (pp. 95-96). The experiment "was designed
+for intensive investigation of coherent structures and carbon ﬂuxes within
+and above a tall spruce forest" (p. 96); "in combination with an open path
+gas analyser (type LI-7500, Licor Instruments) for fast CO2- and
+H2O-concentration measurements also operated at 20 Hz" (p. 96). The
+four half hours of TF05, Data A to D, span slightly unstable, near-neutral
+and strongly unstable daytime cases and one stable night (p. 96, Table 1;
+paraphrase). The constants below were set for that tower, not for the
+validation site's sonic and height.
+
+Wiring: `ramps.tf2005` (default `false`) runs `detect_tf2005` in `run`
+for every record and height where `ts` and `w_pf` both pass the gap
+screen of `preprocess.prepare`. The input is the planar-fit record of
+`ts` and `w_pf` gap-filled by `preprocess.fill_gaps` and not detrended,
+so the mean of $w$ reaches step 2; the gap filling is `[ASSUMED]`.
+Events are detected on `ts`; `w_pf` sets the crossing direction and
+enters the flux split. A sampling rate that is not an integer multiple
+of 2 Hz raises one warning and leaves every `tf_` value NaN (`[HOUSE]`,
+deviation register). With the switch off the `/ramps` group is
+unchanged.
+
+Steps as implemented, page loci of TF05:
+
+1. Block average to 2 Hz (`block_average`, `TF_FS_TARGET`, `[CITED]`):
+   "the sampling frequency is reduced from the original 20 to 2 Hz
+   resolution by applying standard block averaging" (p. 96).
+2. Normalise (`tf_normalise`, `[CITED]`): "normalising the data by
+   subtracting the mean and dividing by standard deviation except for the
+   vertical wind w that is only normalised by its standard deviation"
+   (p. 97). The input of `run` is not detrended, so the record mean of
+   $w$ survives the normalisation and enters the flux terms of step 10,
+   where Zhang et al. (2011) remove it from every series: "The data are
+   normalized by subtracting the mean and dividing by standard deviation"
+   (Z11 p. 122; deviation register). A
+   record with a non-finite sample or zero variance returns nothing, and
+   every `tf_` value of that record stays NaN.
+3. Zero-pad (`tf_pad_width`, `[CITED]`): "The signal is then extended
+   using a zero-padding method, i.e. adding zero values at both ends."
+   (p. 97). The width: "For the symmetric wavelet MORL used for subsequent
+   wavelet transform, a period of" ... "s was added at both ends, where an
+   is the maximum scale of analysis" (p. 97); between the two fragments
+   the extraction carries "jan", a control character and "suppminj", so
+   the absolute-value bars and the product sign are lost there, read as
+   $|a_n\,\mathrm{supp}_{min}|$ at the largest Morlet scale (`[CITED]`).
+   `TF_MORLET_SUPPORT` = 4 (`[CITED]`): "The upper border corresponds to
+   the limitation given by Eq. (8) with an effective support width of
+   MORL suppmin" (p. 97), followed in the extraction by a font-mapped
+   equals sign, a control character in place of the sign and "4 s"; the
+   support width enters the code as its magnitude, 4.
+4. Low-pass (`bior_lowpass`): "The low-pass wavelet ﬁlter is then applied
+   to the data using the BIOR5.5 set of wavelet functions with discrete
+   wavelet transform retaining all events at scales with i" (p. 97); the
+   extraction then carries a control character in place of the comparison
+   operator before "4 (see Section 2.2.1)", read as levels $i \ge 4$,
+   `TF_BIOR_WAVELET` and `TF_BIOR_LEVEL_MIN` `[CITED]`; the pywt `zero`
+   boundary mode, `TF_BIOR_MODE`, is `[ASSUMED]`. The cut-off duration:
+   "Combining Eq. (6) with the known peak frequency" ... "4 Hz for the
+   BIOR5.5, one yields that all ﬂuctuations of the signal with event
+   durations Dc" ... "6:2 s are removed, with Dc called the critical event
+   duration" (p. 97). The extraction loses the subscripted symbol of the
+   peak frequency and the operators before "4 Hz" and before "6:2 s",
+   its rendering of 6.2 s. `TF_BIOR_OMEGA0` = 4 `[CITED]`;
+   `tf_critical_duration` gives 6.28 s at 2 Hz, level 4 and
+   `TF_BIOR_OMEGA0` = 4 (`[DERIVED]`; the paper prints 6.2 s).
+5. Morlet wavelet variance (`tf_wavelet_variance`), `TF_MORLET_OMEGA0` = 5
+   (`[CITED]`): "The peak frequency" ... "of MORL is 5." (p. 97), the
+   subscripted symbol between the two fragments garbled in the
+   extraction. The variance sums over "translation parameters b
+   satisfying the ‘cone of inﬂuence’ condition (Holschneider, 1995)"
+   (p. 97), `[CITED]`; the operators of the printed bound are lost in the
+   extraction, and its reading as $b \in [t_{min} - 4a, t_{max} + 4a]$,
+   a symmetric support of 4 clipped to the padded record, is `[ASSUMED]`
+   (deviation register). The duration grid is Zhang et al. (2011) step (4)
+   [@Zhang2011], "with the scales corresponding to De ranging from 8 to
+   240 s and with a resolution of 1 s" (Z11 p. 122; `TF_D_MIN_S`,
+   `TF_D_MAX_S`, `TF_D_STEP_S`, `[CITED]`), set for EBEX "over a
+   flood-irrigated flat cotton field" (Z11 p. 120), "the data measured at 8.7 and 2.7 m from
+   site 7" (p. 120), with a "three-dimensional sonic anemometer (model
+   CSAT3, Campbell Scientific Inc.)" sampled "at a rate of 10 Hz"
+   (p. 121); TF05 used "event durations D ranging from 8 to 140 s
+   with a resolution of 0.5 s" (p. 97). The Morlet transform omits the
+   admissibility correction (`morlet_hat`, `[ASSUMED]`).
+6. Characteristic duration (`tf_event_duration`): "we deﬁne the peak scale
+   ae as the ﬁrst clearly expressed maximum in the spectrum. For a robust
+   determination of ae, a cubic spline interpolation is applied to the
+   approximate derivatives between adjacent wavelet variances." (p. 97),
+   `[CITED]`. A "clearly expressed" maximum is read as a
+   `scipy.signal.find_peaks` prominence above `TF_PEAK_PROMINENCE` = 0.10
+   of the range of $W$ (`[ASSUMED]`); no maximum gives $D_e$ = NaN.
+7. Crossings (`tf_crossings`): "As we use the Mexican hat wavelet MEXH for
+   the following detection of the individual coherent structures, the
+   scale ae determined using MORL must be converted under consideration of
+   the peak frequency" (p. 97). The value follows in the same sentence as
+   glyphs the extraction does not render as text (the subscripted symbol,
+   an equals sign and a radical with a "2"), ending "for MEXH" (p. 97);
+   read as $\sqrt 2$, `TF_MEXH_OMEGA0` = $\sqrt 2$ (`[CITED]`);
+   the convention $D = a_0\pi/\sqrt 2$ is `[DERIVED]`. Direction from
+   $r_{T_s w}$ (eq. 9, `tf_correlation`): "The correlation coefﬁcient rxy
+   was chosen being the chief parameter for deﬁning the direction of the
+   change in sign." (p. 97); `tf_crossing_sign` follows Table 2 (p. 98)
+   for $(\theta_s, w)$: $r > 0$ keeps + to - crossings, $r < 0$ - to +.
+   $r$ is computed on the normalised, filtered 2 Hz series
+   (`[ASSUMED]` which series).
+8. Counts and spacing (`tf_spacing_stats`): "The total number of coherent
+   structures N, i.e. the number of zero-crossings with the deﬁned change
+   in sign (see Table 2), is then determined within the range" (p. 98) of
+   the unpadded record, `[CITED]`. A crossing counts when both bracketing
+   samples lie inside that range (`[ASSUMED]`), and its instant is
+   interpolated linearly between them (`[ASSUMED]`; pp. 97-98 state no
+   sub-sample rule; deviation register). The mean separation $T_x$ over
+   the $N-1$ intervals and $\sigma_{T_x}$ with an $N-2$ denominator,
+   Thomas & Foken (2007) eqs. 4a-4b [@Thomas2007b]: "the mean and
+   standard deviation of their temporal separation Tx and σTx were
+   determined according to Eq. 4a, 4b, respectively" (p. 129), `[CITED]`.
+   Thomas & Foken (2007) wrote eqs. 4a-4b for the same spruce site, with
+   observations "in the period of May–July 2003 during the WALDATEM-2003"
+   experiment "at the Fluxnet site Weidenbrunnen Waldstein" (p. 125),
+   "using sonic anemometers (Solent R3-50, Solent R2, Gill Instruments
+   Ltd.; 81000, R.M. Young)" on "the 32-m tall ﬂux tower" (p. 126) at four
+   heights from 0.72 to 1.74 canopy heights (p. 126; paraphrase), in "the
+   original sampling frequency (20 Hz)" (p. 130). The dataset covers "a
+   large range of atmospheric stabilities" (p. 125); the quality control
+   uses the stability bound "to exclude conditions of free convection and
+   very stable stratiﬁcation" (p. 130).
+9. Fraction of time in coherent structures $f_{tc} = N D_e / L$, the
+   time cover of Barthlott et al. (2007) eq. 11 [@Barthlott2007],
+   $TC = t^{-1} \sum_{i=1}^{n_o} t_{coh}$, where "no is the number of
+   detected structures" (p. 16) and "TC represents the time cover of all
+   detected structures inside a 30-min period in percent." (p. 17),
+   `[CITED]`; $D_e$ as the structure duration $t_{coh}$ is `[DERIVED]`,
+   and the code returns a fraction, not a percentage (deviation
+   register). Barthlott et al.
+   wrote eq. 11 for the SIRTA observatory near Paris: "We use two CSAT
+   sonic anemometers installed at 10 and 30m heights" (p. 3), "sampled
+   with 10Hz" (p. 4), on "an extensive dataset including a wide range of
+   atmospheric stability conditions" (p. 3), sorted into five stability
+   classes by the Obukhov length (Table 2, p. 4; paraphrase).
+10. Conditional sampling and flux split, Zhang et al. (2011) eqs. 1-4
+    (pp. 122-123) [@Zhang2011], not part of TF05: every series is
+    sampled on the `ts` events (`[CITED]`): "We sampled all time series
+    data based on the moments of occurrence (ti) and De derived from
+    temperature time series data" (Z11 p. 123); windows
+    $[t_i - D_e, t_i + D_e]$ that lie wholly inside the record are kept
+    (`tf_event_windows`, `[ASSUMED]`, deviation register), so the
+    composites and fluxes can rest on fewer events than `tf_n_events`;
+    the ejection phase is $[-D_e, 0]$ and the sweep phase $[0, D_e]$,
+    where Z11 prints "temporal spans of [−De,0] and [1, De], respectively"
+    (p. 123), the second read as $[0, D_e]$ (`[ASSUMED]`);
+    composites in `TF_N_BINS` = 24 bins (`[CITED]`): "then
+    block-averaged to 24 bins" (Z11 Fig. 3 caption, p. 123);
+    `TF_SUBSAMPLES_PER_BIN` = 10 lag points per bin (`[ASSUMED]`,
+    deviation register).
+    `F_cs` = `F_ej` + `F_sw` by construction; `F_tot` is the window
+    average of the product of `w_pf` and `ts`, eq. 4, which "denotes the
+    total flux of the conditionally sampled time traces (Ftot)" (Z11
+    p. 122), `[CITED]`. The composites run on the normalised, filtered
+    series (`[ASSUMED]`), so the fluxes are in units of
+    $\sigma_w \sigma_{T_s}$, and with $w$ not mean-removed (step 2) they
+    are fluxes of $w\,T_s'$, each carrying a $\overline{w}$ term
+    (deviation register).
+
+Constants and their labels, as `ec_coherent/ramps.py` carries them:
+
+| Constant | Value | Label |
+|---|---|---|
+| `TF_FS_TARGET` | 2.0 Hz | `[CITED]` TF05 p. 96; Z11 p. 122 step (1) |
+| `TF_D_MIN_S`, `TF_D_MAX_S`, `TF_D_STEP_S` | 8, 240, 1 s | `[CITED]` Z11 p. 122 step (4) |
+| `TF_MORLET_OMEGA0` | 5 | `[CITED]` TF05 p. 97 |
+| `TF_MORLET_SUPPORT` | 4 | `[CITED]` TF05 p. 97 |
+| `TF_MEXH_OMEGA0` | $\sqrt 2$ | `[CITED]` TF05 p. 97 |
+| `TF_BIOR_WAVELET` | `bior5.5` | `[CITED]` TF05 p. 94 |
+| `TF_BIOR_LEVEL_MIN` | 4 | `[CITED]` TF05 p. 97 |
+| `TF_BIOR_OMEGA0` | 4 | `[CITED]` TF05 p. 97 |
+| `TF_BIOR_MODE` | `zero` | `[ASSUMED]` |
+| `TF_PEAK_PROMINENCE` | 0.10 | `[ASSUMED]` |
+| `TF_N_BINS` | 24 | `[CITED]` Z11 Fig. 3 caption |
+| `TF_SUBSAMPLES_PER_BIN` | 10 | `[ASSUMED]` |
+
+The Z11 values (`TF_D_MIN_S`, `TF_D_MAX_S`, `TF_D_STEP_S`, `TF_N_BINS`)
+were set for EBEX, a flood-irrigated cotton field, with CSAT3 sonics
+sampled at 10 Hz at 8.7 and 2.7 m (Z11 pp. 120-121, quoted in step 5);
+they are carried unchanged to another sonic and height. The Z11 daytime
+runs "include a wide range of ASL stabilities (i.e., the unstable,
+near-neutral, and stable conditions) during the daytime" (p. 121), in
+three classes of $\zeta$: below -0.05, -0.05 to 0.05 and above 0.05
+(Table 1, p. 122).
+
 ## Outputs (`/ramps` group)
 
 Wavelet detector, per record, height and signal (`ts`, `u`): `a0_*` (s),
@@ -445,6 +641,18 @@ TKE trigger, per record and height: `n_events_e`, `mean_spacing_e`,
 IQA, on the `event` axis), `A_mean_e` (mean MHAT wave amplitude of
 $u_{TKE,LP}$), and attributes `tke_lp_s`, `tke_a_s`, `tke_thresh`.
 
+Thomas & Foken detector, only with `ramps.tf2005` on, per record and
+height: `tf_D_e` (s), `tf_n_events`, `tf_mean_spacing` (s, $T_x$),
+`tf_sigma_Tx` (s), `tf_f_tc`, `tf_r_Tw`, `tf_sign` (Table 2 crossing
+direction, -1 for + to -), and `tf_F_cs_wTs`, `tf_F_ej_wTs`,
+`tf_F_sw_wTs`, `tf_F_tot_wTs` (fluxes of $w\,T_s'$ with $w$ not
+mean-removed, in units of $\sigma_w \sigma_{T_s}$).
+Attributes `tf2005_method`, `tf2005_input`, `tf2005_r_Tw`, `tf2005_flux`,
+`tf2005_f_tc`, `tf2005_durations_s`, `tf2005_prominence` carry the
+references and provenance labels. Every value is NaN where the detector
+returns nothing; `tf_r_Tw` and `tf_sign` are kept when only $D_e$ is
+missing.
+
 ## Deviation register
 
 | Paper | Code | Why | Validation |
@@ -460,3 +668,19 @@ $u_{TKE,LP}$), and attributes `tke_lp_s`, `tke_a_s`, `tke_thresh`.
 | Chen: nonlinear fit of the finite-microfront model | linearized + two-lag only; $S^3(r)/r$ reported so $t_m$ is visible | fit not adopted (DECIDE, task doc); their Table I quantifies the bias | -- |
 | Mangan: $\bar A_i$ from multi-height + $u_{TKE}$ regressions (eqs. 6-11) | $\bar A$ = per-record mean wave amplitude, threshold $1.25\bar A$ | one sonic, no reference height; the threshold factor is theirs | `[SITE-TUNED]` at their sites; validation-site event counts vs u-wavelet detector |
 | Mangan: eq. 5 integrand printed as $u'^2{+}v'^2{+}w'^2$ | centred moving mean of $u_{TKE} = \sqrt{u'^2{+}v'^2{+}w'^2}$ | text and Fig. 3 filter $u_{TKE}$; constant factors cancel in the relative threshold | note, TKE section |
+| Thomas & Foken: durations 8-140 s by 0.5 s | Zhang et al. 2011 grid, 8-240 s by 1 s | longer structures resolved at a coarser step | `[CITED]` Z11 p. 122; planted 60 s sine recovers $D_e$ = 30 s (`tests/test_ec_ramps.py`) |
+| Thomas & Foken: planar-fit rotated record, block-averaged | gaps in `ts` and `w_pf` filled by `preprocess.fill_gaps` before the block average, in windows that pass the gap screen of `preprocess.prepare` | the block average and the wavelet transforms need a complete record | `[ASSUMED]`; a window rejected by the gap screen leaves every `tf_` value NaN (`tests/test_ec_ramps.py`) |
+| Zhang et al. 2011 step (2), eqs. 2-4: all series mean-removed, fluxes of $x'y'$; "The data are normalized by subtracting the mean and dividing by standard deviation" (Z11 p. 122) | $w$ keeps its record mean (TF05 p. 97) | `F_ej`, `F_sw`, `F_tot` carry a $\overline{w}$ term | `[ASSUMED]`; planted mean of $w$ reaches the flux terms (`tests/test_ec_ramps.py`) |
+| Thomas & Foken: "ﬁrst clearly expressed maximum" (p. 97) undefined numerically | prominence above 0.10 of the range of $W$ | a threshold is needed to skip noise maxima | `[ASSUMED]`, `tf2005_prominence` attribute |
+| Thomas & Foken: series for $r_{xy}$ not stated; Table 3, "Results of the analysis of the wavelet variance spectra and the detection of individual coherent structures for the considered time series" (p. 100), lists $w$, $\theta_s$, $c_{CO_2}$ and $q$ separately (paraphrase) | normalised, filtered 2 Hz series | same series as the detection | `[ASSUMED]` |
+| Zhang et al.: series for the composites not stated | normalised, filtered 2 Hz series | same series as the detection | `[ASSUMED]`; fluxes in units of $\sigma_w \sigma_{T_s}$ |
+| Thomas & Foken: filter boundary handling not stated beyond the zero padding | pywt `zero` mode | the padded record ends are already zero | `[ASSUMED]` |
+| Morlet admissibility correction | omitted | $e^{-\omega_0^2/2} \approx 4\times10^{-6}$ of the peak at $\omega_0 = 5$ | `[ASSUMED]` |
+| Thomas & Foken: detection on each series | detection on `ts` only, `w_pf` sampled on its events | Zhang et al. 2011 sample all series on one event set | `[CITED]` Z11 p. 123 |
+| Zhang et al.: sweep interval as printed on p. 123 | $[0, D_e]$ | contiguous with the ejection phase $[-D_e, 0]$ | `[ASSUMED]` |
+| Thomas & Foken: translation bounds of the variance integral from the MORL support, its sign garbled in the extraction (p. 97; step 3 above) | cone-of-influence bound read as symmetric $\pm 4a$ about the data span, clipped to the padded record | the Morlet support is taken on both sides of the record | `[ASSUMED]` |
+| Thomas & Foken: zero crossings of the MEXH transform, crossing instant not stated | a crossing counts only when both bracketing samples lie inside the record; its instant is interpolated linearly between them | no extrapolation past the record ends | `[ASSUMED]` |
+| Zhang et al.: every event sampled over $[t_i - D_e, t_i + D_e]$ | only windows wholly inside the record enter the composites and fluxes, so the flux rests on fewer events than `tf_n_events` | a truncated window would bias its bins | `[ASSUMED]` |
+| Zhang et al.: windows "then block-averaged to 24 bins" (Fig. 3 caption, p. 123), resampling not stated | `TF_SUBSAMPLES_PER_BIN` = 10: each window is interpolated linearly to 10 lag points per bin, then block-averaged to 24 bins | windows of any $D_e$ map onto one bin grid | `[ASSUMED]` |
+| Barthlott et al. eq. 11: time fraction "in percent" (p. 17) with the coherent-structure duration $t_{coh}$ | `tf_f_tc` uses $D_e$ as $t_{coh}$ and is a fraction | one duration per record from the TF05 spectrum; fractions match the other `tf_` ratios | `[DERIVED]` |
+| Thomas & Foken: "the sampling frequency is reduced from the original 20 to 2 Hz resolution by applying standard block averaging" (p. 96); Zhang et al.: "The data are reduced from 10- to 2-Hz resolution by simply applying the block average" (p. 122) | any integer multiple of 2 Hz is block-averaged to 2 Hz; any other rate gives one warning and NaN for every `tf_` value | the block average needs a whole number of samples per 2 Hz step | `[HOUSE]` |

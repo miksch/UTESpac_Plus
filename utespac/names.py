@@ -257,6 +257,7 @@ VARIABLES: Dict[str, List[Var]] = {
         _v("LE_wpl_pf", "W m-2", "latent heat flux with the WPL correction, planar fit + yaw", "LE_WPL_wPF", "{hn}m WPL, wPF' (W/m^2)"),
         _v("LE_o2_raw", "W m-2", "latent heat flux with the oxygen correction, no WPL, unrotated sonic axes", "LE_O2_w", "{hn}m O2 no WPL,w' (W/m^2)"),
         _v("LE_o2_pf", "W m-2", "latent heat flux with the oxygen correction, no WPL, planar fit + yaw", "LE_O2_wPF", "{hn}m O2 no WPL,wPF' (W/m^2)"),
+        _v("lag_h2o", "s", "time lag applied to rho_v against wPF' (maximum |covariance|; 0 where the search resolves none)"),
     ],
     "flux_qc": [
         _v("Tau_ssitc", "1", "SSITC flag for Tau (Foken 0/1/2)", "TAU_SSITC", "{hn}m:TAU_SSITC_TEST"),
@@ -267,6 +268,18 @@ VARIABLES: Dict[str, List[Var]] = {
         _v("LE_ss", "1", "steady-state-only flag for LE", "LE_SS", "{hn}m:LE_SS_ONLY_TEST"),
         _v("Fc_ssitc", "1", "SSITC flag for Fc (Foken 0/1/2)", "FC_SSITC", "{hn}m:FC_SSITC_TEST"),
         _v("Fc_ss", "1", "steady-state-only flag for Fc", "FC_SS", "{hn}m:FC_SS_ONLY_TEST"),
+        _v("scf_H", "1",
+           "Massman (2000) spectral correction factor of w'Ts', the leading "
+           "covariance of H_pf, true over measured; not applied to the "
+           "stored flux"),
+        _v("scf_LE", "1",
+           "Massman (2000) spectral correction factor of w'h2o', the "
+           "leading covariance of LE_wpl_pf, true over measured; not "
+           "applied to the stored flux"),
+        _v("scf_Fc", "1",
+           "Massman (2000) spectral correction factor of w'co2', the "
+           "leading covariance of Fc_wpl_pf, true over measured; not "
+           "applied to the stored flux"),
     ],
     "co2_flux": [
         _v("w_co2_cov_raw", "kg m-2 s-1", "covariance w'rho_c' (CO2 mass flux), unrotated sonic axes", "Fc_w", "{hn}m w':CO2(kg/m^2s)"),
@@ -274,6 +287,7 @@ VARIABLES: Dict[str, List[Var]] = {
         _v("Fc_wpl_pf", "kg m-2 s-1", "CO2 flux with the WPL correction, planar fit + yaw", "Fc_WPL", "{hn}m WPL,wPF':CO2(kg/m^2s)"),
         _v("w_co2_wpl_cov_pf", "kg m-2 s-1", "covariance w'rho_c' with the WPL density term, planar fit + yaw", "wPF_CO2WPL", "{hn}m: wPF'CO2_WPL'(m/s kg/m^3)"),
         _v("co2_mole_fraction", "umol mol-1", "CO2 mole fraction in moist air", "ppm", "{hn}m: CO2 (ppm, moist-air molar ratio)"),
+        _v("lag_co2", "s", "time lag applied to rho_c against wPF' (maximum |covariance|; 0 where the search resolves none)"),
     ],
     "temperature": [
         _v("theta_fw", "degC", "fine-wire potential temperature, period mean", "theta_fw", "{hn} m: theta_fw"),

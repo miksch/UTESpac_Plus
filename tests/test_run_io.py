@@ -1,6 +1,8 @@
 """utespac.run_io: the utespac-run-3 file round trip, the utespac-run-2 read
 shim and cross-date loading."""
 
+import re
+
 import numpy as np
 import pytest
 import xarray as xr
@@ -129,6 +131,28 @@ def test_load_products_concatenates_dates(tmp_path):
     assert "w_ts_cov_raw" in sh and sh["w_ts_cov_raw"].dims == (M.TIME, M.HEIGHT)
     with pytest.raises(FileNotFoundError):
         load_products(tmp_path, "X", qualifier="GPF")
+
+
+@pytest.mark.parametrize("split, n_files, n_periods", [(True, 2, 4), (False, 1, 2)])
+def test_output_is_looked_up_under_the_data_root(tmp_path, split, n_files, n_periods):
+    """The site resolves against the configuration root and the run files
+    against ``data_root``; the decoy under the configuration root (one date)
+    is read only when no data root is given."""
+    cfg, data = tmp_path / "cfg", tmp_path / "data"
+    (cfg / "X" / "output").mkdir(parents=True)
+    (cfg / "X" / "siteInfo.toml").write_text("tower = 180\n")
+    (data / "X" / "output").mkdir(parents=True)
+    write_run(_run(DAY), cfg / "X" / "output" / "X_30minAvg_LPF_LinDet_2024_06_03.nc")
+    for k, day in enumerate((DAY, DAY + 1)):
+        write_run(_run(day, seed=k), data / "X" / "output" / f"X_30minAvg_LPF_LinDet_2024_06_0{3 + k}.nc")
+    kw = {"data_root": data} if split else {}
+    files = run_files(cfg, "X", avg_per=30, qualifier="LPF", **kw)
+    assert len(files) == n_files
+    assert all(f.startswith(str(data if split else cfg)) for f in files)
+    prod = load_products(cfg, "X", avg_per=30, qualifier="LPF", **kw)
+    assert prod["sensible_heat"].sizes[M.TIME] == n_periods
+    with pytest.raises(FileNotFoundError, match=re.escape(str(data if split else cfg))):
+        load_products(cfg, "X", avg_per=30, qualifier="GPF", **kw)
 
 
 def test_save_data_writes_run_file_and_csv_only(tmp_path):

@@ -10,3 +10,16 @@ qRef = 12                     # [g/kg] reference specific humidity when no humid
 stabilitySource = "hoegstroem1988"  # psi_m/psi_h coefficients (Foken 2008 A4):
                               # "hoegstroem1988" (Businger recalculated, recommended),
                               # "businger1971" (original kappa=0.35), "dyer1974"
+lagSearch = "off"             # gas time lag by max |cov(w, c)| (Rebmann et al. 2012, 3.2.3.2):
+                              # "off", "h2o_co2", or "all" (also the fine wire, no lag column)
+lagMax = 2.0                  # [s] half-width of the lag search window [ASSUMED]
+spectralCorrection = "off"    # "off" or "massman2000": Massman (2000) spectral
+                              # correction factors for H, LE and Fc stored in
+                              # flux_qc as scf_*, never applied to the fluxes
+# Sensor geometry [m], no defaults; all four are required by "massman2000".
+# The separations are taken as wind-direction independent, and one geometry
+# serves all sonic levels [ASSUMED].
+# sonicPathLength = ...         # sonic vertical path
+# irgaPathLength = ...
+# irgaSeparationLateral = ...
+# irgaSeparationLongitudinal = ...

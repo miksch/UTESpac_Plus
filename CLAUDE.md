@@ -51,6 +51,8 @@ local for the same reason.
 ## Data
 
 `data/` is gitignored except `data/README.md`, each site's
-`siteInfo.toml` and the UTESpac header files. `utespac_main.py --root`
-and `UTESPAC_DATA_ROOT` point the pipeline at any other data root;
-`../vac-proc` keeps its sites that way.
+`siteInfo.toml` and the UTESpac header files. Site discovery,
+`siteInfo.toml` and `PFinfo.json` resolve against `utespac_main.py
+--root`; header files, data files and `output/` against `--data-root`
+(default `UTESPAC_DATA_ROOT`, else the root); `../vac-proc` keeps its
+sites that way.

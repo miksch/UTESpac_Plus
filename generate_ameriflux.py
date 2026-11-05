@@ -209,12 +209,17 @@ def _concat(parts: List[xr.Dataset]) -> xr.Dataset:
 
 
 def read_site(root, site: str, avg_per: int = AVG_PER,
-              qualifier: str = DEFAULT_QUALIFIER) -> SiteRun:
-    """Every run file of *site* matching *qualifier*, read as one :class:`SiteRun`."""
-    files = run_files(root, site, avg_per=avg_per, qualifier=qualifier)
+              qualifier: str = DEFAULT_QUALIFIER, *, data_root=None) -> SiteRun:
+    """Every run file of *site* matching *qualifier*, read as one :class:`SiteRun`.
+
+    *root* is the configuration root the site is resolved against;
+    *data_root* holds ``<site>/output`` and defaults to *root*.
+    """
+    files = run_files(root, site, avg_per=avg_per, qualifier=qualifier, data_root=data_root)
     if not files:
         raise FileNotFoundError(
-            f"no run files for {site!r} ({qualifier}, {avg_per} min) under {root}")
+            f"no run files for {site!r} ({qualifier}, {avg_per} min) under "
+            f"{root if data_root is None else data_root}")
     products: Dict[str, List[xr.Dataset]] = {}
     periods: Dict[str, List[xr.Dataset]] = {}
     wind: List[xr.Dataset] = []
@@ -500,7 +505,9 @@ def write_base_csv(df: pd.DataFrame, out_dir, site_id: str) -> str:
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument("--root", default=DEFAULT_ROOT, help="data root holding <SITE>/output")
+    p.add_argument("--root", default=DEFAULT_ROOT, help="configuration root")
+    p.add_argument("--data-root", default=os.environ.get("UTESPAC_DATA_ROOT"),
+                   help="data root holding <SITE>/output (default: $UTESPAC_DATA_ROOT, else --root)")
     p.add_argument("--site", required=True, help="site folder name under data/")
     p.add_argument("--qualifier", default=DEFAULT_QUALIFIER,
                    help="run-file qualifier, <PF>_<detrending> (default: %(default)s)")
@@ -516,7 +523,8 @@ def parse_args(argv=None):
 
 def main(argv=None) -> str:
     args = parse_args(argv)
-    site = read_site(args.root, args.site, args.avg_per, args.qualifier)
+    site = read_site(args.root, args.site, args.avg_per, args.qualifier,
+                     data_root=args.data_root)
     heights = site.heights()
     print(f"{args.site} ({args.qualifier}): heights (V=1 lowest) {heights} m, "
           f"z_ref {args.z_ref if args.z_ref is not None else site.z_ref():g} m")

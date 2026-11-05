@@ -75,6 +75,10 @@ tke_lp_s = 10.0                # [s] centred moving-mean window on u_TKE  [CITED
 tke_a_s = 10.0                 # [s] fixed MHAT scale (~40 s period)  [CITED] Mangan 2022 p. 52 (their sites)
 tke_thresh = 1.25              # trigger when a wave's min-to-max amplitude > thresh * record mean  [CITED] Mangan 2022 p. 54
 
+# Thomas & Foken (2005) detector (detect_tf2005) on ts and w_pf
+tf2005 = false                 # add the tf_ record scalars to /ramps; off
+#                                leaves the group unchanged
+
 [coherent_flux]
 # Coherent-structure flux fractions, library/writeups/ec_coherent_flux.md
 # (Thomas & Foken 2007 eqs. 3-7 triple decomposition; quadrant estimator their §3.3)

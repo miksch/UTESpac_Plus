@@ -3,10 +3,11 @@
 Science and sources: library/writeups/ec_mrd.md. Orthogonal dyadic
 decomposition on 2^M samples (Howell & Mahrt 1997 eqs. 1-7, FHT appendix);
 the sum of MR (co)spectra over scales equals the window (co)variance -- the
-module's invariant test. Gap detection follows Vickers & Mahrt 2003 §4.
+module's invariant test. Gap detection follows Vickers & Mahrt 2003 sec. 4.
 """
 
-from typing import Dict, Optional, Sequence, Tuple
+import warnings
+from typing import Dict, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import xarray as xr
@@ -84,28 +85,84 @@ def mr_spectrum(x: np.ndarray, y: Optional[np.ndarray] = None
 
 
 def smooth121(D: np.ndarray) -> np.ndarray:
-    """1-2-1 filter (interior points; ends kept) -- Vickers & Mahrt 2003 §4."""
+    """1-2-1 filter (interior points; ends kept), Vickers & Mahrt 2003 sec. 4.
+    """
     out = D.astype(float).copy()
     if len(D) > 2:
         out[1:-1] = 0.25 * D[:-2] + 0.5 * D[1:-1] + 0.25 * D[2:]
     return out
 
 
-def gap_scale(tau: np.ndarray, D: np.ndarray, level_frac: float = 0.01) -> float:
-    """Cospectral gap timescale of one MR cospectrum (Vickers & Mahrt 2003 §4).
+def gap_scale(tau: np.ndarray, D: np.ndarray, level_frac: float = 0.01,
+              tau_min: Optional[float] = None) -> float:
+    """Cospectral gap timescale of one MR cospectrum (Vickers & Mahrt 2003).
 
     Scan the 1-2-1-smoothed |D| from the shortest scale for the first peak
     (a decrease in magnitude with increasing scale); the gap is the first
     later scale where |D| increases or the accumulative flux levels off
     (changes by *level_frac* or less). NaN when no peak or no gap is found
     (their weak-turbulence exclusion). *D* may be a magnitude series (their
-    momentum practice) or a signed cospectrum.
+    momentum practice) or a signed cospectrum. Non-finite entries of *D*
+    (NaN, +-inf) count as zero in both the smoothed |D| and the
+    accumulative flux.
+
+    Vickers & Mahrt 2003 sec. 4, p. 664: "The algorithm scans the MR cospectra
+    [Eq. (3)] beginning with the shortest averaging timescale and
+    progressing to longer timescales. The first peak in the cospectra is
+    identified by a decrease in magnitude with increasing scale and is
+    associated with turbulence. The gap between turbulence and mesoscale
+    motions is identified when the cospectra either increase or level off
+    at an averaging time scale longer than the scale associated with the
+    turbulence peak. A leveling off is identified when the accumulative
+    flux changes by 1% or less with an increase in timescale." [CITED]
+    (written for tower sonic records, 1-h periods).
+
+    Parameters
+    ----------
+    tau : ndarray
+        1-D MR averaging timescales 2^m dt [s], ascending, one per entry
+        of *D*.
+    D : ndarray
+        1-D MR cospectrum (or stress-magnitude series) per scale.
+    level_frac : float
+        Leveling-off fraction of the accumulative flux [CITED] 1 %, in
+        ``[0, 1)``.
+    tau_min : float, optional
+        Scales with ``tau < tau_min`` are excluded from the peak scan
+        [HOUSE]; the 1-2-1 smoothing carries a noisy scale into its
+        neighbour, so ``tau_min`` must lie at least two scales above it.
+        The accumulative flux still sums every scale. None keeps the
+        published scan from the shortest scale.
+
+    Returns
+    -------
+    float
+        Gap timescale [s], or NaN.
+
+    Raises
+    ------
+    ValueError
+        If *D* is not 1-D, *tau* does not match the shape of *D*, *tau* is
+        not strictly ascending, or *level_frac* lies outside ``[0, 1)``.
     """
-    Ds = np.abs(smooth121(np.nan_to_num(D, nan=0.0)))
-    C = np.cumsum(np.nan_to_num(D, nan=0.0))
+    tau = np.asarray(tau, dtype=float)
+    D = np.asarray(D, dtype=float)
+    if D.ndim != 1:
+        raise ValueError(f"gap_scale needs a 1-D D, got shape {D.shape}")
+    if tau.shape != D.shape:
+        raise ValueError(f"tau shape {tau.shape} does not match D shape "
+                         f"{D.shape}")
+    if not np.all(np.diff(tau) > 0):
+        raise ValueError("tau is not strictly ascending")
+    if not 0.0 <= level_frac < 1.0:
+        raise ValueError(f"level_frac {level_frac!r} outside [0, 1)")
+    Ds = np.abs(smooth121(np.where(np.isfinite(D), D, 0.0)))
+    C = np.cumsum(np.where(np.isfinite(D), D, 0.0))
     M = len(D)
+    start = (0 if tau_min is None
+             else int(np.searchsorted(tau, tau_min, side="left")))
     peak = None
-    for m in range(M - 1):
+    for m in range(start, M - 1):
         if Ds[m + 1] < Ds[m] and Ds[m] > 0:
             peak = m
             break
@@ -116,6 +173,39 @@ def gap_scale(tau: np.ndarray, D: np.ndarray, level_frac: float = 0.01) -> float
         if Ds[g] > Ds[g - 1] or level:
             return float(tau[g])
     return np.nan
+
+
+def gap_scale_median(gaps) -> Union[float, np.ndarray]:
+    """NaN-aware median of per-record gap timescales over records (axis 0).
+
+    Vickers & Mahrt 2003 p. 665 average the per-hour gap scale "over the
+    entire experiment to reduce random errors"; the median is used here
+    instead [ASSUMED], and fewer than three finite records give NaN
+    [ASSUMED] (library/writeups/ec_mrd.md, deviation register).
+
+    Parameters
+    ----------
+    gaps : array_like
+        Gap timescales [s], at least 1-D, with records on the first axis,
+        e.g. ``gap_wTs`` of shape (record,) or (record, height); NaN and
+        infinite entries count as missing.
+
+    Returns
+    -------
+    float or ndarray
+        Median gap timescale [s]: a float for 1-D input, otherwise an
+        ndarray of shape ``gaps.shape[1:]``, one value per trailing index.
+    """
+    g = np.asarray(gaps, dtype=float)
+    g = np.where(np.isfinite(g), g, np.nan)
+    n_finite = np.isfinite(g).sum(axis=0)
+    with warnings.catch_warnings():
+        # all-NaN or empty slices
+        warnings.simplefilter("ignore", RuntimeWarning)
+        med = (np.nanmedian(g, axis=0) if g.shape[0]
+               else np.full(g.shape[1:], np.nan))
+    out = np.where(n_finite >= 3, med, np.nan)
+    return float(out) if out.ndim == 0 else out
 
 
 def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
@@ -162,11 +252,14 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
                         err_flx[k][i, ih] = np.abs(s / D) / np.sqrt(counts)
                     cov[k][i, ih] = D.sum()
             if "wTs" in flxs and np.isfinite(D_flx["wTs"][i, ih]).all():
-                gap_wTs[i, ih] = gap_scale(tau, D_flx["wTs"][i, ih], mc.gap_level_frac)
+                gap_wTs[i, ih] = gap_scale(tau, D_flx["wTs"][i, ih],
+                                           mc.gap_level_frac,
+                                           mc.gap_tau_min)
             if {"uw", "vw"} <= set(flxs) and np.isfinite(D_flx["uw"][i, ih]).all() \
                     and np.isfinite(D_flx["vw"][i, ih]).all():
                 mag = np.hypot(D_flx["uw"][i, ih], D_flx["vw"][i, ih])
-                gap_uw[i, ih] = gap_scale(tau, mag, mc.gap_level_frac)
+                gap_uw[i, ih] = gap_scale(tau, mag, mc.gap_level_frac,
+                                          mc.gap_tau_min)
 
     ds = xr.Dataset(coords={"record": ("record", hf.records),
                             "height": ("height", hf.heights),
