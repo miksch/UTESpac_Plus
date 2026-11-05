@@ -178,3 +178,38 @@ def test_without_hygrometer_no_h2o_or_co2_tables():
     assert "t_fw_sigma" not in r.values["sigma"]
     assert r.values["flux_qc"]["LE_ssitc"] == 9 or np.isnan(r.values["flux_qc"]["LE_ssitc"]) \
         or r.values["flux_qc"]["LE_ssitc"] >= 0
+
+
+def test_wpl_co2_flux_is_the_covariance_plus_the_two_wpl_terms():
+    from utespac import names
+    from utespac.flux.reference import Md, Mv
+    lev = _level()
+    r = _run(lev)
+    rho_d, rho_v, T = 1.18, 0.0095, 295.0                   # _ref() at period 0
+    rho_c = np.nanmean(lev.co2[:N_SAMP]) / 1e6               # [kg m-3]
+    evap = r.values["latent_heat"]["LE_wpl_pf"] / r.values["latent_heat"]["Lv"] / 1000.0
+    kin = r.values["sensible_heat"]["w_t_air_cov_pf"]
+    expected = (r.values["co2_flux"]["w_co2_cov_pf"]
+                + Md / Mv * (rho_c / rho_d) * evap
+                + (1.0 + Md / Mv * rho_v / rho_d) * (rho_c / T) * kin)
+    # same arithmetic in another order: float64 round-off only (values ~1e-6, so no abs floor)
+    assert r.values["co2_flux"]["Fc_wpl_pf"] == pytest.approx(expected, rel=1e-12, abs=0)
+    assert names.variable("co2_flux", "Fc_wpl_pf").units == "kg m-2 s-1"
+
+
+def test_crosswind_scalar_covariances_are_stored():
+    lev = _level()
+    r = _run(lev)
+    lat = r.values["scalar_flux_lateral"]
+    for key in ("v_theta_v_cov_pf", "v_h2o_cov_pf", "v_h2o_wpl_cov_pf",
+                "v_co2_cov_pf", "v_co2_wpl_cov_pf"):
+        assert np.isfinite(lat[key]), key
+    v = lev.v_pf[:N_SAMP]
+    thv = lev.theta_son[:N_SAMP]
+    # constant detrend computed independently; float64 summation-order noise only
+    assert lat["v_theta_v_cov_pf"] == pytest.approx(
+        np.nanmean((v - v.mean()) * (thv - thv.mean())), rel=1e-9, abs=0)
+    lev_rot = _level()
+    lev_rot.rot_flag[:] = True
+    lat_rot = _run(lev_rot).values["scalar_flux_lateral"]
+    assert all(np.isnan(lat_rot[k]) for k in lat)

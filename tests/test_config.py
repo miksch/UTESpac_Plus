@@ -9,7 +9,7 @@ from utespac.run_config import RunConfig, QCConfig, PFConfig, FluxConfig
 
 
 # The legacy info dict utespac_main.py carried before step 2 of the
-# migration (values as committed in f020dcc), minus rootFolder.
+# migration (values as committed in f020dcc), minus rootFolder and dataFolder.
 LEGACY_INFO = {
     "UTESpacVersion": "5.0-Python",
     "avgPer": 30,
@@ -56,7 +56,22 @@ def test_to_info_reproduces_legacy_defaults(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)           # no cwd config/ overrides
     info = RunConfig.from_config(rootFolder="data").to_info()
     assert info.pop("rootFolder") == "data"
+    assert info.pop("dataFolder") == "data"
     assert info == LEGACY_INFO
+
+
+@pytest.mark.parametrize("changes, data_root", [({}, "r"), ({"dataFolder": "d"}, "d")])
+def test_data_folder_defaults_to_root_folder(tmp_path, monkeypatch, changes, data_root):
+    monkeypatch.chdir(tmp_path)
+    c = RunConfig.from_config(rootFolder="r").with_(**changes)
+    assert c.rootFolder == "r" and c.data_root == data_root
+    info = c.to_info()
+    assert (info["rootFolder"], info["dataFolder"]) == ("r", data_root)
+
+
+def test_with_rejects_unknown_keys():
+    with pytest.raises(ValueError, match="unknown run config parameter.*dataRoot"):
+        RunConfig(rootFolder="r").with_(dataRoot="d")
 
 
 def test_dataclass_defaults_match_tomls(tmp_path, monkeypatch):

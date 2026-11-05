@@ -45,6 +45,11 @@ def _fresh_warnings():
     ("kg m-3", "h2o_density", None, 20000.0),
     ("mg m-3", "co2_density", None, 20.0),
     ("g m-3", "co2_density", None, 20000.0),
+    ("mmol/m^3", "h2o_density", None, 20.0 * 18.0153e-3),
+    ("mmol m-3", "co2_density", None, 20.0 * 44.01),
+    ("m/s", "wind", None, 20.0),
+    ("ms-1", "wind", None, 20.0),
+    ("m s-1", "wind", None, 20.0),
 ])
 def test_declared_unit_conversions(unit, quantity, target, expected):
     out = units.convert(np.full(3, 20.0), unit, quantity, target)
@@ -60,6 +65,11 @@ def test_declared_conversion_leaves_the_input_untouched():
 def test_unknown_unit_raises():
     with pytest.raises(ValueError, match="unknown unit"):
         units.convert(np.zeros(3), "furlongs", "temperature")
+
+
+def test_wind_rejects_a_unit_other_than_metres_per_second():
+    with pytest.raises(ValueError, match="wind: unknown unit 'cm/s'"):
+        units.convert(np.full(3, 200.0), "cm/s", "wind")
 
 
 def test_unknown_quantity_and_target_raise():
@@ -81,9 +91,24 @@ def test_unknown_quantity_and_target_raise():
     (55.0, "humidity", None, 55.0),                    # always percent
     (9.0, "h2o_density", None, 9.0),
     (700.0, "co2_density", None, 700.0),
+    (86.4, "pressure", "Pa", 86400.0),                 # median < 1000 -> kPa
+    (86400.0, "pressure", "Pa", 86400.0),
+    (3.0, "wind", None, 3.0),                          # always m s-1
 ])
 def test_fallback_reproduces_the_magnitude_heuristics(values, quantity, target, expected):
     out = units.convert(np.full(4, values), "", quantity, target, warn=False)
+    assert np.allclose(out, expected)
+
+
+@pytest.mark.parametrize("field,quantity,expected", [
+    ("LiH2O", "h2o_density", 600.0 * 0.018),           # LI-7500 mmol m-3
+    ("LiCO2", "co2_density", 600.0 * 44.0),
+    ("irgaH2O", "h2o_density", 600.0),                 # other classes as given
+    ("irgaCO2", "co2_density", 600.0),
+])
+def test_fallback_by_sensor_class(field, quantity, expected):
+    sensor = Sensor(field, "X_20Hz", f"{field}_3", 3.0)
+    out = units.convert(np.full(4, 600.0), None, quantity, sensor=sensor, warn=False)
     assert np.allclose(out, expected)
 
 

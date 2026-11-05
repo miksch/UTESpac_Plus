@@ -24,6 +24,7 @@ from ..find_eta import find_eta
 from ..nandetrend import nandetrend
 from ..sonic_temperature import air_temperature_perturbation
 from ..stability import psi_h, psi_m
+from ..units import M_CO2
 from .levels import LevelInputs
 from .reference import Md, Mv, ReferenceState
 
@@ -379,7 +380,7 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
                 P_seg_kPa = np.full(s1 - s0, ref.P_ref_kPa)
             ppm_CO2 = np.nanmean(rho_CO2_seg * 1000.0 * 8.314
                                  * (lev.theta_son_air[s0:s1] + 273.15)
-                                 / (44.01 * P_seg_kPa * 1e3))
+                                 / (M_CO2 * P_seg_kPa * 1e3))
 
             r.put("sigma", "co2_sigma", np.nanstd(rho_CO2_seg))
             r.put("sigma", "co2_wpl_sigma", np.nanstd(rho_CO2_seg / 1e6 + rhoc_ext) * 1e6)
@@ -416,8 +417,9 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
             if rot:
                 r.blank("skewness", "u_skew_pf", "v_skew_pf", "w_skew_pf", "theta_v_skew",
                         "h2o_skew", "h2o_wpl_skew", "co2_skew", "co2_wpl_skew")
-                r.blank("scalar_flux_lateral", "u_theta_v_cov_pf", "u_h2o_cov_pf",
-                        "u_h2o_wpl_cov_pf", "u_co2_cov_pf", "u_co2_wpl_cov_pf")
+                r.blank("scalar_flux_lateral", "u_theta_v_cov_pf", "v_theta_v_cov_pf",
+                        "u_h2o_cov_pf", "v_h2o_cov_pf", "u_h2o_wpl_cov_pf", "v_h2o_wpl_cov_pf",
+                        "u_co2_cov_pf", "v_co2_cov_pf", "u_co2_wpl_cov_pf", "v_co2_wpl_cov_pf")
                 r.blank("transport", "w_h2o_transport_pf", "w_h2o_wpl_transport_pf",
                         "w_co2_transport_pf", "w_co2_wpl_transport_pf")
             else:
@@ -427,10 +429,16 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
                     "h2o_wpl_skew": _skew(H2Op + rhov_ext * 1e3),
                     "co2_skew": _skew(rho_CO2p), "co2_wpl_skew": _skew(rho_CO2p + rhoc_ext)}
                 r.values["scalar_flux_lateral"] = {
-                    "u_theta_v_cov_pf": np.nanmean(uPF_P * ThvP), "u_h2o_cov_pf": np.nanmean(uPF_P * H2Op),
+                    "u_theta_v_cov_pf": np.nanmean(uPF_P * ThvP),
+                    "v_theta_v_cov_pf": np.nanmean(vPF_P * ThvP),
+                    "u_h2o_cov_pf": np.nanmean(uPF_P * H2Op),
+                    "v_h2o_cov_pf": np.nanmean(vPF_P * H2Op),
                     "u_h2o_wpl_cov_pf": np.nanmean(uPF_P * (H2Op + rhov_ext * 1e3)),
+                    "v_h2o_wpl_cov_pf": np.nanmean(vPF_P * (H2Op + rhov_ext * 1e3)),
                     "u_co2_cov_pf": np.nanmean(uPF_P * rho_CO2p),
-                    "u_co2_wpl_cov_pf": np.nanmean(uPF_P * (rho_CO2p + rhoc_ext))}
+                    "v_co2_cov_pf": np.nanmean(vPF_P * rho_CO2p),
+                    "u_co2_wpl_cov_pf": np.nanmean(uPF_P * (rho_CO2p + rhoc_ext)),
+                    "v_co2_wpl_cov_pf": np.nanmean(vPF_P * (rho_CO2p + rhoc_ext))}
                 r.put("transport", "w_h2o_transport_pf", np.nanmean(wPF_P * (H2Op * wPF_P)))
                 r.put("transport", "w_h2o_wpl_transport_pf", np.nanmean(wPF_P * ((H2Op + rhov_ext * 1e3) * wPF_P)))
                 r.put("transport", "w_co2_transport_pf", np.nanmean(wPF_P * (rho_CO2p * wPF_P)))

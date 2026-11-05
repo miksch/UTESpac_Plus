@@ -16,6 +16,7 @@ def get_data(
     qualifier: str = None,
     rows=None,
     fmt: str = "nc",
+    data_folder: Optional[str] = None,
 ) -> Dict:
     """Load and vertically concatenate processed UTESpac output files.
 
@@ -51,7 +52,8 @@ def get_data(
     Parameters
     ----------
     root_folder : str
-        Root directory containing ``site*`` sub-directories.
+        Configuration root containing the site folders; the site is
+        resolved against it.
     site : str or int
         Site folder name, bare legacy id, or 1-based index into the sorted
         site list; required.
@@ -61,6 +63,9 @@ def get_data(
         Substring that must appear in output file names (e.g. ``'LPF'``).
     rows : int, list, or 0
         0 → all rows; integer → first N rows; list → specific row indices.
+    data_folder : str or None
+        Data root holding ``<site>/output``; ``None`` reads the products
+        under ``root_folder``.
 
     Returns
     -------
@@ -77,7 +82,8 @@ def get_data(
     else:
         site_dir = resolve_site_dir(root_folder, site)
 
-    site_path = os.path.join(root_folder, site_dir, "output")
+    data_root = root_folder if data_folder is None else data_folder
+    site_path = os.path.join(data_root, site_dir, "output")
     if not os.path.isdir(site_path):
         raise FileNotFoundError(f"Output folder not found: {site_path}")
 

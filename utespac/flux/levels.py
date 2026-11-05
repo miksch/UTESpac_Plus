@@ -115,7 +115,9 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
     nan_series = np.full(n, np.nan)
     scan_hz = float(run.tables[su.table].attrs.get("scan_hz", 20.0))
 
-    u_raw, v_raw, w_raw = run.hf(su), run.hf(sv), run.hf(sw)
+    # Every supported logger writes m s-1: an undeclared wind is read as is.
+    u_raw, v_raw, w_raw = (units.convert(run.hf(s), s.units, "wind", sensor=s, warn=False)
+                           for s in (su, sv, sw))
 
     # ---- flags ----
     unrot_flag = _flags(run, sw, N)
@@ -200,7 +202,8 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
                     level_height = _hh
                     break
         vt_slow, r_slow, rho_moist_slow, rho_dry_slow, rho_H2O_slow = get_virtual_pot_temp(
-            ref.altitude, level_height - ref.z_ref, T1, RH1, P_slow, use_p_elevation=False)
+            ref.altitude, level_height - ref.z_ref, T1, RH1, P_slow, use_p_elevation=False,
+            T_unit="K", P_unit="kPa")
 
         def _avg30(arr):
             _, m = block_average(ts1, arr, avg_per)
@@ -248,10 +251,12 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
     fw_flag = np.zeros(N, dtype=bool)
     sfw = run.sensors.at("fw", height)
     if sfw is not None:
-        fw = run.hf(sfw).copy()
+        fw = units.convert(run.hf(sfw), sfw.units, "temperature", sensor=sfw)
         fw_flag = _flags(run, sfw, N)
         theta_fw = fw + GAMMA_DRY * (height - ref.z_ref)
-        Vtheta_fw = theta_fw * (1.0 + 0.61 * q_fast_local)      # MATLAB fluxes.m:566
+        # theta_v = theta (1 + 0.61 q) in kelvin; MATLAB fluxes.m:566 applied
+        # the factor to the Celsius value.
+        Vtheta_fw = (theta_fw + 273.15) * (1.0 + 0.61 * q_fast_local) - 273.15
 
     # ---- H2O at this height ----
     # Resolved per height, not per run: a tower may carry an EC150-style
@@ -272,7 +277,7 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
                                       diag_cfg.get("meanGasDiagnosticLimit"), np.greater_equal))
         h2o_si = h2o_levels.index(height)
     elif (s := run.sensors.at("LiH2O", height)) is not None:
-        h2o = run.hf(s) * 0.018          # mmol/m³ -> g/m³
+        h2o = units.convert(run.hf(s), s.units, "h2o_density", sensor=s)
         # LI-7500 diagnostic decreases with problems: full strength is 255,
         # ≤ meanLiGasDiagnosticLimit is bad (MATLAB fluxes.m:610 zeroes the
         # flag where diag > limit).
@@ -299,7 +304,7 @@ def build_level(run: Run, ii: int, ref: ReferenceState, N: int, slope_axis: str)
                                       diag_cfg.get("meanGasDiagnosticLimit"), np.greater_equal))
         co2_si = co2_levels.index(height)
     elif h2o is not None and (s := run.sensors.at("LiCO2", height)) is not None:
-        co2 = run.hf(s) * 44.0           # mmol/m³ -> mg/m³
+        co2 = units.convert(run.hf(s), s.units, "co2_density", sensor=s)
         co2_flag = (_flags(run, s, N)
                     | _threshold_flag(run, run.sensors.at("LiGasDiag", height), N,
                                       diag_cfg.get("meanLiGasDiagnosticLimit"), np.less_equal))

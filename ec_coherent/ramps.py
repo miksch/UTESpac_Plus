@@ -1,10 +1,12 @@
 """Ramp / microfront detection.
 
-Three detectors: the wavelet zero-crossing method (Collineau & Brunet
+Four detectors: the wavelet zero-crossing method (Collineau & Brunet
 1993), the structure-function surface-renewal method (Van Atta 1977 cubic,
-Spano et al. 1997 lags and flux, Paw U et al. 2005 two-lag d/s split), and
-the TKE trigger (Mangan et al. 2022). Science and sources:
-library/writeups/ec_ramps.md.
+Spano et al. 1997 lags and flux, Paw U et al. 2005 two-lag d/s split), the
+TKE trigger (Mangan et al. 2022), and the Thomas & Foken (2005) detection
+with the Zhang et al. (2011) conditional averages and ejection/sweep flux
+split (:func:`detect_tf2005`, not called by :func:`run`). Science and
+sources: library/writeups/ec_ramps.md.
 """
 
 from dataclasses import dataclass
@@ -365,6 +367,550 @@ def iqa(u: np.ndarray, v: np.ndarray, w: np.ndarray, fs: float) -> Tuple[np.ndar
     [CITED] Mangan 2022 eqs. 2-4; bulk sweep Z < 0, bulk ejection Z > 0 (p. 50)."""
     dt = 1.0 / fs
     return np.cumsum(u) * dt, np.cumsum(v) * dt, np.cumsum(w) * dt
+
+
+# ---------------------------------------------------------------- Thomas & Foken 2005 (Zhang et al. 2011)
+#
+# Loci are PDF pages of the journal articles: TF05 = Thomas & Foken 2005, Theor. Appl.
+# Climatol. 80, 91-104; Z11 = Zhang et al. 2011, Theor. Appl. Climatol. 103, 119-131.
+
+TF_FS_TARGET = 2.0                  # [CITED] TF05 p. 96; Z11 p. 122 step (1), block-averaged rate
+TF_D_MIN_S = 8.0                    # [CITED] Z11 p. 122 step (4), shortest analysed duration
+TF_D_MAX_S = 240.0                  # [CITED] Z11 p. 122 step (4), longest analysed duration
+TF_D_STEP_S = 1.0                   # [CITED] Z11 p. 122 step (4); TF05 used 8-140 s in 0.5 s
+TF_MORLET_OMEGA0 = 5.0              # [CITED] TF05 p. 97
+TF_MORLET_SUPPORT = 4.0             # [CITED] TF05 p. 97, supp_min = -4, symmetric
+TF_MEXH_OMEGA0 = np.sqrt(2.0)       # [CITED] TF05 p. 97
+TF_BIOR_WAVELET = "bior5.5"         # [CITED] TF05 p. 94
+TF_BIOR_LEVEL_MIN = 4               # [CITED] TF05 p. 97, levels i >= 4 retained (removes D < 6.2 s)
+TF_BIOR_OMEGA0 = 4.0                # [CITED] TF05 p. 97, BIOR5.5 peak frequency ~ 4
+TF_BIOR_MODE = "zero"               # [ASSUMED] DWT boundary mode; the record ends are already zero
+TF_PEAK_PROMINENCE = 0.10           # [ASSUMED] relative prominence of a clearly expressed maximum;
+                                    # weaker maxima of W are not event durations
+TF_N_BINS = 24                      # [CITED] Z11 Fig. 3 caption
+TF_SUBSAMPLES_PER_BIN = 10          # [ASSUMED] lag points per composite bin
+
+
+def tf_scale_from_duration(duration_s, omega0: float):
+    """Scale in seconds for an event duration, the inverse of TF05 eq. 6, D = a dt pi / omega_0."""
+    return np.asarray(duration_s, dtype=float) * omega0 / np.pi
+
+
+def tf_critical_duration(fs: float = TF_FS_TARGET, level: int = TF_BIOR_LEVEL_MIN,
+                         omega0: float = TF_BIOR_OMEGA0) -> float:
+    """Critical duration of the BIOR5.5 low-pass, TF05 eq. 6 at a = 2^level samples.
+
+    At 2 Hz and level 4 this is 16 x 0.5 x pi / 4 = 6.28 s [DERIVED]; TF05
+    p. 97 states D_c ~ 6.2 s.
+    """
+    return (2 ** level) / fs * np.pi / omega0
+
+
+def tf_duration_grid(d_min: float = TF_D_MIN_S, d_max: float = TF_D_MAX_S,
+                     step: float = TF_D_STEP_S) -> np.ndarray:
+    """Event durations D in seconds on the Z11 grid (8 to 240 s in 1 s steps)."""
+    return np.arange(d_min, d_max + 0.5 * step, step)
+
+
+def block_average(x: np.ndarray, fs: float, fs_target: float = TF_FS_TARGET) -> np.ndarray:
+    """Non-overlapping block means from *fs* to *fs_target* along axis 0.
+
+    TF05 p. 96: "the sampling frequency is reduced from the original 20 to
+    2 Hz resolution by applying standard block averaging" [CITED].
+
+    Parameters
+    ----------
+    x : ndarray
+        Record, shape ``(n, ...)``.
+    fs, fs_target : float
+        Input and output rates in hertz; their ratio must be a positive integer.
+
+    Returns
+    -------
+    ndarray
+        Shape ``(n // factor, ...)``; a trailing partial block is dropped.
+    """
+    factor = int(round(fs / fs_target))
+    if factor < 1 or not np.isclose(fs / fs_target, factor):
+        raise ValueError(f"fs / fs_target must be a positive integer, got {fs / fs_target}")
+    x = np.asarray(x, dtype=float)
+    m = x.shape[0] // factor
+    return x[:m * factor].reshape((m, factor) + x.shape[1:]).mean(axis=1)
+
+
+def tf_normalise(x: np.ndarray, remove_mean: bool = True) -> Optional[np.ndarray]:
+    """Record divided by its standard deviation, mean removed unless *remove_mean* is False.
+
+    TF05 p. 97 normalises w by its standard deviation only [CITED]; Z11
+    p. 122 step (2) omits that exception. None for a record with a
+    non-finite sample or zero variance.
+    """
+    x = np.asarray(x, dtype=float)
+    if not np.isfinite(x).all():
+        return None
+    sd = x.std()
+    if not np.isfinite(sd) or sd == 0.0:
+        return None
+    return ((x - x.mean()) if remove_mean else x) / sd
+
+
+def tf_pad_width(fs: float = TF_FS_TARGET, d_max: float = TF_D_MAX_S,
+                 omega0: float = TF_MORLET_OMEGA0, support: float = TF_MORLET_SUPPORT) -> int:
+    """Samples of zero padding per end, |a_n supp_min| at the largest Morlet scale (TF05 p. 97)."""
+    return int(np.ceil(support * tf_scale_from_duration(d_max, omega0) * fs))
+
+
+def bior_lowpass(x: np.ndarray, level_min: int = TF_BIOR_LEVEL_MIN,
+                 wavelet: str = TF_BIOR_WAVELET, mode: str = TF_BIOR_MODE) -> np.ndarray:
+    """BIOR5.5 wavelet low-pass keeping the decomposition levels ``>= level_min`` (TF05 p. 97).
+
+    The record is decomposed to its maximum level, the detail coefficients of
+    levels 1 to ``level_min - 1`` are set to zero, and the record is
+    reconstructed and trimmed to its input length. TF05 run the filter on the
+    zero-padded record (p. 98) [CITED]; the pywt ``zero`` boundary mode is
+    [ASSUMED].
+
+    Parameters
+    ----------
+    x : ndarray
+        One-dimensional record.
+    level_min : int, optional
+        Smallest retained decomposition level.
+    wavelet, mode : str, optional
+        pywt wavelet name and boundary mode.
+
+    Returns
+    -------
+    ndarray
+        Filtered record, same length as *x*.
+    """
+    import pywt
+
+    x = np.asarray(x, dtype=float)
+    w = pywt.Wavelet(wavelet)
+    level = max(pywt.dwt_max_level(x.size, w.dec_len), level_min - 1)
+    coeffs = pywt.wavedec(x, w, mode=mode, level=level)
+    for i in range(1, level_min):          # coeffs = [cA_L, cD_L, ..., cD_1]; cD_i at L + 1 - i
+        coeffs[level + 1 - i] = np.zeros_like(coeffs[level + 1 - i])
+    return pywt.waverec(coeffs, w, mode=mode)[:x.size]
+
+
+def morlet_hat(omega: np.ndarray, omega0: float = TF_MORLET_OMEGA0) -> np.ndarray:
+    """Fourier transform of the complex Morlet, pi^(-1/4) sqrt(2 pi) exp(-(omega - omega0)^2 / 2).
+
+    The transform of ``psi(t) = pi^(-1/4) exp(i omega0 t) exp(-t^2 / 2)`` with
+    ``Psi(omega) = integral psi(t) exp(-i omega t) dt``. The admissibility
+    correction is omitted [ASSUMED]: it is exp(-omega0^2 / 2) ~ 4e-6 of the
+    peak at omega0 = 5.
+    """
+    omega = np.asarray(omega, dtype=float)
+    return np.pi ** -0.25 * np.sqrt(2.0 * np.pi) * np.exp(-0.5 * (omega - omega0) ** 2)
+
+
+def mhat_hat(omega: np.ndarray) -> np.ndarray:
+    """Fourier transform of :func:`mhat`, sqrt(2 pi) omega^2 exp(-omega^2 / 2)."""
+    omega = np.asarray(omega, dtype=float)
+    return np.sqrt(2.0 * np.pi) * omega * omega * np.exp(-0.5 * omega * omega)
+
+
+def _fft_cwt_rows(x: np.ndarray, fs: float, scales_s: Sequence[float], hat, complex_out: bool):
+    """Yield T_1(a, b) = a^-1 int x(t) psi*((t - b)/a) dt row by row, a linear correlation by FFT."""
+    x = np.asarray(x, dtype=float)
+    n = x.size
+    nfft = 1 << int(np.ceil(np.log2(2 * n)))
+    spectrum = np.fft.fft(x, nfft)
+    omega = 2.0 * np.pi * np.fft.fftfreq(nfft, d=1.0 / fs)
+    for a in np.asarray(scales_s, dtype=float):
+        row = np.fft.ifft(spectrum * np.conj(hat(a * omega)))[:n]
+        yield row if complex_out else row.real
+
+
+def tf_wavelet_variance(x: np.ndarray, fs: float, durations: np.ndarray, pad: int = 0,
+                        omega0: float = TF_MORLET_OMEGA0,
+                        support: float = TF_MORLET_SUPPORT) -> np.ndarray:
+    """Morlet wavelet variance W(a) = integral |T_1(a, b)|^2 db (TF05 eq. 5, p = 1).
+
+    Parameters
+    ----------
+    x : ndarray
+        Record, already zero-padded by *pad* samples at each end.
+    fs : float
+        Sampling rate, hertz.
+    durations : ndarray
+        Event durations D in seconds; the Morlet scales are ``D omega0 / pi``
+        (TF05 eq. 6).
+    pad : int, optional
+        Zero padding per end included in *x*.
+    omega0, support : float, optional
+        Morlet peak frequency and effective half-support.
+
+    Returns
+    -------
+    ndarray
+        W at each duration, the sum of |T|^2 dt over the translations
+        ``b in [t_min - a supp, t_max + a supp]`` (TF05 p. 97) clipped to the
+        padded record.
+    """
+    x = np.asarray(x, dtype=float)
+    n = x.size
+    scales = tf_scale_from_duration(durations, omega0)
+    out = np.empty(scales.size)
+    for i, row in enumerate(_fft_cwt_rows(x, fs, scales, morlet_hat, True)):
+        k = int(np.ceil(support * scales[i] * fs))
+        lo, hi = max(pad - k, 0), min(n - pad + k, n)
+        out[i] = np.sum(np.abs(row[lo:hi]) ** 2) / fs
+    return out
+
+
+def tf_event_duration(W: np.ndarray, durations: np.ndarray,
+                      prominence: float = TF_PEAK_PROMINENCE) -> Tuple[float, np.ndarray]:
+    """Characteristic duration D_e, the first clearly expressed maximum of W (TF05 p. 97).
+
+    TF05 p. 97: "For a robust determination of a_e, a cubic spline
+    interpolation is applied to the approximate derivatives between adjacent
+    wavelet variances" [CITED]. The derivative is the central difference of W
+    on the duration grid; its cubic spline is solved for the roots going from
+    positive to negative. A maximum is clearly expressed when
+    :func:`scipy.signal.find_peaks` gives it a prominence above
+    ``prominence (max W - min W)`` [ASSUMED]; its duration is the spline root
+    nearest the grid peak. Maxima on the grid boundary are not maxima.
+
+    Parameters
+    ----------
+    W : ndarray
+        Wavelet variance on *durations*.
+    durations : ndarray
+        Uniform duration grid, seconds.
+    prominence : float, optional
+        Relative prominence threshold.
+
+    Returns
+    -------
+    D_e : float
+        The smallest-duration clearly expressed maximum, NaN when none.
+    maxima : ndarray
+        Every clearly expressed maximum, ascending.
+    """
+    from scipy import interpolate
+
+    W = np.asarray(W, dtype=float)
+    durations = np.asarray(durations, dtype=float)
+    if not np.isfinite(W).all() or W.size < 4:
+        return np.nan, np.array([])
+    span = W.max() - W.min()
+    if span <= 0:
+        return np.nan, np.array([])
+    peaks, _ = sig.find_peaks(W, prominence=prominence * span)
+    if peaks.size == 0:
+        return np.nan, np.array([])
+    spline = interpolate.CubicSpline(durations, np.gradient(W, durations))
+    roots = spline.roots(extrapolate=False)
+    roots = roots[spline(roots, 1) < 0]
+    step = durations[1] - durations[0]
+    maxima = []
+    for p in peaks:
+        near = roots[np.abs(roots - durations[p]) <= step]
+        maxima.append(near[np.argmin(np.abs(near - durations[p]))] if near.size else durations[p])
+    maxima = np.array(maxima, dtype=float)
+    return float(maxima[0]), maxima
+
+
+def tf_crossing_sign(r: float) -> int:
+    """Crossing direction of TF05 Table 2 (p. 98) for (theta_s, w): -1 is + to -, +1 is - to +."""
+    return -1 if r > 0 else +1
+
+
+def tf_crossings(x: np.ndarray, fs: float, sign: int, D_e: float, pad: int = 0,
+                 omega0: float = TF_MEXH_OMEGA0) -> np.ndarray:
+    """Event instants from the MEXH zero crossings at D_e (TF05 p. 97; Z11 p. 122 step (5)).
+
+    The MEXH scale is ``D_e omega0 / pi`` with omega0 = sqrt(2) (TF05 p. 97),
+    the convention D = a0 pi / sqrt(2) of :data:`D_G` [DERIVED].
+
+    Parameters
+    ----------
+    x : ndarray
+        Filtered, normalised record, zero-padded by *pad* samples per end.
+    fs : float
+        Sampling rate, hertz.
+    sign : {-1, +1}
+        -1 keeps crossings from + to -, +1 from - to + (:func:`tf_crossing_sign`).
+    D_e : float
+        Characteristic duration, seconds.
+    pad : int, optional
+        Padding per end included in *x*.
+    omega0 : float, optional
+        MEXH peak frequency of TF05 eq. 6.
+
+    Returns
+    -------
+    ndarray
+        Crossing instants in seconds from the first data sample, linearly
+        interpolated, restricted to ``[t_min, t_max]`` of the unpadded record
+        (TF05 p. 98): a crossing counts only when both bracketing samples lie
+        inside it.
+    """
+    if not np.isfinite(D_e):
+        return np.array([])
+    x = np.asarray(x, dtype=float)
+    c = next(_fft_cwt_rows(x, fs, [float(tf_scale_from_duration(D_e, omega0))], mhat_hat, False))
+    keep = np.zeros(x.size, dtype=bool)
+    keep[pad:x.size - pad] = True
+    t = (np.arange(x.size) - pad) / fs
+    c0, c1 = c[:-1], c[1:]
+    hit = ((c0 > 0) & (c1 <= 0)) if sign < 0 else ((c0 < 0) & (c1 >= 0))
+    hit &= keep[:-1] & keep[1:]
+    i = np.flatnonzero(hit)
+    return t[i] + c0[i] / (c0[i] - c1[i]) * (t[i + 1] - t[i])
+
+
+def tf_spacing_stats(times: np.ndarray) -> Tuple[float, float]:
+    """Mean T_x and standard deviation sigma_Tx of the event separation (TF05 Table 3).
+
+    The mean runs over the N - 1 intervals and the standard deviation has an
+    N - 2 denominator (Thomas & Foken 2007 eqs. 4a-4b); NaN where undefined.
+    """
+    gaps = np.abs(np.diff(np.asarray(times, dtype=float)))
+    mean = float(gaps.mean()) if gaps.size >= 1 else np.nan
+    std = float(np.sqrt(np.sum((gaps - mean) ** 2) / (gaps.size - 1))) if gaps.size >= 2 else np.nan
+    return mean, std
+
+
+def tf_correlation(x: np.ndarray, y: np.ndarray) -> float:
+    """r_xy = mean(x'y') / (sigma_x sigma_y) (TF05 eq. 9)."""
+    x = np.asarray(x, float) - np.mean(x)
+    y = np.asarray(y, float) - np.mean(y)
+    den = x.std() * y.std()
+    return float(np.mean(x * y) / den) if den > 0 else np.nan
+
+
+def tf_lag_grid(n_bins: int = TF_N_BINS, sub: int = TF_SUBSAMPLES_PER_BIN) -> np.ndarray:
+    """Lag points in units of D_e: sub-bin centres over [-1, 1]."""
+    m = n_bins * sub
+    return -1.0 + (np.arange(m) + 0.5) * 2.0 / m
+
+
+def tf_event_windows(x: np.ndarray, fs: float, times: np.ndarray, D_e: float,
+                     n_bins: int = TF_N_BINS, sub: int = TF_SUBSAMPLES_PER_BIN) -> np.ndarray:
+    """Each event's window ``[t_i - D_e, t_i + D_e]`` of *x* on :func:`tf_lag_grid`.
+
+    Linear interpolation between samples. Only events whose whole window lies
+    inside the record are kept [ASSUMED].
+
+    Returns
+    -------
+    ndarray
+        Shape ``(n_used, n_bins * sub)``.
+    """
+    x = np.asarray(x, dtype=float)
+    t = np.arange(x.size) / fs
+    lags = tf_lag_grid(n_bins, sub) * D_e
+    used = [ti for ti in np.asarray(times, float) if ti - D_e >= t[0] and ti + D_e <= t[-1]]
+    if not used:
+        return np.empty((0, lags.size))
+    return np.array([np.interp(ti + lags, t, x) for ti in used])
+
+
+def tf_conditional_average(x: np.ndarray, fs: float, times: np.ndarray, D_e: float,
+                           n_bins: int = TF_N_BINS, sub: int = TF_SUBSAMPLES_PER_BIN
+                           ) -> Tuple[np.ndarray, np.ndarray, int]:
+    """Conditional average <x>(t) = (1/N) sum_n x_n(t), t in [-D_e, D_e] (Z11 eq. 1, p. 122).
+
+    The ejection phase is [-D_e, 0] and the sweep phase [0, D_e] (Z11 p. 123,
+    whose "[1, De]" is read as [0, De] [ASSUMED]). The composite is
+    block-averaged to *n_bins* bins (Z11 Fig. 3 caption: "Data are normalized
+    with their respective standard deviations and then block-averaged to 24
+    bins") [CITED].
+
+    Parameters
+    ----------
+    x : ndarray
+        Series on the record time base.
+    fs : float
+        Sampling rate, hertz.
+    times : ndarray
+        Event instants, seconds from the record start.
+    D_e : float
+        Characteristic duration, seconds.
+    n_bins, sub : int, optional
+        Composite bins and lag points per bin.
+
+    Returns
+    -------
+    binned : ndarray
+        The composite in *n_bins* bins over t / D_e in [-1, 1].
+    fine : ndarray
+        The composite on :func:`tf_lag_grid`.
+    n_used : int
+        Events in the average.
+    """
+    win = tf_event_windows(x, fs, times, D_e, n_bins, sub)
+    if win.shape[0] == 0:
+        return np.full(n_bins, np.nan), np.full(n_bins * sub, np.nan), 0
+    fine = win.mean(axis=0)
+    return fine.reshape(n_bins, sub).mean(axis=1), fine, win.shape[0]
+
+
+def tf_flux_split(x: np.ndarray, y: np.ndarray, fs: float, times: np.ndarray, D_e: float,
+                  n_bins: int = TF_N_BINS, sub: int = TF_SUBSAMPLES_PER_BIN) -> Dict[str, float]:
+    """Coherent, ejection, sweep and total flux of Z11 eqs. 1-4 (pp. 122-123).
+
+    ``F_cs`` is the window average of ``<x'><y'>``; ``F_ej`` and ``F_sw`` are
+    the same operator over [-D_e, 0] and [0, D_e] with the 1 / (2 D_e)
+    normaliser of eq. 3, so F_cs = F_ej + F_sw; ``F_tot`` is the window
+    average of ``<x'y'>``.
+
+    Returns
+    -------
+    dict
+        ``F_cs``, ``F_ej``, ``F_sw``, ``F_tot``; NaN when no event fits.
+    """
+    wx = tf_event_windows(x, fs, times, D_e, n_bins, sub)
+    wy = tf_event_windows(y, fs, times, D_e, n_bins, sub)
+    if wx.shape[0] == 0:
+        return dict(F_cs=np.nan, F_ej=np.nan, F_sw=np.nan, F_tot=np.nan)
+    prod = wx.mean(axis=0) * wy.mean(axis=0)
+    half = prod.size // 2
+    return dict(F_cs=float(prod.mean()), F_ej=float(prod[:half].sum() / prod.size),
+                F_sw=float(prod[half:].sum() / prod.size),
+                F_tot=float((wx * wy).mean(axis=0).mean()))
+
+
+@dataclass
+class TF2005Events:
+    """Thomas & Foken (2005) events of one record, with the Zhang et al. (2011) composites."""
+    durations: np.ndarray      # duration grid D, s
+    W: np.ndarray              # Morlet wavelet variance on the grid
+    D_e: float                 # characteristic duration, s (NaN: no clearly expressed maximum)
+    maxima: np.ndarray         # every clearly expressed maximum of W, s
+    r_Tw: float                # r between the filtered, normalised ts and w (TF05 eq. 9)
+    sign: int                  # crossing direction, -1 + to -, +1 - to +, 0 undetermined
+    times: np.ndarray          # crossing instants, s from the record start
+    used: np.ndarray           # mask of the events whose window fits the record
+    T_x: float                 # mean event separation, s (TF05 Table 3)
+    sigma_Tx: float            # standard deviation of the separation, s
+    f_tc: float                # time cover N D_e / L
+    length_s: float            # record length L at the block-averaged rate, s
+    comp: Dict[str, np.ndarray]          # series -> binned conditional average
+    eject: Dict[str, float]              # series -> mean composite over [-D_e, 0]
+    sweep: Dict[str, float]              # series -> mean composite over [0, D_e]
+    flux: Dict[str, Dict[str, float]]    # pair -> F_cs, F_ej, F_sw, F_tot
+
+    @property
+    def n(self) -> int:
+        return int(self.times.size)
+
+    @property
+    def mean_spacing(self) -> float:
+        return self.T_x
+
+
+def detect_tf2005(ts: np.ndarray, w: Optional[np.ndarray], fs: float,
+                  others: Optional[Dict[str, np.ndarray]] = None,
+                  pairs: Optional[Dict[str, Tuple[str, str]]] = None,
+                  durations: Optional[np.ndarray] = None, sign: Optional[int] = None,
+                  prominence: float = TF_PEAK_PROMINENCE) -> TF2005Events:
+    """Thomas & Foken (2005) detection, Zhang et al. (2011) conditional sampling and flux split.
+
+    Detection runs on the sonic temperature only and every series is sampled
+    on its event instants (Z11 p. 123: "We sampled all time series data based
+    on the moments of occurrence (ti) and De derived from temperature time
+    series data") [CITED]. Each series is block-averaged to 2 Hz, normalised
+    (mean removed and divided by the standard deviation; w divided only,
+    TF05 p. 97), zero-padded by |a_n supp_min| per end and BIOR5.5
+    low-passed (levels i >= 4). D_e is the first clearly expressed maximum of
+    the complex Morlet (omega0 = 5) wavelet variance over *durations*; the
+    events are the MEXH zero crossings at D_e in the direction of TF05
+    Table 2 from the sign of r(ts, w). r is computed on the normalised,
+    filtered 2 Hz series [ASSUMED which series]. The composited and flux
+    series are the normalised, filtered 2 Hz series [ASSUMED; TF05 Fig. 4
+    shows filtered series with the detected events], so the flux terms are in
+    units of sigma_x sigma_y of the unfiltered 2 Hz series.
+
+    The time cover f_tc = N D_e / L follows Barthlott et al. 2007 eq. 11
+    (summed structure durations over the record length) [CITED], each
+    structure's duration taken as D_e [DERIVED].
+
+    Parameters
+    ----------
+    ts : ndarray
+        Gap-free sonic temperature at *fs*.
+    w : ndarray or None
+        Vertical velocity at *fs*; required unless *sign* is given.
+    fs : float
+        Raw rate, hertz; an integer multiple of :data:`TF_FS_TARGET`.
+    others : dict of str to ndarray, optional
+        Further series to composite (e.g. ``u_pf``, ``rho_h2o``), keyed by
+        series name.
+    pairs : dict of str to (str, str), optional
+        Flux pairs over the series names ``ts``, ``w_pf`` and the keys of
+        *others*; defaults to ``{"wTs": ("w_pf", "ts")}``.
+    durations : ndarray, optional
+        Duration grid, seconds; defaults to :func:`tf_duration_grid`.
+    sign : {-1, +1}, optional
+        Crossing direction; by default :func:`tf_crossing_sign` of r(ts, w).
+    prominence : float, optional
+        Relative prominence threshold of :func:`tf_event_duration`.
+
+    Returns
+    -------
+    TF2005Events
+        Series that cannot be normalised (None, non-finite, zero variance)
+        return NaN composites and fluxes.
+    """
+    durations = tf_duration_grid() if durations is None else np.asarray(durations, float)
+    pad = tf_pad_width(TF_FS_TARGET, float(durations.max()))
+    raw = {"ts": ts, "w_pf": w, **(others or {})}
+    pairs = {"wTs": ("w_pf", "ts")} if pairs is None else dict(pairs)
+    filt: Dict[str, Optional[np.ndarray]] = {}
+    for name, x in raw.items():
+        z = None
+        if x is not None:
+            x2 = block_average(x, fs, TF_FS_TARGET) if fs != TF_FS_TARGET else np.asarray(x, float)
+            z = tf_normalise(x2, remove_mean=(name != "w_pf"))
+        filt[name] = None if z is None else bior_lowpass(np.pad(z, pad))
+    nan_flux = dict(F_cs=np.nan, F_ej=np.nan, F_sw=np.nan, F_tot=np.nan)
+    ev = TF2005Events(durations=durations, W=np.full(durations.size, np.nan), D_e=np.nan,
+                      maxima=np.array([]), r_Tw=np.nan, sign=0, times=np.array([]),
+                      used=np.array([], dtype=bool), T_x=np.nan, sigma_Tx=np.nan, f_tc=np.nan,
+                      length_s=np.nan, comp={k: np.full(TF_N_BINS, np.nan) for k in raw},
+                      eject={k: np.nan for k in raw}, sweep={k: np.nan for k in raw},
+                      flux={p: dict(nan_flux) for p in pairs})
+    if filt["ts"] is None:
+        return ev
+    trimmed = {k: None if v is None else v[pad:v.size - pad] for k, v in filt.items()}
+    n = trimmed["ts"].size
+    ev.length_s = n / TF_FS_TARGET
+    if trimmed["w_pf"] is not None:
+        ev.r_Tw = tf_correlation(trimmed["ts"], trimmed["w_pf"])
+    if sign is None:
+        if not np.isfinite(ev.r_Tw):
+            return ev
+        sign = tf_crossing_sign(ev.r_Tw)
+    ev.sign = int(sign)
+    ev.W = tf_wavelet_variance(filt["ts"], TF_FS_TARGET, durations, pad)
+    ev.D_e, ev.maxima = tf_event_duration(ev.W, durations, prominence)
+    if not np.isfinite(ev.D_e):
+        return ev
+    ev.times = tf_crossings(filt["ts"], TF_FS_TARGET, sign, ev.D_e, pad)
+    ev.used = (ev.times - ev.D_e >= 0.0) & (ev.times + ev.D_e <= (n - 1) / TF_FS_TARGET)
+    ev.T_x, ev.sigma_Tx = tf_spacing_stats(ev.times)
+    ev.f_tc = ev.times.size * ev.D_e / ev.length_s
+    if not ev.used.any():
+        return ev
+    t_used = ev.times[ev.used]
+    for k, x in trimmed.items():
+        if x is None:
+            continue
+        binned, fine, _ = tf_conditional_average(x, TF_FS_TARGET, t_used, ev.D_e)
+        half = fine.size // 2
+        ev.comp[k] = binned
+        ev.eject[k] = float(fine[:half].mean())
+        ev.sweep[k] = float(fine[half:].mean())
+    for p, (a, b) in pairs.items():
+        if trimmed.get(a) is not None and trimmed.get(b) is not None:
+            ev.flux[p] = tf_flux_split(trimmed[a], trimmed[b], TF_FS_TARGET, t_used, ev.D_e)
+    return ev
 
 
 def _ancillary(hf: HFFile, name: str, nr: int, nh: int) -> np.ndarray:

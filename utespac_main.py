@@ -85,7 +85,11 @@ def _summary(config, site, dates):
 def main(argv=None):
     ap = argparse.ArgumentParser(description="UTESpac processing pipeline")
     ap.add_argument("--root", default=os.path.join(REPO_ROOT, "data"),
-                    help="folder with one sub-folder per site (default: <repo>/data)")
+                    help="configuration root: one sub-folder per site with its "
+                         "siteInfo.toml and PFinfo.json (default: <repo>/data)")
+    ap.add_argument("--data-root", default=os.environ.get("UTESPAC_DATA_ROOT"),
+                    help="data root: <site>/utespac input files and <site>/output "
+                         "products (default: $UTESPAC_DATA_ROOT, else --root)")
     ap.add_argument("--site", help="site folder name; prompted when omitted")
     ap.add_argument("--dates", help="'all', or rows like '1 3 4:7'; prompted when omitted")
     ap.add_argument("--pf", choices=["global", "local"], help="planar-fit mode (default: pf.toml)")
@@ -101,7 +105,7 @@ def main(argv=None):
     logging.basicConfig(level=logging.WARNING if args.quiet else logging.INFO,
                         format="%(message)s", stream=sys.stdout)
 
-    overrides = {"rootFolder": args.root}
+    overrides = {"rootFolder": args.root, "dataFolder": args.data_root}
     if args.avg_per is not None:
         overrides["avgPer"] = args.avg_per
     pf_over = {}

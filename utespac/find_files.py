@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 from .import_header import import_header, import_units
 from .campbell_date import datetime_to_matlab_datenum
-from .site_config import (load_site_info, list_sites, resolve_site_dir,
+from .site_config import (data_root, load_site_info, list_sites, resolve_site_dir,
                           site_input_dir)
 from datetime import datetime
 
@@ -22,9 +22,15 @@ def find_files(
     Parameters
     ----------
     info : dict
-        Must contain ``info['rootFolder']``.
+        Must contain ``info['rootFolder']``, the configuration root: the site
+        is discovered there and its ``siteInfo.*`` read from
+        ``<rootFolder>/<siteFolder>``. ``info['dataFolder']``, the data root,
+        holds the header and data files in ``<dataFolder>/<siteFolder>``
+        (its ``utespac/`` sub-folder when present); it defaults to
+        ``rootFolder`` and is written back into *info*.
     site : str
-        Site folder name (``'MySite'``) or bare legacy id; required.
+        Site folder name (``'MySite'``) or bare legacy id under
+        ``rootFolder``; required.
     dates : None, int, list, or ``'all'``
         Which date rows to process (1-based indices).  ``None`` / ``'all'``
         uses all available dates.  An integer selects that single date.  A
@@ -35,7 +41,7 @@ def find_files(
     headers_cell : list of [names, heights, units]
     data_files   : list of lists, shape [n_dates × n_tables], full paths
     table_names  : list of str
-    info         : dict (updated with siteFolder and date)
+    info         : dict (updated with siteFolder, dataFolder and the site facts)
     """
     root = info["rootFolder"]
 
@@ -50,6 +56,7 @@ def find_files(
     site_dir = resolve_site_dir(root, site)
 
     info["siteFolder"] = site_dir
+    info["dataFolder"] = data_root(info)
     site_path = os.path.join(root, site_dir)
 
     # ── load site configuration ─────────────────────────────────────────────
@@ -60,7 +67,7 @@ def find_files(
                       "using defaults from info dict.")
 
     # ── find header files ───────────────────────────────────────────────────
-    input_path = str(site_input_dir(site_path))
+    input_path = str(site_input_dir(os.path.join(info["dataFolder"], site_dir)))
     header_files = sorted(glob.glob(os.path.join(input_path, "*header*")))
     if not header_files:
         raise FileNotFoundError(f"No header files found in {input_path}")

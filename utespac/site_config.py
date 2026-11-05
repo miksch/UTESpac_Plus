@@ -23,10 +23,23 @@ _UNSET = None
 
 @dataclass
 class SonicLevel:
-    """One sonic anemometer on the tower profile."""
+    """One sonic anemometer on the tower profile.
+
+    ``orientation`` [deg, clockwise from north] is the bearing a pure +u
+    wind blows from: the azimuth of the sonic -x axis, in the Campbell
+    axis convention that :func:`utespac.wind_stats.sonic_axes` applies
+    first. :func:`utespac.wind_stats.wind_direction_speed` adds it to
+    ``atan2(-v, u)``, so a sample with ``u > 0, v = 0`` gets the
+    direction ``orientation``. It equals the boom azimuth only on an
+    install whose sonic -x axis points out along the boom. From an IMU
+    heading, the compass azimuth of the platform +x axis (the sonic +x
+    axis, after the ``IMUInfo`` sign lists), it is
+    ``(heading + 180) % 360``; entering the heading itself puts every
+    wind direction 180 deg out.
+    """
 
     height: float                          # sonic height [m], matches header height
-    orientation: float                     # boom azimuth [deg]
+    orientation: float                     # azimuth of the sonic -x axis [deg]; see class docstring
     manufacturer: int                      # 0 RMYoung, 1 CSAT/IRGASON, 2 Gill
     hmp_height: Optional[float] = None      # paired physical HMP height [m], if any
     leverArm: Optional[list] = None         # [m] sonic head rel. to the IMU (x, y, z),
@@ -40,7 +53,14 @@ class IMUInfo:
     lists map the IMU hardware axes into the sonic's right-handed z-up
     platform frame, and the mount angles rotate a residual IMU-to-platform
     mounting offset out (applied exactly to accel/gyro vectors and to the
-    vendor attitude via its rotation matrix)."""
+    vendor attitude via its rotation matrix).
+
+    The accelerometer signs flip axes; the gyro and Euler signs also carry
+    the handedness. A y-right MEMS IMU (x forward, y right, z up: a
+    left-handed triad) takes ``accelSigns = [1, -1, 1]`` but ``gyroSigns = attitudeSigns =
+    [-1, 1, -1]``: reversing the handedness negates every rotation sense,
+    on top of the y-axis flip. Copying ``accelSigns`` into ``gyroSigns``
+    inverts the angular correction."""
 
     leverArm: list                          # [m] sonic head rel. to IMU (x, y, z), platform frame
     accelUnits: str = "m/s2"                # "m/s2" | "g"
@@ -212,6 +232,17 @@ def resolve_site_dir(root, site) -> str:
         return matches[0]
     raise FileNotFoundError(f"No site folder {site!r} under {root}; "
                             f"available: {', '.join(available) or 'none'}")
+
+
+def data_root(info) -> str:
+    """Data root of a legacy ``info`` dict.
+
+    ``info["dataFolder"]`` when set, else ``info["rootFolder"]`` (the
+    configuration root), so an ``info`` built before the data root existed
+    resolves the nested layout as before.
+    """
+    folder = info.get("dataFolder")
+    return info["rootFolder"] if folder is None else folder
 
 
 def site_input_dir(site_path) -> Path:

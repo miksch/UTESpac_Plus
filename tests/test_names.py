@@ -72,7 +72,9 @@ def test_symbol_whitelist():
 
 def test_new_columns_present():
     new = {v.name for g, v in _all_vars() if v.legacy_key is None}
-    assert new == {"H_raw", "H_pf", "H_buoyancy_pf", "ustar_pf", "w_h2o_wpl_cov_pf"}
+    assert new == {"H_raw", "H_pf", "H_buoyancy_pf", "ustar_pf", "w_h2o_wpl_cov_pf",
+                   "v_theta_v_cov_pf", "v_h2o_cov_pf", "v_h2o_wpl_cov_pf",
+                   "v_co2_cov_pf", "v_co2_wpl_cov_pf"}
 
 
 def test_csv_header():

@@ -237,10 +237,15 @@ VARIABLES: Dict[str, List[Var]] = {
     ],
     "scalar_flux_lateral": [
         _v("u_theta_v_cov_pf", _KMS, "covariance u'theta_v', planar fit + yaw", "uPF_thv", "{hn}m :uPF'theta_v'"),
+        _v("v_theta_v_cov_pf", _KMS, "covariance v'theta_v', planar fit + yaw"),
         _v("u_h2o_cov_pf", "g m-2 s-1", "covariance u'h2o', planar fit + yaw", "uPF_H2O", "{hn}m :uPF'H2O'"),
+        _v("v_h2o_cov_pf", "g m-2 s-1", "covariance v'h2o', planar fit + yaw"),
         _v("u_h2o_wpl_cov_pf", "g m-2 s-1", "covariance u'h2o_wpl', planar fit + yaw", "uPF_H2O_WPL", "{hn}m :uPF'H2O_WPL'"),
+        _v("v_h2o_wpl_cov_pf", "g m-2 s-1", "covariance v'h2o_wpl', planar fit + yaw"),
         _v("u_co2_cov_pf", "kg m-2 s-1", "covariance u'co2', planar fit + yaw", "uPF_CO2", "{hn}m :uPF'CO2'"),
+        _v("v_co2_cov_pf", "kg m-2 s-1", "covariance v'co2', planar fit + yaw"),
         _v("u_co2_wpl_cov_pf", "kg m-2 s-1", "covariance u'co2_wpl', planar fit + yaw", "uPF_CO2_WPL", "{hn}m :uPF'CO2_WPL'"),
+        _v("v_co2_wpl_cov_pf", "kg m-2 s-1", "covariance v'co2_wpl', planar fit + yaw"),
     ],
     "latent_heat": [
         _v("Lv", "J g-1", "latent heat of vaporisation at the reference temperature", "Lv", "{hn}m Lv(J/g)"),
@@ -266,7 +271,7 @@ VARIABLES: Dict[str, List[Var]] = {
     "co2_flux": [
         _v("w_co2_cov_raw", "kg m-2 s-1", "covariance w'rho_c' (CO2 mass flux), unrotated sonic axes", "Fc_w", "{hn}m w':CO2(kg/m^2s)"),
         _v("w_co2_cov_pf", "kg m-2 s-1", "covariance w'rho_c' (CO2 mass flux), planar fit + yaw", "Fc_wPF", "{hn}m wPF':CO2(kg/m^2s)"),
-        _v("Fc_wpl_pf", "mol m-2 s-1", "CO2 flux with the WPL correction, planar fit + yaw", "Fc_WPL", "{hn}m WPL,wPF':CO2(mol/m^2s)"),
+        _v("Fc_wpl_pf", "kg m-2 s-1", "CO2 flux with the WPL correction, planar fit + yaw", "Fc_WPL", "{hn}m WPL,wPF':CO2(kg/m^2s)"),
         _v("w_co2_wpl_cov_pf", "kg m-2 s-1", "covariance w'rho_c' with the WPL density term, planar fit + yaw", "wPF_CO2WPL", "{hn}m: wPF'CO2_WPL'(m/s kg/m^3)"),
         _v("co2_mole_fraction", "umol mol-1", "CO2 mole fraction in moist air", "ppm", "{hn}m: CO2 (ppm, moist-air molar ratio)"),
     ],

@@ -5,7 +5,7 @@
 # overrides this packaged file, and RunConfig.from_config(**kw) overrides
 # both for one call. Keys omitted fall back to the dataclass. rootFolder
 # (machine-specific) is deliberately absent: pass it to from_config or
-# RunConfig(...).
+# RunConfig(...). dataFolder (data root, defaults to rootFolder) likewise.
 #
 # Site facts (sonics, heights, bearings, slope geometry, elevation,
 # latitude, table names and scan rates) live in <site>/siteInfo.toml, not

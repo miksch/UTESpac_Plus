@@ -14,12 +14,12 @@ Q_REF = 10.0              # [g/kg] siteInfo qRef fallback
 
 
 def _run(columns):
-    """A one-table Run at 2.5 m; no P/RH/H2O sensors, so q_ref = qRef."""
+    """A one-table Run at 2.5 m; no RH/H2O sensors, so q_ref = qRef."""
     t64 = to_datetime64(T0_DATENUM + np.arange(N) / N)
     ds = xr.Dataset({name: (TIME_HF, series) for name, series in columns.items()},
                     coords={TIME_HF: t64})
     sensors = Sensors()
-    field = {"Ux": "u", "Ts": "Tson", "AirT": "T"}
+    field = {"Ux": "u", "Ts": "Tson", "AirT": "T", "P": "P"}
     for name in columns:
         sensors.append(Sensor(field[name], "X_20Hz", name, 2.5, 0.0, 1))
     labels = ["TIMESTAMP"] + list(columns)
@@ -42,3 +42,17 @@ def test_slow_response_tref_is_uncorrected():
                 "AirT": np.full(N, 25.0)})
     ref = reference_state(run)
     assert np.allclose(ref.T_K, 298.15)
+
+
+def test_barometer_gaps_take_the_reference_pressure():
+    P = np.full(N, 101.0)
+    gap_periods = [3, 10, 47]
+    for k in gap_periods:
+        P[k * 30:(k + 1) * 30] = np.nan
+    run = _run({"Ux": np.full(N, 2.0), "Ts": np.full(N, 25.0), "P": P})
+    ref = reference_state(run)
+    assert not np.isnan(ref.P_kPa).any()
+    gaps = np.zeros(ref.n, dtype=bool)
+    gaps[gap_periods] = True
+    assert np.allclose(ref.P_kPa[gaps], ref.P_ref_kPa)
+    assert np.allclose(ref.P_kPa[~gaps], 101.0)
