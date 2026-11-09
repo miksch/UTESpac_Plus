@@ -192,6 +192,51 @@ def test_csv_is_written_with_the_base_format(tmp_path):
     assert back["TIMESTAMP_START"].iloc[0] == "202406030000"
 
 
+def _split_layout(tmp_path):
+    """Configuration and data roots, each with a run file of the same name;
+    the configuration-root copy is a decoy with a 90 kPa pressure."""
+    config_root, data_root = tmp_path / "config", tmp_path / "data"
+    (config_root / "X" / "output").mkdir(parents=True)
+    (config_root / "X" / "siteInfo.toml").write_text("tower = 180\n")
+    (data_root / "X" / "output").mkdir(parents=True)
+    name = "X_30minAvg_GPF_ConstDet_2024_06_03.nc"
+    write_run(_run(), data_root / "X" / "output" / name)
+    decoy = _run()
+    decoy.periods["X_30min"]["Pressure_10.85"] = (M.TIME, [90.0, 90.0, 90.0, 90.0])
+    write_run(decoy, config_root / "X" / "output" / name)
+    return config_root, data_root
+
+
+def test_split_layout_reads_the_data_root(tmp_path):
+    """Site resolved under the configuration root, run files read from the
+    data root; a decoy run file under the configuration root is ignored."""
+    config_root, data_root = _split_layout(tmp_path)
+    site = ga.read_site(config_root, "X", 30, "GPF_ConstDet", data_root=data_root)
+    df = ga.ameriflux_frame(site)
+    assert np.allclose(df["PA_1_1_1"].values, [101.1, 101.2, 101.3, 101.4])
+    with pytest.raises(FileNotFoundError, match=re.escape(str(data_root))):
+        ga.read_site(config_root, "X", 30, "LPF_LinDet", data_root=data_root)
+
+
+def test_main_passes_the_data_root(tmp_path):
+    """The command line reads the run files under ``--data-root``, not the
+    decoy under ``--root``."""
+    config_root, data_root = _split_layout(tmp_path)
+    path = ga.main(["--root", str(config_root), "--data-root", str(data_root),
+                    "--site", "X", "--out-dir", str(tmp_path / "out")])
+    back = pd.read_csv(path)
+    assert np.allclose(back["PA_1_1_1"].values, [101.1, 101.2, 101.3, 101.4])
+
+
+@pytest.mark.parametrize("env, expected", [("/srv/site-data", "/srv/site-data"), (None, None)])
+def test_data_root_defaults_to_the_environment(monkeypatch, env, expected):
+    if env is None:
+        monkeypatch.delenv("UTESPAC_DATA_ROOT", raising=False)
+    else:
+        monkeypatch.setenv("UTESPAC_DATA_ROOT", env)
+    assert ga.parse_args(["--site", "X"]).data_root == expected
+
+
 def test_missing_run_files_raise(tmp_path):
     (tmp_path / "X").mkdir()
     (tmp_path / "X" / "siteInfo.toml").write_text("tower = 180\n")

@@ -62,6 +62,74 @@ def ogive(f: np.ndarray, Co: np.ndarray) -> np.ndarray:
     return np.cumsum(np.real(Co)[::-1] * df)[::-1]
 
 
+def ogive_convergence(f: np.ndarray, Og: np.ndarray, f_avg: float,
+                      tol: float = 0.1, abs_floor: Optional[float] = None
+                      ) -> Tuple[float, bool, bool]:
+    """Averaging-interval adequacy from the ogive: Og(f_avg) / Og(f_min).
+
+    The ratio [HOUSE] compares the ogive at the averaging-period frequency
+    ``f_avg = 1/T_avg`` with its value at the lowest frequency of the
+    record (the record covariance), i.e. the fraction of the record
+    covariance
+    carried by periods shorter than ``T_avg``. The averaging interval is
+    adequate ("converged") when ``|1 - ratio| <= tol``.
+
+    Parameters
+    ----------
+    f : ndarray
+        1-D, non-empty, strictly ascending frequency axis of *Og* [Hz].
+    Og : ndarray
+        1-D ogive on *f*, same shape as *f*, as returned by :func:`ogive`
+        (Nyquist end down to f); the real part is used.
+    f_avg : float
+        Averaging-period frequency [Hz], within ``[f[0], f[-1]]``.
+    tol : float
+        Relative tolerance on the ratio [ASSUMED].
+    abs_floor : float, optional
+        Absolute floor on ``|Og(f_min)|`` [ASSUMED], in the units of *Og*.
+        Below it, or when ``Og(f_min)`` is zero or non-finite, the verdict
+        is undetermined: a relative criterion is unusable near zero flux.
+        None applies no floor.
+
+    Returns
+    -------
+    ratio : float
+        Og(f_avg) / Og(f_min); NaN when undetermined.
+    converged : bool
+        ``|1 - ratio| <= tol``; False when undetermined.
+    undetermined : bool
+        True when the low-frequency ogive is below *abs_floor*, zero or
+        non-finite, or when the ogive interpolated at *f_avg* is
+        non-finite.
+
+    Raises
+    ------
+    ValueError
+        If *f* is not a non-empty, strictly ascending 1-D axis (a NaN
+        line counts as not ascending), *Og* does not match its shape, or
+        *f_avg* lies outside it.
+    """
+    f = np.asarray(f, dtype=float)
+    Og = np.real(np.asarray(Og))
+    if (f.ndim != 1 or f.size == 0 or Og.shape != f.shape
+            or not np.all(np.diff(f) > 0)):
+        raise ValueError(
+            f"ogive frequency axis f (shape {f.shape}) is not a non-empty, "
+            f"strictly ascending 1-D axis matching Og (shape {Og.shape})")
+    if not f[0] <= f_avg <= f[-1]:
+        raise ValueError(f"f_avg {f_avg!r} Hz outside the ogive frequency "
+                         f"axis [{float(f[0])!r}, {float(f[-1])!r}]")
+    og_low = float(Og[0])
+    if (not np.isfinite(og_low) or og_low == 0.0
+            or (abs_floor is not None and abs(og_low) < abs_floor)):
+        return np.nan, False, True
+    og_avg = float(np.interp(f_avg, f, Og))
+    if not np.isfinite(og_avg):
+        return np.nan, False, True
+    ratio = og_avg / og_low
+    return ratio, bool(abs(1.0 - ratio) <= tol), False
+
+
 def log_bins(f: np.ndarray, n_per_decade: int = 10) -> np.ndarray:
     """Log-spaced bin edges over the positive lines of the uniform grid *f*, snapped to the
     half-line points (k + 1/2) df so every bin holds >= 1 line and has width n_b df; the

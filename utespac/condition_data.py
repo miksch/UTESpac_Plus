@@ -1,11 +1,30 @@
 """QC of the raw high-frequency tables (Vickers & Mahrt 1997 style).
 
-:func:`qc_table` is the per-table kernel (absolute limits, iterative
-spike removal with consecutive-flag filtering, per-period spike/NaN
-fractions); :func:`utespac.stages.condition` runs it over the run model.
+:func:`qc_table` is the per-table kernel (absolute limits, spike removal
+with consecutive-flag filtering, per-period spike/NaN fractions);
+:func:`utespac.stages.condition` runs it over the run model. The spike
+test is either the iterative mean/standard-deviation test of UTESpac
+(``spikeTest.method = "sigma"``, the default) or the median absolute
+deviation (MAD) test of Mauder et al. (2013) (``"mad"``).
+:func:`skew_kurt_flag` is the higher-moment test of Vickers and Mahrt
+(1997), section 6e, as a per-period flag.
+
+Both sources were written for other systems than the one at hand.
+Mauder et al. (2013, Agric. For. Meteorol. 169, 122-135) built the MAD
+test for the long-term tower eddy-covariance sites of the TERENO network
+over land: "In TERENO Campbell CSAT3 sonic anemometers, Licor LI-7500
+open-path gas analysers and LI-7000 closed-path gas analysers are
+deployed" (p. 124). Vickers and Mahrt (1997, J. Atmos. Oceanic Technol.
+14, 512-526) set their limits on "the RASEX tower data collected off the
+coast of Denmark", "the Microfronts95 tower data collected over grass
+land during the springtime in Kansas" and "the BOREAS TwinOtter aircraft
+data collected over the Boreal forest region of Canada" (section 1,
+p. 513).
 """
 
 from typing import Dict, Optional, Sequence, Tuple
+import warnings
+
 import numpy as np
 from scipy.interpolate import interp1d
 
@@ -23,6 +42,26 @@ LIMIT_QUANTITY = {
     "irgaH2O": "h2o_density", "KH2O": "h2o_density", "irgaCO2": "co2_density",
 }
 
+#: Values of ``spikeTest.method``.
+SPIKE_METHODS = ("sigma", "mad")
+
+#: [CITED] Divisor that scales the MAD to a standard deviation, Mauder et
+#: al. (2013), Eq. (1), section 3.1, p. 124: "The factor of 0.6745 relates
+#: an MAD of unity to one arithmetic standard deviation if the frequency
+#: distribution is Gaussian, which in reality is not always the case."
+MAD_GAUSS = 0.6745
+
+#: [CITED] Skewness and kurtosis ranges of Vickers and Mahrt (1997),
+#: section 6e, p. 521: "The record is hard flagged when the skewness is
+#: outside the range (-2, 2) or the kurtosis is outside the range (1, 8).
+#: [...] The record is soft flagged when the skewness is outside the range
+#: (-1, 1) or the kurtosis is outside (2, 5)." The paper adds "These limits
+#: are empirically based on the datasets considered here."
+SKEW_SOFT = (-1.0, 1.0)
+KURT_SOFT = (2.0, 5.0)
+SKEW_HARD = (-2.0, 2.0)
+KURT_HARD = (1.0, 8.0)
+
 
 def qc_table(tbl: np.ndarray, header_names: Sequence[str], info: Dict, template: Dict[str, str],
              scan_hz: float, header_units: Optional[Sequence[str]] = None
@@ -37,7 +76,8 @@ def qc_table(tbl: np.ndarray, header_names: Sequence[str], info: Dict, template:
         Column labels, aligned with the columns of *tbl*.
     info : dict
         Site and QC settings (``spikeTest``, ``absoluteLimitsTest``,
-        ``nanTest``, ``avgPer``).
+        ``nanTest``, ``avgPer``). ``spikeTest.method`` selects the spike
+        statistic (see Notes); absent, it is "sigma".
     template : dict
         Sensor class -> column-label pattern.
     scan_hz : float
@@ -58,7 +98,50 @@ def qc_table(tbl: np.ndarray, header_names: Sequence[str], info: Dict, template:
         Per-period flags ``(n_periods, n_cols)``, True where the period's
         spike (NaN) fraction reaches ``spikeTest.maxPercent``
         (``nanTest.maxPercent``); column 0 is always False.
+
+    Raises
+    ------
+    ValueError
+        If ``spikeTest.method`` is not one of :data:`SPIKE_METHODS`.
+
+    Notes
+    -----
+    The record is cut into windows of ``avgPer * windowSizeFraction``
+    minutes, overlapping by half. Within each window a sample is a
+    potential spike when
+
+    - ``"sigma"``: ``|x - mean| >= spikeDef * std``, with the per-class
+      ``spikeDef``; the pass repeats up to ``maxRuns`` times over the
+      interpolated record;
+    - ``"mad"``: ``|x - median| > q * MAD / 0.6745`` with
+      ``MAD = median(|x - median|)`` and ``q = madThreshold`` for every
+      spike-tested column, Mauder et al. (2013), section 3.1, p. 124
+      [CITED]: "a data point xi is flagged as a spike if it is not in the
+      range:", their Eq. (1) (transcribed)
+      ``<x> - q MAD/0.6745 <= xi <= <x> + q MAD/0.6745``, "where <x>
+      denotes the median of x", with Eq. (2) ``MAD = <|xi - <x>|>``.
+      One pass only [CITED], as the MAD test "also avoids the high
+      computational cost of the iteration" (same page). A window whose
+      MAD is zero flags nothing [ASSUMED]; Eq. (1) read literally then
+      flags every sample off the median. The two tests part there: a
+      +20 spike on a constant series, or on one with 90% of its samples
+      at the median, is kept under ``"mad"`` and removed under
+      ``"sigma"``, whose standard deviation the spike itself raises
+      above zero.
+
+    Both methods then drop runs longer than ``maxConsecutiveOutliers``
+    and interpolate the remaining spikes linearly. The consecutive-run
+    filter and the half-overlapping windows are UTESpac's [HOUSE], not part of
+    Mauder et al. (2013), who computed their results "using 30-min
+    windows" (p. 125). Interpolating over rejected points is this
+    package's behaviour [HOUSE]; in Mauder et al. (2013) rejected points
+    "were not interpolated in the time series in any form but replaced
+    by an error code (e.g. NaN)" (p. 125).
     """
+    method = info["spikeTest"].get("method", "sigma")
+    if method not in SPIKE_METHODS:
+        raise ValueError(f"unknown spikeTest.method {method!r}; "
+                         f"expected one of {SPIKE_METHODS}")
     spike_def_cfg = info["spikeTest"]["spikeDef"]
     abs_lim_cfg = info["absoluteLimitsTest"]
     n_rows, n_cols = tbl.shape
@@ -115,8 +198,10 @@ def qc_table(tbl: np.ndarray, header_names: Sequence[str], info: Dict, template:
         bp = np.round(np.linspace(0, n_rows, num_bins)).astype(int)
 
         no_spike_flag = np.zeros(len(bp) - 1, dtype=bool)
+        n_runs = info["spikeTest"]["maxRuns"] if method == "sigma" else 1
+        tested = ~np.isnan(spike_def)
 
-        for _run in range(info["spikeTest"]["maxRuns"]):
+        for _run in range(n_runs):
             if no_spike_flag[:-1].all():
                 break
             for k in range(len(bp) - 2):
@@ -126,15 +211,27 @@ def qc_table(tbl: np.ndarray, header_names: Sequence[str], info: Dict, template:
                 local = tbl[r0:r1, :].copy()
                 local_nan = nan_flag[r0:r1, :]
 
-                stds = np.nanstd(local, axis=0)
-                means = np.nanmean(local, axis=0)
-                with np.errstate(invalid="ignore"):
-                    normed = np.abs((local - means) / np.where(stds == 0, np.nan, stds))
-
                 pot_spikes = np.zeros_like(local, dtype=bool)
-                for c in range(n_cols):
-                    if not np.isnan(spike_def[c]):
-                        pot_spikes[:, c] = normed[:, c] >= spike_def[c]
+                if method == "sigma":
+                    stds = np.nanstd(local, axis=0)
+                    means = np.nanmean(local, axis=0)
+                    with np.errstate(invalid="ignore"):
+                        normed = np.abs((local - means)
+                                        / np.where(stds == 0, np.nan, stds))
+                    for c in range(n_cols):
+                        if not np.isnan(spike_def[c]):
+                            pot_spikes[:, c] = normed[:, c] >= spike_def[c]
+                else:
+                    sub = local[:, tested]
+                    with warnings.catch_warnings():
+                        # all-NaN columns
+                        warnings.simplefilter("ignore", RuntimeWarning)
+                        med = np.nanmedian(sub, axis=0)
+                        mad = np.nanmedian(np.abs(sub - med), axis=0)
+                    lim = info["spikeTest"]["madThreshold"] * mad / MAD_GAUSS
+                    with np.errstate(invalid="ignore"):
+                        pot_spikes[:, tested] = ((np.abs(sub - med) > lim)
+                                                 & (lim > 0))
 
                 local_spikes = consec_flag_removal(
                     pot_spikes, info["spikeTest"]["maxConsecutiveOutliers"]
@@ -170,4 +267,60 @@ def qc_table(tbl: np.ndarray, header_names: Sequence[str], info: Dict, template:
     mean_nan = np.column_stack([np.zeros(mean_nan.shape[0]), mean_nan])
     mean_nan[mean_nan < info["nanTest"]["maxPercent"] / 100.0] = 0
     return tbl, mean_spike.astype(bool), mean_nan.astype(bool)
+
+
+def skew_kurt_flag(x, skew_lim=SKEW_SOFT, kurt_lim=KURT_SOFT):
+    """Higher-moment flag of one averaging period (Vickers and Mahrt 1997).
+
+    Parameters
+    ----------
+    x : array_like
+        One averaging period of a series [ASSUMED] (see Notes);
+        non-finite samples are dropped.
+    skew_lim, kurt_lim : tuple of float
+        Open ranges ``(lo, hi)`` of the skewness and the kurtosis; the
+        defaults are the soft-flag ranges :data:`SKEW_SOFT` and
+        :data:`KURT_SOFT`, :data:`SKEW_HARD` and :data:`KURT_HARD` the
+        hard-flag ones.
+
+    Returns
+    -------
+    bool
+        True when the skewness or the kurtosis of the linearly detrended
+        period lies outside its range. False with fewer than three finite
+        samples or a residual variance not above machine epsilon times
+        the mean square (std below 1.5e-8 of the rms) [ASSUMED].
+
+    Notes
+    -----
+    Section 6e, pp. 520-521 [CITED]: "Any linear trend in the series is
+    removed prior to computing the higher moment statistics" and "The
+    skewness and kurtosis of the fields are computed for the entire
+    record." The record of the paper is 1 h: "Our analysis considers
+    1-h data records" (sections 2 and 3, p. 513), flags being assigned
+    "to the entire data record (typically 1 h or 10 km)" (section 1,
+    p. 513). Applying the test to one averaging period of this package
+    instead is [ASSUMED]. The paper gives no formula. The kurtosis is
+    the non-excess fourth standardized moment, 3 for a Gaussian
+    [ASSUMED]: both its ranges, (1, 8) and (2, 5), bracket 3. The
+    moments are the biased (1/N) estimators [ASSUMED]. A value equal to
+    a bound counts as outside, reading the ranges as open intervals
+    [ASSUMED].
+    """
+    x = np.asarray(x, dtype=float)
+    ok = np.isfinite(x)
+    if ok.sum() < 3:
+        return False
+    t = np.arange(x.size, dtype=float)[ok]
+    y = x[ok]
+    resid = y - np.polyval(np.polyfit(t, y, 1), t)
+    var = np.mean(resid ** 2)
+    # round-off of a linear series
+    if var <= np.finfo(float).eps * np.mean(y ** 2):
+        return False
+    skew = np.mean(resid ** 3) / var ** 1.5
+    kurt = np.mean(resid ** 4) / var ** 2
+    in_skew = skew_lim[0] < skew < skew_lim[1]
+    in_kurt = kurt_lim[0] < kurt < kurt_lim[1]
+    return not (in_skew and in_kurt)
 

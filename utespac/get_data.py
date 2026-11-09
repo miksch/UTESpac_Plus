@@ -252,12 +252,14 @@ def get_data(
 
 
 def get_frames(root_folder: str, site=None, avg_per: int = None, qualifier: str = None,
-               rows=None, fmt: str = "nc") -> Dict:
+               rows=None, fmt: str = "nc", data_folder: Optional[str] = None) -> Dict:
     """:func:`get_data` as pandas DataFrames (``DatetimeIndex`` named ``time``,
-    header labels as columns); see :func:`utespac.labeled.to_frames`."""
+    header labels as columns); see :func:`utespac.labeled.to_frames`.
+    *data_folder* is the data root, as in :func:`get_data`."""
     from .labeled import to_frames
     return to_frames(get_data(root_folder, site=site, avg_per=avg_per,
-                              qualifier=qualifier, rows=rows, fmt=fmt))
+                              qualifier=qualifier, rows=rows, fmt=fmt,
+                              data_folder=data_folder))
 
 
 def _read_nc_as_legacy(path: str) -> Dict:

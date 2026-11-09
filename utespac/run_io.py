@@ -266,12 +266,32 @@ def read_run_legacy(path) -> Dict:
     return out
 
 
-def run_files(root, site: str, avg_per: Optional[int] = None, qualifier: Optional[str] = None
-              ) -> List[str]:
+def run_files(root, site: str, avg_per: Optional[int] = None, qualifier: Optional[str] = None,
+              *, data_root=None) -> List[str]:
     """The site's run files (``utespac-run-3`` or ``-2``), sorted (the pickles' name
-    pattern)."""
+    pattern).
+
+    Parameters
+    ----------
+    root : str or path-like
+        Configuration root; the site is resolved against it.
+    site : str
+        Site folder name or the flattened id a product carries.
+    avg_per : int, optional
+        Averaging period in minutes the file names must carry.
+    qualifier : str, optional
+        Substring the file names must carry after the period (e.g. ``"LPF"``).
+    data_root : str or path-like, optional
+        Data root holding ``<site>/output``; ``None`` looks under *root*.
+
+    Returns
+    -------
+    list of str
+        Paths of the readable run files.
+    """
     from .site_config import resolve_site_dir
-    out_dir = os.path.join(root, resolve_site_dir(root, site), "output")
+    base = root if data_root is None else data_root
+    out_dir = os.path.join(base, resolve_site_dir(root, site), "output")
     parts = ["*"]
     if avg_per is not None:
         parts.append(f"_{avg_per}")
@@ -284,12 +304,18 @@ def run_files(root, site: str, avg_per: Optional[int] = None, qualifier: Optiona
 
 
 def load_products(root, site: str, avg_per: Optional[int] = None, qualifier: Optional[str] = None,
-                  names: Optional[Sequence[str]] = None) -> Dict[str, xr.Dataset]:
+                  names: Optional[Sequence[str]] = None, *, data_root=None
+                  ) -> Dict[str, xr.Dataset]:
     """The products of every run file of *site* concatenated along ``time``
-    (``join="outer"``: a date missing a variable or a height contributes NaN)."""
-    files = run_files(root, site, avg_per, qualifier)
+    (``join="outer"``: a date missing a variable or a height contributes NaN).
+
+    *root*, *site*, *avg_per*, *qualifier* and *data_root* select the files as
+    in :func:`run_files`; *names* keeps only those products.
+    """
+    files = run_files(root, site, avg_per, qualifier, data_root=data_root)
     if not files:
-        raise FileNotFoundError(f"no {FORMAT} files for {site!r} under {root}")
+        base = root if data_root is None else data_root
+        raise FileNotFoundError(f"no {FORMAT} files for {site!r} under {base}")
     per_name: Dict[str, List[xr.Dataset]] = {}
     for f in files:
         with _open_file(f) as nc:

@@ -1,13 +1,22 @@
 """utespac.flux.engine.compute_period on a synthetic level: flag masking,
 Schotanus vs. legacy temperature flux, WPL driver, table keys."""
 
+import re
+
 import numpy as np
 import pytest
+import xarray as xr
 
+from utespac import names, stages
+from utespac.flux import engine
 from utespac.flux.engine import FluxOptions, compute_period
 from utespac.flux.levels import LevelInputs
 from utespac.flux.reference import ReferenceState
+from utespac.flux.spectral_correction import massman2000_factor
 from utespac.flux.tables import TABLE_SPECS
+from utespac.model import (COMPONENT, HEIGHT, TIME_HF, Run, Sensor, Sensors,
+                           to_datetime64)
+from utespac.run_config import FluxConfig
 
 N_PER = 2
 N_SAMP = 1800
@@ -197,6 +206,131 @@ def test_wpl_co2_flux_is_the_covariance_plus_the_two_wpl_terms():
     assert names.variable("co2_flux", "Fc_wpl_pf").units == "kg m-2 s-1"
 
 
+def _delayed_level(lag, smooth=1):
+    """A level whose gases and fine wire lag w_pf by *lag* samples (20 Hz)."""
+    lev = _level()
+    rng = np.random.default_rng(21)
+    n = N_SAMP * N_PER
+    # w_pf a *smooth*-sample running mean; the unrotated w leads it by two
+    lev.w_pf = np.convolve(lev.w_pf, np.ones(smooth) / smooth, mode="same")
+    lev.w = np.roll(lev.w_pf, 2)
+    lev.h2o[:] = 9 + 0.5 * np.roll(lev.w_pf, lag) + 0.2 * rng.normal(size=n)
+    lev.co2[:] = 720 - 2 * np.roll(lev.w_pf, lag) + rng.normal(size=n)
+    lev.fw[:] = (20 + 0.3 * np.roll(lev.w_pf, lag)
+                 + 0.05 * rng.normal(size=n))   # theta_fw is the same array
+    lev.Vtheta_fw[:] = lev.fw * (1 + 0.61 * 0.008)
+    return lev
+
+
+def _lagged_cov(a, b, k):
+    """Covariance of a[i] with b[i + k] about the block means."""
+    a = a[:N_SAMP] - a[:N_SAMP].mean()
+    b = b[:N_SAMP] - b[:N_SAMP].mean()
+    if k >= 0:
+        return float(np.mean(a[:N_SAMP - k] * b[k:]))
+    return float(np.mean(a[-k:] * b[:N_SAMP + k]))
+
+
+def test_lag_search_off_leaves_the_scalars_unshifted():
+    lev = _delayed_level(3)
+    r = _run(lev, FluxOptions(detrend="constant", lag_search="off"))
+    assert "lag_h2o" not in r.values["latent_heat"]
+    assert "lag_co2" not in r.values["co2_flux"]
+    # same products as the oracle at zero lag: float64 summation-order
+    # noise only
+    assert r.values["latent_heat"]["w_h2o_cov_pf"] == pytest.approx(
+        _lagged_cov(lev.w_pf, lev.h2o, 0), rel=1e-9, abs=0)
+    assert r.values["co2_flux"]["w_co2_cov_pf"] == pytest.approx(
+        _lagged_cov(lev.w_pf, lev.co2, 0) / 1e6, rel=1e-9, abs=0)
+
+
+@pytest.mark.parametrize("lag", [3, -3])
+@pytest.mark.parametrize("table, gas, lag_key, cov_key, scale", [
+    ("latent_heat", "h2o", "lag_h2o", "w_h2o_cov_pf", 1.0),
+    ("co2_flux", "co2", "lag_co2", "w_co2_cov_pf", 1e-6),
+])
+def test_lag_search_aligns_the_gas_onto_w(table, gas, lag_key, cov_key, scale,
+                                          lag):
+    from utespac import names
+    lev = _delayed_level(lag)
+    off = _run(lev).values[table][cov_key]
+    opts = FluxOptions(detrend="constant", lag_search="h2o_co2")
+    vals = _run(lev, opts).values[table]
+    assert vals[lag_key] == lag / 20.0
+    assert names.variable(table, lag_key).units == "s"
+    # the planted pairing w[i], c[i + lag]; float64 summation-order noise only
+    assert vals[cov_key] == pytest.approx(
+        _lagged_cov(lev.w_pf, getattr(lev, gas), lag) * scale, rel=1e-9, abs=0)
+    assert abs(vals[cov_key]) > 5.0 * abs(off)
+
+
+def test_lag_search_pairs_co2_wpl_sigma_with_the_aligned_record():
+    lev = _level()
+    rng = np.random.default_rng(21)
+    lev.co2[:] = 720 - 2 * np.roll(lev.w, -5) + rng.normal(size=N_SAMP * N_PER)
+    opts = FluxOptions(detrend="constant", lag_search="h2o_co2",
+                       scan_freq=10.0)
+    r = _run(lev, opts).values
+    assert (r["latent_heat"]["lag_h2o"], r["co2_flux"]["lag_co2"]) == (
+        0.0, -5 / 10.0)
+    # hand-aligned: co2[i - 5] at sample i, the first five samples NaN as the
+    # shift pads them
+    hand = _level()
+    hand.co2[:] = np.concatenate([np.full(5, np.nan), lev.co2[:-5]])
+    opts_off = FluxOptions(detrend="constant", lag_search="off",
+                           scan_freq=10.0)
+    off = _run(hand, opts_off).values
+    # the rho_c mean in rhoc_ext spans 1800 samples against 1795 by hand:
+    # 2e-7 relative
+    assert r["sigma"]["co2_wpl_sigma"] == pytest.approx(
+        off["sigma"]["co2_wpl_sigma"], rel=1e-5, abs=0)
+
+
+@pytest.mark.parametrize("mode, k", [("h2o_co2", 0), ("all", 2)])
+def test_lag_search_all_also_aligns_the_fine_wire(mode, k):
+    lev = _level()
+    lev.fw[:] = np.roll(lev.T_son, 2) + 0.5     # theta_fw is the same array
+    lev.Vtheta_fw[:] = lev.fw * (1 + 0.61 * 0.008)
+    opts = FluxOptions(detrend="constant", lag_search=mode, scan_freq=10.0)
+    sh = _run(lev, opts).values["sensible_heat"]
+    # float64 summation-order noise only
+    assert sh["w_theta_fw_cov_pf"] == pytest.approx(
+        _lagged_cov(lev.w_pf, lev.theta_fw, k), rel=1e-9, abs=0)
+    assert sh["w_t_fw_cov_pf"] == pytest.approx(
+        _lagged_cov(lev.w_pf, lev.fw, k), rel=1e-9, abs=0)
+    assert sh["w_theta_v_fw_cov_pf"] == pytest.approx(
+        _lagged_cov(lev.w_pf, lev.Vtheta_fw, k), rel=1e-9, abs=0)
+
+
+def test_lag_beyond_lag_max_leaves_every_scalar_unshifted():
+    """A lag of 3 samples against a 2-sample window peaks on the edge."""
+    lev = _delayed_level(3, smooth=5)
+    opts = FluxOptions(detrend="constant", lag_search="all", lag_max_s=0.1)
+    r = _run(lev, opts).values
+    assert (r["latent_heat"]["lag_h2o"], r["co2_flux"]["lag_co2"]) == (0, 0)
+    # float64 summation-order noise only
+    assert r["sensible_heat"]["w_theta_fw_cov_pf"] == pytest.approx(
+        _lagged_cov(lev.w_pf, lev.theta_fw, 0), rel=1e-9, abs=0)
+
+
+@pytest.mark.parametrize("flag, lag_h2o, lag_co2", [
+    (None, 3 / 20.0, 3 / 20.0),
+    ("rot_flag", np.nan, np.nan),
+    ("h2o_flag", np.nan, 3 / 20.0),
+    ("co2_flag", 3 / 20.0, np.nan),
+])
+def test_flagged_period_blanks_the_lag(flag, lag_h2o, lag_co2):
+    """A rotation or gas flag blanks the stored lag of the gases it covers."""
+    lev = _delayed_level(3)
+    if flag is not None:
+        getattr(lev, flag)[0] = True
+    opts = FluxOptions(detrend="constant", lag_search="h2o_co2")
+    r = _run(lev, opts).values
+    np.testing.assert_equal(
+        (r["latent_heat"]["lag_h2o"], r["co2_flux"]["lag_co2"]),
+        (lag_h2o, lag_co2))
+
+
 def test_crosswind_scalar_covariances_are_stored():
     lev = _level()
     r = _run(lev)
@@ -213,3 +347,222 @@ def test_crosswind_scalar_covariances_are_stored():
     lev_rot.rot_flag[:] = True
     lat_rot = _run(lev_rot).values["scalar_flux_lateral"]
     assert all(np.isnan(lat_rot[k]) for k in lat)
+
+
+# Arbitrary round geometry [m], distinct per option so a swap shows; not
+# the dimensions of any instrument.
+SONIC_PATH, IRGA_PATH, SEP_LAT, SEP_LON = 0.1, 0.2, 0.3, 0.4
+GEOMETRY = {"sonic_path_len": SONIC_PATH, "irga_path_len": IRGA_PATH,
+            "irga_sep_lateral": SEP_LAT, "irga_sep_longitudinal": SEP_LON}
+FACTOR_KEYS = ("scf_H", "scf_LE", "scf_Fc")
+
+
+def _massman_opts(**kw):
+    kw.setdefault("detrend", "constant")
+    return FluxOptions(spectral_correction="massman2000", **GEOMETRY, **kw)
+
+
+@pytest.mark.parametrize("detrend", ["constant", "linear"])
+def test_massman_factor_takes_the_period_quantities(monkeypatch, detrend):
+    calls = []
+    monkeypatch.setattr(engine, "massman2000_factor",
+                        lambda **kw: calls.append(kw) or 1.0)
+    lev = _level()
+    lev.u_pf = lev.u + 1.0          # rotated speed apart from the sonic axes
+    opts = _massman_opts(displacement_height=2.0, scan_freq=10.0,
+                         avg_period_s=900.0, detrend=detrend)
+    r = _run(lev, opts, jj=1)
+    common = {
+        # the period-1 mean; float64 summation-order noise only
+        "U": pytest.approx(np.mean(lev.u_pf[N_SAMP:]), rel=1e-12, abs=0),
+        # z - d = 8 m for both n_x u / z and z/L; z/L only to rounding
+        "z_eff": 8.0,
+        "zeta": pytest.approx(8.0 / r.values["obukhov"]["L"], rel=1e-12,
+                              abs=0),
+        "fs": 10.0, "avg_period_s": 900.0, "detrend": detrend}
+    irga = {"path_len_sonic": SONIC_PATH, "path_len_scalar": IRGA_PATH,
+            "sep_lateral": SEP_LAT, "sep_longitudinal": SEP_LON}
+    assert calls == [
+        {**common, "path_len_sonic": SONIC_PATH,
+         "path_len_scalar": SONIC_PATH},
+        {**common, **irga},
+        {**common, **irga}]
+
+
+@pytest.mark.parametrize("key, scalar_path, sep_lat, sep_lon", [
+    ("scf_H", SONIC_PATH, 0.0, 0.0),
+    ("scf_LE", IRGA_PATH, SEP_LAT, SEP_LON),
+    ("scf_Fc", IRGA_PATH, SEP_LAT, SEP_LON),
+])
+def test_massman_factor_is_stored_per_flux(key, scalar_path, sep_lat,
+                                           sep_lon):
+    lev = _level()
+    r = _run(lev, _massman_opts())
+    expected = massman2000_factor(
+        np.mean(lev.u_pf[:N_SAMP]), 10.0, 10.0 / r.values["obukhov"]["L"],
+        20.0, 1800.0, sep_lateral=sep_lat, sep_longitudinal=sep_lon,
+        path_len_sonic=SONIC_PATH, path_len_scalar=scalar_path,
+        detrend="constant")
+    # U differs by float64 summation order only
+    assert r.values["flux_qc"][key] == pytest.approx(expected, rel=1e-12,
+                                                     abs=0)
+    assert names.variable("flux_qc", key).units == "1"
+
+
+def test_massman_factor_leaves_the_fluxes_unscaled():
+    """Every stored value but the factors is the same with the mode off."""
+    lev = _level()
+    on = _run(lev, _massman_opts()).values
+    off = _run(lev).values
+    assert on["flux_qc"]["scf_H"] > 1.0     # a factor that would show
+    on["flux_qc"] = {k: v for k, v in on["flux_qc"].items()
+                     if k not in FACTOR_KEYS}
+    assert {t: set(c) for t, c in on.items()} \
+        == {t: set(c) for t, c in off.items()}
+    for table, columns in off.items():
+        for key, value in columns.items():
+            # the same arithmetic on the same inputs: bitwise equal
+            np.testing.assert_array_equal(on[table][key], value,
+                                          err_msg=f"{table}.{key}")
+
+
+FACTOR_FLUX = {"scf_H": ("sensible_heat", "H_pf"),
+               "scf_LE": ("latent_heat", "LE_wpl_pf"),
+               "scf_Fc": ("co2_flux", "Fc_wpl_pf")}
+
+
+# Worked from the engine's masks: H_pf by rot, Ts or h2o; LE_wpl_pf by
+# unrot or h2o and through w'T'; Fc_wpl_pf by rot or co2 and through LE
+# and w'T'; a rotation or Ts flag also blanks z/L.
+@pytest.mark.parametrize("flag, finite", [
+    (None, set(FACTOR_KEYS)),
+    ("rot_flag", set()),
+    ("Ts_flag", set()),
+    ("h2o_flag", set()),
+    ("co2_flag", {"scf_H", "scf_LE"}),
+    ("unrot_flag", {"scf_H"}),
+])
+def test_flagged_period_blanks_its_factor(flag, finite):
+    """A factor is NaN where its stored flux is NaN or z/L is undefined."""
+    lev = _level()
+    if flag is not None:
+        getattr(lev, flag)[0] = True
+    values = _run(lev, _massman_opts()).values
+    qc = values["flux_qc"]
+    assert {k for k in FACTOR_KEYS if np.isfinite(qc[k])} == finite
+    for k in finite:
+        table, flux = FACTOR_FLUX[k]
+        assert np.isfinite(values[table][flux]), k
+
+
+@pytest.mark.parametrize("mode, h2o, co2, keys", [
+    ("off", True, True, set()),
+    ("massman2000", True, True, set(FACTOR_KEYS)),
+    ("massman2000", True, False, {"scf_H", "scf_LE"}),
+    ("massman2000", False, False, {"scf_H"}),
+])
+def test_factor_columns_follow_the_mode_and_the_sensors(mode, h2o, co2,
+                                                        keys):
+    opts = FluxOptions(detrend="constant", spectral_correction=mode,
+                       **GEOMETRY)
+    lev = _level(with_h2o=h2o, with_co2=co2, with_fw=False)
+    qc = _run(lev, opts).values["flux_qc"]
+    assert set(qc) & set(FACTOR_KEYS) == keys
+
+
+@pytest.mark.parametrize("attr, key", [
+    ("sonic_path_len", "flux.sonicPathLength"),
+    ("irga_path_len", "flux.irgaPathLength"),
+    ("irga_sep_lateral", "flux.irgaSeparationLateral"),
+    ("irga_sep_longitudinal", "flux.irgaSeparationLongitudinal"),
+])
+def test_massman_mode_requires_each_geometry_option(attr, key):
+    geometry = {**GEOMETRY, attr: None}
+    with pytest.raises(ValueError, match=re.escape(f"needs {key}")):
+        FluxOptions(spectral_correction="massman2000", **geometry)
+
+
+@pytest.mark.parametrize("mode", ["off", "massman2000"])
+@pytest.mark.parametrize("attr, key", [
+    ("sonic_path_len", "flux.sonicPathLength"),
+    ("irga_path_len", "flux.irgaPathLength"),
+    ("irga_sep_lateral", "flux.irgaSeparationLateral"),
+    ("irga_sep_longitudinal", "flux.irgaSeparationLongitudinal"),
+])
+def test_negative_geometry_option_is_refused(attr, key, mode):
+    assert getattr(FluxOptions(spectral_correction=mode,
+                               **{**GEOMETRY, attr: 0.0}), attr) == 0.0
+    with pytest.raises(ValueError,
+                       match=re.escape(f"{key} must not be negative")):
+        FluxOptions(spectral_correction=mode, **{**GEOMETRY, attr: -0.1})
+
+
+def test_unknown_spectral_correction_raises():
+    with pytest.raises(ValueError,
+                       match="spectral_correction must be one of"):
+        FluxOptions(spectral_correction="massman")
+
+
+STAGE_Z = 3.0              # [m]
+_STAGE_FIELD = {"Ux": "u", "Uy": "v", "Uz": "w", "Ts": "Tson",
+                "H2O": "irgaH2O", "CO2": "irgaCO2"}
+
+
+def _stage_run(info_extra):
+    """One day at 1 Hz, one sonic and IRGA, rotation the identity."""
+    n = 86400
+    rng = np.random.default_rng(5)
+    u = 2.0 + rng.normal(0, 0.3, n)
+    v = rng.normal(0, 0.3, n)
+    w = rng.normal(0, 0.1, n)
+    columns = {"Ux": u, "Uy": v, "Uz": w,
+               "Ts": 25.0 + 0.5 * w + rng.normal(0, 0.2, n),
+               "H2O": 10.0 + 0.5 * w + rng.normal(0, 0.02, n),
+               "CO2": 700.0 - 2.0 * w + rng.normal(0, 0.1, n)}
+    t64 = to_datetime64(738000.0 + np.arange(n) / 86400.0)
+    labels = {kind: f"{kind}_{STAGE_Z:g}" for kind in columns}
+    ds = xr.Dataset({labels[k]: (TIME_HF, x) for k, x in columns.items()},
+                    coords={TIME_HF: t64})
+    ds.attrs["scan_hz"] = 1.0
+    sensors = Sensors()
+    for kind, name in labels.items():
+        sensors.append(Sensor(_STAGE_FIELD[kind], "X_1s", name, STAGE_Z,
+                              0.0, 1, None))
+    header = ["TIMESTAMP"] + list(labels.values())
+    info = {"siteElevation": 0.0, "qRef": 10.0,
+            "detrendingFormat": "constant", **info_extra}
+    run = Run(site=info, sensors=sensors, table_names=["X_1s"],
+              headers={"X_1s": (header, [None] * len(header))},
+              tables={"X_1s": ds})
+    uvw = np.stack([u, v, w], axis=1)[:, None, :]
+    dims = (TIME_HF, HEIGHT, COMPONENT)
+    run.rotation = xr.Dataset({"rotated": (dims, uvw), "pf": (dims, uvw)},
+                              coords={TIME_HF: t64, HEIGHT: [STAGE_Z],
+                                      COMPONENT: ["u", "v", "w"]})
+    return run
+
+
+@pytest.mark.parametrize("flux_config, keys", [
+    (FluxConfig(), set()),
+    (FluxConfig(spectralCorrection="massman2000",
+                sonicPathLength=SONIC_PATH, irgaPathLength=IRGA_PATH,
+                irgaSeparationLateral=SEP_LAT,
+                irgaSeparationLongitudinal=SEP_LON), set(FACTOR_KEYS)),
+])
+def test_flux_stage_threads_the_spectral_correction_settings(
+        monkeypatch, flux_config, keys):
+    """avgPer and the configured geometry reach the factor; it is stored."""
+    calls = []
+    monkeypatch.setattr(engine, "massman2000_factor",
+                        lambda **kw: calls.append(kw) or 1.25)
+    info = {**flux_config.to_info(), "avgPer": 60}
+    qc = stages.flux(_stage_run(info)).products["flux_qc"]
+    assert set(qc.data_vars) & set(FACTOR_KEYS) == keys
+    for k in keys:
+        assert np.all(qc[k].values == 1.25), k
+    seen = {(c["avg_period_s"], c["path_len_sonic"], c["path_len_scalar"],
+             c.get("sep_lateral"), c.get("sep_longitudinal"))
+            for c in calls}
+    assert seen == ({(3600.0, SONIC_PATH, SONIC_PATH, None, None),
+                     (3600.0, SONIC_PATH, IRGA_PATH, SEP_LAT, SEP_LON)}
+                    if keys else set())

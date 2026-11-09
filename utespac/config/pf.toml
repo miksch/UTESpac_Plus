@@ -7,3 +7,9 @@ recalculateGlobalCoefficients = true  # false reuses <site>/PFinfo.json
 avgPer = 30                           # [min] period the GPF regression is stepped down to
 globalCalcMaxWind = 20                # [m/s] periods above are left out of the regression
 globalCalcMinWind = 0.5               # [m/s] periods below are left out of the regression
+# A height/sector below either minimum gets globalCalcSampleAction: "warn"
+# keeps the fit with a warning, "nan" sets its coefficients to NaN.
+globalCalcMinPeriods = 30             # [HOUSE] min periods per height/sector
+globalCalcMinDirSpan = 90.0           # [HOUSE] [deg] min direction-arc width
+                                      # (half the sector width if smaller)
+globalCalcSampleAction = "warn"       # [HOUSE] "nan" is the opt-in

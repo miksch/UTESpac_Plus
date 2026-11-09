@@ -60,6 +60,9 @@ class RampsConfig:
     tke_lp_s: float = 10.0                   # centred moving-mean window on u_TKE [CITED] Mangan 2022 eq. 5 (their sites)
     tke_a_s: float = 10.0                    # fixed MHAT scale, ~40 s period [CITED] Mangan 2022 p. 52 (their sites)
     tke_thresh: float = 1.25                 # trigger when wave amplitude > thresh * record mean [CITED] Mangan 2022 p. 54
+    # Thomas & Foken (2005) detector (detect_tf2005) on ts and w_pf
+    # Adds the tf_ record scalars to /ramps; off leaves the group unchanged.
+    tf2005: bool = False
 
 
 @dataclass(frozen=True)
@@ -70,6 +73,7 @@ class MrdConfig:
     grid: str = "trim"              # trim | interp -- map the window onto 2^M samples (DECIDE, task doc);
                                     # both sources interpolate (Howell 1997 eq. 8 up, Vickers 2003 eq. 8 down)
     gap_level_frac: float = 0.01    # leveling-off rule: |accumulative flux change| <= this fraction [CITED] Vickers 2003 §4
+    gap_tau_min: Optional[float] = None  # [s] peak scan skips scales below this (noise guard) [HOUSE]; None: published scan
 
 
 @dataclass(frozen=True)

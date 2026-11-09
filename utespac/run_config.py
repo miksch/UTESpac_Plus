@@ -28,7 +28,11 @@ def _check_unknown(cls, keys, where):
 
 @dataclass(frozen=True)
 class SpikeTestConfig:
-    """Vickers & Mahrt despiking (``[spikeTest]``)."""
+    """Despiking (``[spikeTest]``): Vickers & Mahrt sigma test or MAD test."""
+    method: str = "sigma"           # "sigma" or "mad" (Mauder et al. 2013)
+    # [CITED] q of Mauder et al. (2013), Eq. (1), section 3.1, p. 124:
+    # "q is a threshold value which is set to 7"; used by method = "mad"
+    madThreshold: float = 7.0
     maxRuns: int = 20
     windowSizeFraction: float = 1
     maxConsecutiveOutliers: int = 10
@@ -125,6 +129,17 @@ class PFConfig:
     # the threshold tuned for above-canopy sonics can leave too few. Falls
     # back to globalCalcMinWind for any height not listed.
     globalCalcMinWindByHeight: Dict[float, float] = field(default_factory=dict)
+    # [HOUSE] Minimum sample of a global-PF regression, per height and sector:
+    # periods passing the wind filter, and the width [deg] of the smallest arc
+    # holding their directions (a sector narrower than twice this needs half
+    # its own width). Below either the fit may be ill conditioned (an all-NaN
+    # or strongly tilted plane); globalCalcSampleAction says what follows:
+    # "warn" keeps the fit and logs a warning, "nan" also sets its
+    # coefficients to NaN, so the height's _pf samples are NaN for the
+    # periods of that window and sector only.
+    globalCalcMinPeriods: int = 30
+    globalCalcMinDirSpan: float = 90.0
+    globalCalcSampleAction: str = "warn"
 
     @classmethod
     def from_config(cls, config=None, **overrides):
@@ -134,6 +149,9 @@ class PFConfig:
         if obj.globalCalculation not in ("global", "local"):
             raise ValueError("pf.globalCalculation must be 'global' or 'local', "
                              f"got {obj.globalCalculation!r}")
+        if obj.globalCalcSampleAction not in ("warn", "nan"):
+            raise ValueError("pf.globalCalcSampleAction must be 'warn' or 'nan', "
+                             f"got {obj.globalCalcSampleAction!r}")
         return obj
 
     def to_info(self) -> Dict[str, Any]:
@@ -148,6 +166,13 @@ class FluxConfig:
     storeExtraStats: bool = True
     qRef: float = 12
     stabilitySource: str = "hoegstroem1988"
+    lagSearch: str = "off"
+    lagMax: float = 2.0
+    spectralCorrection: str = "off"
+    sonicPathLength: Optional[float] = None     # [m] sonic vertical path
+    irgaPathLength: Optional[float] = None      # [m]
+    irgaSeparationLateral: Optional[float] = None       # [m]
+    irgaSeparationLongitudinal: Optional[float] = None  # [m]
 
     @classmethod
     def from_config(cls, config=None, **overrides):
@@ -161,6 +186,26 @@ class FluxConfig:
         if obj.stabilitySource not in PSI_SOURCES:
             raise ValueError(f"flux.stabilitySource must be one of {sorted(PSI_SOURCES)}, "
                              f"got {obj.stabilitySource!r}")
+        if obj.lagSearch not in ("off", "h2o_co2", "all"):
+            raise ValueError("flux.lagSearch must be 'off', 'h2o_co2' or 'all', "
+                             f"got {obj.lagSearch!r}")
+        if obj.spectralCorrection not in ("off", "massman2000"):
+            raise ValueError(
+                "flux.spectralCorrection must be 'off' or 'massman2000', "
+                f"got {obj.spectralCorrection!r}")
+        # The config does not know the sensor set, so "massman2000" requires
+        # every geometry key [HOUSE].
+        for key in ("sonicPathLength", "irgaPathLength",
+                    "irgaSeparationLateral", "irgaSeparationLongitudinal"):
+            value = getattr(obj, key)
+            if value is None:
+                if obj.spectralCorrection == "massman2000":
+                    raise ValueError(
+                        f"flux.spectralCorrection 'massman2000' needs "
+                        f"flux.{key}")
+            elif value < 0:
+                raise ValueError(
+                    f"flux.{key} must not be negative, got {value!r}")
         return obj
 
     def to_info(self) -> Dict[str, Any]:

@@ -5,10 +5,12 @@ Four detectors: the wavelet zero-crossing method (Collineau & Brunet
 Spano et al. 1997 lags and flux, Paw U et al. 2005 two-lag d/s split), the
 TKE trigger (Mangan et al. 2022), and the Thomas & Foken (2005) detection
 with the Zhang et al. (2011) conditional averages and ejection/sweep flux
-split (:func:`detect_tf2005`, not called by :func:`run`). Science and
+split (:func:`detect_tf2005`, called by :func:`run` when ``ramps.tf2005``
+is on). Science and
 sources: library/writeups/ec_ramps.md.
 """
 
+import warnings
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -373,6 +375,9 @@ def iqa(u: np.ndarray, v: np.ndarray, w: np.ndarray, fs: float) -> Tuple[np.ndar
 #
 # Loci are PDF pages of the journal articles: TF05 = Thomas & Foken 2005, Theor. Appl.
 # Climatol. 80, 91-104; Z11 = Zhang et al. 2011, Theor. Appl. Climatol. 103, 119-131.
+# The Z11 duration grid and bin count were set for EBEX, a flood-irrigated
+# cotton field, with CSAT3 sonics sampled at 10 Hz at 8.7 and 2.7 m
+# (Z11 pp. 120-121); they are carried here unchanged for another site.
 
 TF_FS_TARGET = 2.0                  # [CITED] TF05 p. 96; Z11 p. 122 step (1), block-averaged rate
 TF_D_MIN_S = 8.0                    # [CITED] Z11 p. 122 step (4), shortest analysed duration
@@ -668,7 +673,8 @@ def tf_spacing_stats(times: np.ndarray) -> Tuple[float, float]:
     """Mean T_x and standard deviation sigma_Tx of the event separation (TF05 Table 3).
 
     The mean runs over the N - 1 intervals and the standard deviation has an
-    N - 2 denominator (Thomas & Foken 2007 eqs. 4a-4b); NaN where undefined.
+    N - 2 denominator (Thomas & Foken 2007, Boundary-Layer Meteorol. 122,
+    p. 129, eqs. 4a-4b); NaN where undefined.
     """
     gaps = np.abs(np.diff(np.asarray(times, dtype=float)))
     mean = float(gaps.mean()) if gaps.size >= 1 else np.nan
@@ -933,7 +939,40 @@ def _slope_for(name: str, cfg_slope: str, wT: float) -> str:
 
 
 def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
-    """``/ramps`` group: wavelet, structure-function and TKE-triggered events per record and height."""
+    """``/ramps`` group: ramp events per record and height.
+
+    Wavelet, structure-function and TKE-triggered detectors run on every
+    record and height. With ``cfg.ramps.tf2005`` set,
+    :func:`detect_tf2005` also runs on each record and height and its
+    record scalars are written as the ``tf_`` variables listed in
+    ``_TF_VARS``: the event duration ``tf_D_e``, the event count
+    ``tf_n_events``, the separation ``tf_mean_spacing`` and
+    ``tf_sigma_Tx``, the time cover ``tf_f_tc``, the correlation
+    ``tf_r_Tw``, the crossing direction ``tf_sign`` and the Zhang et al.
+    (2011) flux split ``tf_F_cs_wTs``, ``tf_F_ej_wTs``, ``tf_F_sw_wTs`` and
+    ``tf_F_tot_wTs``. Its input is the gap-filled, non-detrended ``ts`` and
+    ``w_pf`` of the record, so the mean of w survives into the TF05 p. 97
+    normalisation; a record where either series is rejected by the gap
+    screen stays NaN. A rate that is not an integer multiple of
+    :data:`TF_FS_TARGET` raises one warning and leaves every ``tf_``
+    variable NaN. With the switch off the group carries no ``tf_``
+    variable.
+
+    Parameters
+    ----------
+    hf : HFFile
+        High-frequency file.
+    cfg : ECConfig
+        Configuration; ``cfg.ramps`` and ``cfg.preprocess`` are read.
+    records : sequence of int, optional
+        Record indices to process; default all.
+
+    Returns
+    -------
+    xarray.Dataset
+        The ``/ramps`` group on (record, height) and its event, scale and
+        lag dimensions.
+    """
     rc, pc = cfg.ramps, cfg.preprocess
     signals = [s for s in rc.signals if s != "e" and s in hf.ds]
     do_tke = "e" in rc.signals
@@ -956,6 +995,16 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
     tke_sweep = np.full((nr, nh, ne), np.nan)
     tke_A = np.full((nr, nh), np.nan)
     wT_all = np.full((nr, nh), np.nan)
+    do_tf = rc.tf2005
+    tf = {k: np.full((nr, nh), np.nan) for k in _TF_VARS} if do_tf else {}
+    if do_tf:
+        ratio = hf.fs / TF_FS_TARGET
+        if not np.isclose(ratio, round(ratio)):
+            warnings.warn(
+                f"tf2005: sampling rate {hf.fs:g} Hz is not an integer "
+                f"multiple of {TF_FS_TARGET:g} Hz; tf_ variables are NaN",
+                stacklevel=2)
+            do_tf = False
     need = sorted(set(signals) | set(sr_signals) | {"u_pf", "v_pf", "w_pf", "ts"})
 
     for win in iter_windows(hf, variables=need, records=records):
@@ -1006,6 +1055,12 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
                     k = min(ev.n, ne)
                     tke_times[i, ih, :k] = ev.times[:k]
                     tke_sweep[i, ih, :k] = ev.sweep_frac[:k]
+            if (do_tf and prep.accepted.get("ts")
+                    and prep.accepted.get("w_pf")):
+                # TF05 p. 97 keeps the mean of w: gap-filled, not detrended
+                tr, wr = (pp.fill_gaps(win.series(c, ih), pc.nan_max_frac).x
+                          for c in ("ts", "w_pf"))
+                _fill_tf2005(tf, i, ih, detect_tf2005(tr, wr, hf.fs))
 
     ds = xr.Dataset(coords={"record": ("record", hf.records), "height": ("height", hf.heights),
                             "scale": ("scale", scales), "event": ("event", np.arange(ne)),
@@ -1080,4 +1135,77 @@ def run(hf: HFFile, cfg, records: Optional[Sequence[int]] = None) -> xr.Dataset:
                     sr_min_period_lags=rc.sr_min_period_lags,
                     tke_lp_s=rc.tke_lp_s, tke_a_s=rc.tke_a_s, tke_thresh=rc.tke_thresh,
                     library_note="library/writeups/ec_ramps.md")
+    if rc.tf2005:
+        for k, (units, long_name) in _TF_VARS.items():
+            attrs = {"long_name": long_name}
+            if units is not None:
+                attrs = {"units": units, **attrs}
+            ds[k] = (("record", "height"), tf[k], attrs)
+        ds.attrs.update(
+            tf2005_method=("Thomas and Foken (2005) detection on ts, Zhang "
+                           "et al. (2011) conditional sampling and flux "
+                           "split of w_pf and ts"),
+            tf2005_input=("gap-filled, non-detrended ts and w_pf of the "
+                          "record (preprocess.fill_gaps) [ASSUMED]"),
+            tf2005_r_Tw=("r on the normalised, filtered 2 Hz series "
+                         "[ASSUMED which series]"),
+            tf2005_flux=("flux terms of w Ts' (w not mean-removed) on the "
+                         "normalised, filtered 2 Hz series [ASSUMED], "
+                         "units of sigma_w sigma_Ts"),
+            tf2005_f_tc=("N D_e / L, Barthlott et al. 2007 eq. 11 [CITED], "
+                         "structure duration D_e [DERIVED]"),
+            tf2005_durations_s=(f"{TF_D_MIN_S:g} to {TF_D_MAX_S:g} "
+                                f"by {TF_D_STEP_S:g}"),
+            tf2005_prominence=TF_PEAK_PROMINENCE)
     return ds
+
+
+_TF_FLUX = "w Ts' (w not mean-removed), in sigma_w sigma_Ts"
+_TF_VARS = {
+    "tf_D_e": ("s", "characteristic event duration D_e, first clearly "
+                    "expressed Morlet variance maximum of ts (Thomas and "
+                    "Foken 2005)"),
+    "tf_n_events": (None, "number of coherent structures N, MEXH zero "
+                          "crossings at D_e in the Table 2 direction "
+                          "(Thomas and Foken 2005)"),
+    "tf_mean_spacing": ("s", "mean event separation T_x (Thomas and Foken "
+                             "2005 Table 3)"),
+    "tf_sigma_Tx": ("s", "standard deviation of the event separation "
+                         "(Thomas and Foken 2007, Boundary-Layer Meteorol. "
+                         "122, p. 129, eqs. 4a-4b)"),
+    "tf_f_tc": (None, "time cover N D_e / L (Barthlott et al. 2007 "
+                      "eq. 11)"),
+    "tf_r_Tw": (None, "correlation of the filtered, normalised ts and w "
+                      "(Thomas and Foken 2005 eq. 9)"),
+    "tf_sign": (None, "crossing direction from r: -1 + to -, +1 - to + "
+                      "(Thomas and Foken 2005 Table 2)"),
+    "tf_F_cs_wTs": ("1", f"coherent flux F_cs = F_ej + F_sw of {_TF_FLUX} "
+                         "(Zhang et al. 2011)"),
+    "tf_F_ej_wTs": ("1", f"ejection flux F_ej over [-D_e, 0] of {_TF_FLUX} "
+                         "(Zhang et al. 2011)"),
+    "tf_F_sw_wTs": ("1", f"sweep flux F_sw over [0, D_e] of {_TF_FLUX} "
+                         "(Zhang et al. 2011)"),
+    "tf_F_tot_wTs": ("1", f"total flux in the event windows of {_TF_FLUX} "
+                          "(Zhang et al. 2011)"),
+}
+
+
+def _fill_tf2005(tf: Dict[str, np.ndarray], i: int, ih: int,
+                 ev: TF2005Events) -> None:
+    """Write the record scalars of *ev* into the ``tf_`` arrays.
+
+    Scalars the detector did not find stay NaN.
+    """
+    tf["tf_r_Tw"][i, ih] = ev.r_Tw
+    if ev.sign != 0:
+        tf["tf_sign"][i, ih] = ev.sign
+    if not np.isfinite(ev.D_e):
+        return
+    tf["tf_D_e"][i, ih] = ev.D_e
+    tf["tf_n_events"][i, ih] = ev.n
+    tf["tf_mean_spacing"][i, ih] = ev.T_x
+    tf["tf_sigma_Tx"][i, ih] = ev.sigma_Tx
+    tf["tf_f_tc"][i, ih] = ev.f_tc
+    flux = ev.flux["wTs"]
+    for part in ("F_cs", "F_ej", "F_sw", "F_tot"):
+        tf[f"tf_{part}_wTs"][i, ih] = flux[part]

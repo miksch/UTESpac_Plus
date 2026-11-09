@@ -25,11 +25,24 @@ from ..nandetrend import nandetrend
 from ..sonic_temperature import air_temperature_perturbation
 from ..stability import psi_h, psi_m
 from ..units import M_CO2
+from .covariance import lag_max_abs_cov
 from .levels import LevelInputs
 from .reference import Md, Mv, ReferenceState
+from .spectral_correction import massman2000_factor
 
 KAPPA = 0.4
 G = 9.81
+
+SPECTRAL_CORRECTIONS = ("off", "massman2000")
+
+# Geometry options a "massman2000" run needs, with the run-config key each
+# one is read from; none has a default [HOUSE].
+_MASSMAN_GEOMETRY = (
+    ("sonic_path_len", "flux.sonicPathLength"),
+    ("irga_path_len", "flux.irgaPathLength"),
+    ("irga_sep_lateral", "flux.irgaSeparationLateral"),
+    ("irga_sep_longitudinal", "flux.irgaSeparationLongitudinal"),
+)
 
 
 @dataclass
@@ -45,6 +58,28 @@ class FluxOptions:
     angle: float = 0.0                  # slope angle [deg]
     downslope_aspect: float = 30.0      # fall-line direction from north [deg]
     stability_source: str = "hoegstroem1988"    # psi_m/psi_h coefficient set
+    lag_search: str = "off"             # "off", "h2o_co2" or "all" (adds fine wire)
+    lag_max_s: float = 2.0              # lag search half-window [s]
+    avg_period_s: float = 1800.0        # averaging period [s]
+    spectral_correction: str = "off"    # "off" or "massman2000"
+    sonic_path_len: Optional[float] = None          # [m] vertical path
+    irga_path_len: Optional[float] = None           # [m]
+    irga_sep_lateral: Optional[float] = None        # [m]
+    irga_sep_longitudinal: Optional[float] = None   # [m]
+
+    def __post_init__(self):
+        if self.spectral_correction not in SPECTRAL_CORRECTIONS:
+            raise ValueError(
+                "spectral_correction must be one of "
+                f"{SPECTRAL_CORRECTIONS}, got {self.spectral_correction!r}")
+        for attr, key in _MASSMAN_GEOMETRY:
+            value = getattr(self, attr)
+            if value is None:
+                if self.spectral_correction == "massman2000":
+                    raise ValueError(
+                        f"spectral_correction 'massman2000' needs {key}")
+            elif value < 0:
+                raise ValueError(f"{key} must not be negative, got {value!r}")
 
 
 @dataclass
@@ -68,6 +103,29 @@ def _corr(a: np.ndarray, b: np.ndarray) -> float:
     if mask.sum() < 2:
         return np.nan
     return float(np.corrcoef(a[mask], b[mask])[0, 1])
+
+
+def _shift(x: np.ndarray, k: int) -> np.ndarray:
+    """*x* advanced by *k* samples, ``y[i] = x[i + k]``, NaN where undefined."""
+    y = np.full(len(x), np.nan)
+    if abs(k) >= len(x):
+        return y
+    if k >= 0:
+        y[:len(x) - k] = x[k:]
+    else:
+        y[-k:] = x[:len(x) + k]
+    return y
+
+
+def _align(w: np.ndarray, c: np.ndarray, fs: float, max_lag_s: float):
+    """Scalar perturbation *c* shifted onto *w* by its covariance-peak lag.
+
+    Returns the aligned series and the lag [s] from
+    :func:`~.covariance.lag_max_abs_cov`; a zero lag returns *c* unchanged.
+    """
+    lag = lag_max_abs_cov(w, c, fs, max_lag_s)
+    k = int(round(lag * fs))
+    return (c if k == 0 else _shift(c, k)), lag
 
 
 def _skew(x: np.ndarray) -> float:
@@ -247,6 +305,13 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
         fwP = nandetrend(lev.fw[s0:s1], det)
         thFwP = nandetrend(lev.theta_fw[s0:s1], det)
         VthFwP = nandetrend(lev.Vtheta_fw[s0:s1], det)
+        if opts.lag_search == "all":
+            # One lag for the three fine-wire series, found on theta_fw',
+            # searched only in mode "all" [ASSUMED].
+            thFwP, lag_fw = _align(wPF_P, thFwP, opts.scan_freq, opts.lag_max_s)
+            k_fw = int(round(lag_fw * opts.scan_freq))
+            if k_fw:
+                fwP, VthFwP = _shift(fwP, k_fw), _shift(VthFwP, k_fw)
         r.put("sensible_heat", "w_t_fw_cov_raw", np.nanmean(wP * fwP))
         r.put("sensible_heat", "w_t_fw_cov_pf", np.nanmean(wPF_P * fwP))
         r.put("sensible_heat", "w_theta_fw_cov_raw", np.nanmean(wP * thFwP))
@@ -275,6 +340,15 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
     H2Op = rhov_ext = rho_CO2p = rhoc_ext = None
     if lev.h2o is not None:
         H2Op = nandetrend(lev.h2o[s0:s1], det)
+        if opts.lag_search != "off":
+            # Aligned onto wPF' before every product that uses it (Schotanus
+            # T', WPL terms, covariances, SSITC); the stored perturbation
+            # samples are the aligned series. Sigma and means stay on the
+            # unshifted record, except co2_wpl_sigma, whose rho_c is shifted
+            # by the CO2 lag to pair with rhoc_ext (built from aligned H2O')
+            # [ASSUMED].
+            H2Op, lag_h2o = _align(wPF_P, H2Op, opts.scan_freq, opts.lag_max_s)
+            r.put("latent_heat", "lag_h2o", np.nan if (rot or h2of) else lag_h2o)
         rho_v_j = ref.rho_v[jj] if jj < len(ref.rho_v) else np.nan
         rho_d_j = ref.rho_d[jj] if jj < len(ref.rho_d) else np.nan
         T_ref_j = ref.T_K[jj] if jj < len(ref.T_K) else np.nan
@@ -364,6 +438,11 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
         if lev.co2 is not None:
             rho_CO2_seg = lev.co2[s0:s1]                      # mg/m³
             rho_CO2p = nandetrend(rho_CO2_seg, det) / 1e6     # kg/m³
+            k_co2 = 0
+            if opts.lag_search != "off":
+                rho_CO2p, lag_co2 = _align(wPF_P, rho_CO2p, opts.scan_freq, opts.lag_max_s)
+                k_co2 = int(round(lag_co2 * opts.scan_freq))
+                r.put("co2_flux", "lag_co2", np.nan if (rot or co2f) else lag_co2)
             rho_CO2_avg = np.nanmean(rho_CO2_seg) / 1e6       # kg/m³
             evap_flux = r.get("latent_heat", "LE_wpl_pf") / Lv / 1000.0   # WPL wPF'' (kg/m²/s)
 
@@ -383,7 +462,8 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
                                  / (M_CO2 * P_seg_kPa * 1e3))
 
             r.put("sigma", "co2_sigma", np.nanstd(rho_CO2_seg))
-            r.put("sigma", "co2_wpl_sigma", np.nanstd(rho_CO2_seg / 1e6 + rhoc_ext) * 1e6)
+            r.put("sigma", "co2_wpl_sigma",
+                  np.nanstd((_shift(rho_CO2_seg, k_co2) if k_co2 else rho_CO2_seg) / 1e6 + rhoc_ext) * 1e6)
             if tsf or rot:
                 r.blank("sigma", "co2_sigma", "co2_wpl_sigma")
 
@@ -486,4 +566,78 @@ def compute_period(lev: LevelInputs, ref: ReferenceState, opts: FluxOptions,
     )
     r.values["flux_qc"] = {"Tau_ssitc": tau_ssitc, "Tau_ss": tau_ss, "H_ssitc": H_ssitc, "H_ss": H_ss,
                            "LE_ssitc": LE_ssitc, "LE_ss": LE_ss, "Fc_ssitc": FC_ssitc, "Fc_ss": FC_ss}
+
+    # ---- Massman (2000) spectral correction factors: stored beside the
+    #      flags, never multiplied into the stored fluxes. Their z/L is
+    #      (z - d)/L, the height the factor's f_x also takes. Each factor
+    #      follows the stored flux it is named for, so a flag that masks
+    #      the flux masks the factor ----
+    if opts.spectral_correction == "massman2000":
+        r.values["flux_qc"].update(_massman_factors(
+            lev, opts, s0, s1,
+            zeta * (lev.height - opts.displacement_height) / lev.height,
+            {"H": r.get("sensible_heat", "H_pf"),
+             "LE": r.get("latent_heat", "LE_wpl_pf"),
+             "Fc": r.get("co2_flux", "Fc_wpl_pf")}, has_co2))
     return r
+
+
+def _massman_factors(lev, opts, s0, s1, zeta, fluxes, has_co2):
+    """Massman (2000) spectral correction factors of H, LE and Fc.
+
+    Each factor is that of the leading covariance of its flux: w'Ts' for
+    ``H_pf``, w'h2o' for ``LE_wpl_pf`` and w'co2' for ``Fc_wpl_pf``.
+
+    Parameters
+    ----------
+    lev : LevelInputs
+        The sonic level.
+    opts : FluxOptions
+        Run options with ``spectral_correction == "massman2000"``.
+    s0, s1 : int
+        Sample range of the period.
+    zeta : float
+        Stability ``(z - d)/L`` of the period; NaN where ``L`` is, which
+        includes every rotation- or Ts-flagged period.
+    fluxes : dict of str to float
+        The stored ``H_pf``, ``LE_wpl_pf`` and ``Fc_wpl_pf`` of the
+        period, keyed ``"H"``, ``"LE"`` and ``"Fc"``.
+    has_co2 : bool
+        Whether the level carries CO2 next to H2O.
+
+    Returns
+    -------
+    dict
+        ``scf_H``, plus ``scf_LE`` where the level has H2O and
+        ``scf_Fc`` where it has CO2; NaN where the stored flux is NaN,
+        where z/L is undefined or where ``U`` is not positive.
+    """
+    keys = ["H"] + (["LE"] if lev.h2o is not None else []) \
+        + (["Fc"] if has_co2 else [])
+    out = {f"scf_{k}": np.nan for k in keys}
+    # U is the rotated mean along-wind speed, as for dissipation; z_eff is
+    # z - d, the height zeta also uses (Massman 2000 takes one z for both).
+    # tau_sensor stays at 0 (fast open-path) and the anti-noise filter off
+    # [ASSUMED].
+    common = dict(U=float(np.nanmean(lev.u_pf[s0:s1])),
+                  z_eff=lev.height - opts.displacement_height,
+                  zeta=zeta, fs=opts.scan_freq,
+                  avg_period_s=opts.avg_period_s, detrend=opts.detrend)
+    # Sonic temperature is line-averaged on the sonic path, with no
+    # separation from w [ASSUMED].
+    geometry = {"H": dict(path_len_sonic=opts.sonic_path_len,
+                          path_len_scalar=opts.sonic_path_len)}
+    # The separations are taken as wind-direction independent, the same
+    # for every period, and one geometry serves every sonic level
+    # [ASSUMED]. The longitudinal term is kept whether or not lagSearch
+    # shifted the gas series [ASSUMED].
+    irga = dict(path_len_sonic=opts.sonic_path_len,
+                path_len_scalar=opts.irga_path_len,
+                sep_lateral=opts.irga_sep_lateral,
+                sep_longitudinal=opts.irga_sep_longitudinal)
+    geometry["LE"] = geometry["Fc"] = irga
+    for k in keys:
+        if not np.isnan(fluxes[k]):
+            out[f"scf_{k}"] = float(
+                massman2000_factor(**common, **geometry[k]))
+    return out

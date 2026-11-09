@@ -107,11 +107,14 @@ no clear gap ("large convective eddies and mesoscale motions overlap").
 samples), `fht` (in-place forward FHT, Howell appendix), `mr_spectrum`
 (MR spectra/cospectra $D(m)$ from same-scale FHT products, eq. 15, with
 the per-scale sample std and relative error, eqs. 11-12, 16), `gap_scale`
-(the Vickers §4 scan on one smoothed cospectrum), `run` (the `/mrd`
-group: `D_<pair>` on a `tau_scale` axis, relative errors, per-record
-`gap_wTs` from $|D_{wTs}|$ and `gap_uw` from the $(D_{uw}, D_{vw})$
-stress magnitude, closure diagnostics). Closure $\sum_m D_{xy}(m) =$
-window covariance is the invariant test.
+(the Vickers §4 scan on one smoothed cospectrum, with the optional
+`tau_min` that starts the peak scan at a longer scale),
+`gap_scale_median` (NaN-aware median of per-record gap scales over
+records), `run` (the `/mrd` group: `D_<pair>` on a `tau_scale` axis,
+relative errors, per-record `gap_wTs` from $|D_{wTs}|$ and `gap_uw` from
+the $(D_{uw}, D_{vw})$ stress magnitude, both scanned with config
+`mrd.gap_level_frac` and `mrd.gap_tau_min`, closure diagnostics).
+Closure $\sum_m D_{xy}(m) =$ window covariance is the invariant test.
 
 ## Deviation register
 
@@ -125,9 +128,27 @@ window covariance is the invariant test.
   ~2 h may be analyzed -- $M$ follows the window length automatically
   (a 2-h test locks this in).
 - **Per-record gap scales.** Vickers2003 use experiment-averaged gaps
-  because single-record estimates are noisy; we store the per-record
-  detected gap (with their 1 % leveling rule) and leave any averaging to
-  the analysis layer. The task-doc validation run reports the spread.
+  because single-record estimates are noisy; `run` stores the
+  per-record detected gap (with their 1 % leveling rule), and
+  `gap_scale_median` reduces a set of them over records (next two
+  entries). The task-doc validation run reports the spread.
+- **Median, not mean, over records.** Vickers & Mahrt 2003 p. 665
+  average the per-hour gap scales over the experiment;
+  `gap_scale_median` takes the median over records `[ASSUMED]`, robust
+  to single-record outliers of the gap scan. Validation:
+  `tests/test_ec_mrd.py` (`test_gap_scale_median`).
+- **Three-record minimum.** No source; `gap_scale_median` returns NaN
+  below three finite records `[ASSUMED]`, since a median of one or two
+  records is not a central value. Validation: `tests/test_ec_mrd.py`
+  (`test_gap_scale_median`).
+- **Peak-scan start.** Vickers & Mahrt 2003 §4, p. 664, scan "beginning
+  with the shortest averaging timescale"; `gap_scale(tau_min=...)`, config
+  `mrd.gap_tau_min`, skips scales below `tau_min` in the peak scan
+  `[HOUSE]`, and the default None follows the paper. Noise at the
+  shortest dyadic scales can end the scan before the turbulence peak.
+  Validation: `tests/test_ec_mrd.py` (planted noise peak,
+  `test_gap_scale_tau_min_skips_shortest_scales`; config wiring,
+  `test_run_passes_gap_tau_min_from_config`).
 - **Gap on 30-min windows.** Their records are 1 h; ours are 30 min, so
   the largest resolved averaging length is $2^{15}$ samples = 1638 s
   (trim) and mesoscale scales beyond that are outside the accounting

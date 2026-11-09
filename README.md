@@ -36,10 +36,11 @@ minimal pin set kept for the MATLAB-era workflow.
 ## The data tree
 
 `data/` holds one folder per site and is gitignored — nothing under it ships with the
-repo. It need not be nested under this checkout: `utespac_main.py --root` and
-`UTESPAC_DATA_ROOT`/`--root` on the `testbed/scripts/` entry points point the pipeline
-at any data root (a private, per-project repo, say), falling back to `<repo>/data` when
-unset. A site folder carries:
+repo. It need not be nested under this checkout, nor be one tree: site discovery,
+`siteInfo.toml` and `PFinfo.json` resolve against `utespac_main.py --root` (default
+`<repo>/data`); the header files, data files and `output/` against `--data-root`
+(default `UTESPAC_DATA_ROOT`, else the root), which can be a private, per-project repo,
+say. A site folder carries:
 
 ```
 data/<SITE>/
@@ -67,7 +68,8 @@ python utespac_main.py --site <SITE> --pf local --dates all --detrend constant
 python utespac_main.py --site <SITE> --pf global --reuse-pf --no-prompts
 ```
 
-Other flags: `--root` (data root, default `<repo>/data`), `--avg-per` (averaging period in
+Other flags: `--root` (configuration root, default `<repo>/data`), `--data-root` (data
+root, default `UTESPAC_DATA_ROOT`, else the root), `--avg-per` (averaging period in
 minutes), `--run-config` (a `run.toml` replacing the packaged one), `-q/--quiet`.
 `--dates` takes `all` or row selectors like `1 3 4:7`.
 

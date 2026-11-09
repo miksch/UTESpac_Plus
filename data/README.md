@@ -1,18 +1,21 @@
 # data -- the per-site data tree
 
 One folder per site. Everything the pipeline reads or writes for a site
-lives under it; the repo root holds code only. Only this README, each
+lives under it, or under the same site folder of a separate data root
+(below); the repo root holds code only. Only this README, each
 site's `siteInfo.toml`, and the UTESpac header files are tracked in
 `UTESpac_Plus` -- raw, processed, and reference data stay local (see
 `.gitignore`).
 
-This folder need not be `UTESpac_Plus/data`: `utespac_main.py --root`,
-and `UTESPAC_DATA_ROOT`/`--root` on the `testbed/scripts/` entry
-points, take any data root, so one project's sites can live in their
-own private repo (a sibling checkout, say) with `utespac` installed
-from `UTESpac_Plus` as a normal dependency. Both default to
-`<repo>/data` when unset, so a checkout with data nested here (as in
-this repo today) needs no configuration.
+This folder need not be `UTESpac_Plus/data`, nor one tree: site
+discovery, `siteInfo.toml` and `PFinfo.json` resolve against
+`utespac_main.py --root`; the header files, data files and `output/`
+against `--data-root` (default `UTESPAC_DATA_ROOT`, else the root), so
+one project's sites can live in their own private repo (a sibling
+checkout, say) with `utespac` installed from `UTESpac_Plus` as a normal
+dependency. `--root` defaults to `<repo>/data` and the data root to the
+root, so a checkout with data nested here (as in this repo today) needs
+no configuration.
 
 ```
 data/

@@ -373,6 +373,14 @@ def flux(run: Run) -> Run:
         angle=angle,
         downslope_aspect=downslope_aspect,
         stability_source=info.get("stabilitySource", "hoegstroem1988"),
+        lag_search=info.get("lagSearch", "off"),
+        lag_max_s=float(info.get("lagMax", 2.0)),
+        avg_period_s=60.0 * info["avgPer"],
+        spectral_correction=info.get("spectralCorrection", "off"),
+        sonic_path_len=info.get("sonicPathLength"),
+        irga_path_len=info.get("irgaPathLength"),
+        irga_sep_lateral=info.get("irgaSeparationLateral"),
+        irga_sep_longitudinal=info.get("irgaSeparationLongitudinal"),
     )
 
     tables = FluxTables(N, heights, has_fw)

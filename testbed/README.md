@@ -15,11 +15,19 @@ a line on [tasks/board.md](../tasks/board.md) before the session ends.
 - scratch/ -- assistant-facing working space: one-off probes, logs,
   comparison figures. Gitignored in full.
 
-Site data lives under a data root -- `<repo>/data` by default, or
-elsewhere via `UTESPAC_DATA_ROOT`/`--root` (see
-[data/README.md](../data/README.md)) once a site's data moves to its
-own private repo. Testbed runs read from that root and write pipeline
-outputs back under `<root>/<SITE>/output/` or figures into scratch/.
+Site configuration (`siteInfo.toml`, `PFinfo.json`) lives under
+`--root` (`<repo>/data` when it holds the site, else
+`UTESPAC_DATA_ROOT`); site data lives under a data root set by
+`--data-root` or `UTESPAC_DATA_ROOT`, defaulting to the configuration
+root (see [data/README.md](../data/README.md)), once a site's data moves
+to its own private repo. The `run_*`, `compare_*`, `pf_*`, `closure_*`
+and `plot_*` scripts read from the data root; the `ec_*` scripts take a
+file path, default `<repo>/data/<SITE>/output` (a `*_hf_*.nc`
+high-frequency file there, or the folder itself, holding
+`*_coherent_*.nc`, for `ec_full_regression_*`). Testbed runs write
+pipeline outputs back under `<data root>/<SITE>/output/` or figures
+into scratch/; the `ec_*` scripts write their `_coherent_` file beside
+the input file.
 
 The dated `*.md` gameplans at this level predate the `tasks/` silo and
 stay here as the ec_coherent planning record (the build-out itself is

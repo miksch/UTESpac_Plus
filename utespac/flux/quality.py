@@ -2,7 +2,11 @@
 
 :func:`stationarity_fw96` and :func:`foken_class` give the Foken and
 Wichura (1996) stationarity statistic and its three-class flag,
-:func:`random_error_fs2001` the random error of a covariance after
+:func:`flux_intermittency` the Mahrt et al. (1998) flux intermittency
+index on the same sub-interval covariances, :func:`mean_w_flag` the
+Mauder et al. (2013) residual mean vertical wind flag,
+:func:`wind_constancy` the ratio of vector-mean to scalar-mean wind
+speed, :func:`random_error_fs2001` the random error of a covariance after
 Finkelstein and Sims (2001). :func:`sliding_rssi_snr` and
 :func:`rssi_threshold_below` bin a per-period statistic by signal strength
 and find the highest bin that fails a limit.
@@ -13,6 +17,12 @@ import numpy as np
 # Foken three-class stationarity boundaries [%] on the Foken and Wichura
 # (1996) statistic: class 1 up to 30 %, class 2 up to 100 %, class 3 above.
 FOKEN_CLASS_EDGES = (30.0, 100.0)
+
+# Thresholds [m s-1] on the mean vertical wind after planar fit, with the
+# long-term mean (offset) removed, from Mauder et al. (2013, Sect. 3.2)
+# [CITED]: above the first, flux flags rise by one; above the second, they
+# are set to 2.
+MEAN_W_FLAG_EDGES = (0.10, 0.15)
 
 
 def stationarity_fw96(sub_cov, total_cov):
@@ -66,6 +76,127 @@ def foken_class(stat_pct, edges=FOKEN_CLASS_EDGES):
     if stat_pct <= edges[0]:
         return 1
     return 2 if stat_pct <= edges[1] else 3
+
+
+def flux_intermittency(sub_cov, total_cov):
+    """Flux intermittency index of Mahrt et al. (1998).
+
+    Mahrt et al. (1998, Boundary-Layer Meteorol. 88, Sect. 3.5, p. 267,
+    eq. 9), [CITED], symbols in ASCII: "FI == sigmaF/abs[F] (9) where
+    sigmaF is the standard deviation of the 5-minute averaged flux and
+    abs[F] is the absolute value of the one-hour average of the flux. With
+    substantial intermittency, this ratio exceeds unity." The same section
+    notes: "Very small values of the averaged flux can lead to particularly
+    large values of the flux intermittency (Equation (9))."
+
+    The paper was written for nocturnal stable boundary layers at a tower
+    with eddy-correlation sonics at 3 and 10 m (Sect. 2, p. 256): "This
+    study analyzes data collected over simple, relatively flat, grassland in
+    Kansas, USA, during March of 1995 in the Microfronts project." Its
+    fluxes are computed from deviations about 5-minute means (Sect. 2,
+    p. 257), "and then the flux is averaged over one-hour periods."
+
+    Applying the ratio to the sub-blocks of a shorter period, such as the
+    sub-intervals of :func:`stationarity_fw96` within 30 min, is
+    [ASSUMED]. *total_cov* stands in for the one-hour average of the flux,
+    so a whole-period covariance about the period means, which also holds
+    the between-block term, replaces the paper's mean of the 5-minute
+    fluxes [ASSUMED]. The paper does not state the normalisation of the
+    standard deviation; the sample form (``ddof=1``) is used [ASSUMED].
+
+    Parameters
+    ----------
+    sub_cov : array_like
+        Covariance over each sub-interval, each about its own means.
+    total_cov : float
+        Covariance over the whole period.
+
+    Returns
+    -------
+    float
+        ``std(sub_cov, ddof=1) / |total_cov|`` over the finite
+        sub-covariances, the non-finite ones skipped [HOUSE]; NaN when
+        fewer than two are finite, or when *total_cov* is zero or not
+        finite; inf when *total_cov* is too small to divide by.
+    """
+    if not np.isfinite(total_cov) or total_cov == 0:
+        return np.nan
+    sub = np.asarray(sub_cov, dtype=float).ravel()
+    sub = sub[np.isfinite(sub)]
+    if sub.size < 2:
+        return np.nan
+    with np.errstate(over="ignore"):
+        return float(np.std(sub, ddof=1) / abs(total_cov))
+
+
+def mean_w_flag(w_mean_pf, edges=MEAN_W_FLAG_EDGES):
+    """Flag on the residual mean vertical wind after planar fit.
+
+    Mauder et al. (2013, Agric. For. Meteorol. 169, Sect. 3.2, p. 125),
+    written for long-term eddy-covariance tower sites over land, [CITED],
+    symbols in ASCII: "Accordingly, w-bar > 0.10 m s-1 results in an
+    increase of all flux flags by 1 (flag 0 becomes 1 and flag 1 becomes
+    2) and all data with w-bar > 0.15 m s-1 are generally flagged with 2."
+
+    The returned value encodes that rule, applied to each flux flag after
+    the stationarity and integral-turbulence flags are combined by their
+    maximum and before the interdependence of flags between fluxes (order
+    as Fig. 1, p. 124). The combination by the maximum rests on Sect. 3.2,
+    p. 125, [CITED]: "The maximum is taken if the individual tests result
+    in different flags for a specific flux." The sentence closes the
+    paragraph on the integral-turbulence tests of u and w; reading it as
+    covering the stationarity flag as well, so that the mean-w flag acts
+    on the maximum of both, is [ASSUMED]. 0 leaves the flux flags as
+    they are, 1 raises each by one (capped at 2 [ASSUMED]), 2 sets each
+    to 2. Both edges are open, as the strict ">" in the source. The test
+    is applied to the magnitude of the mean [ASSUMED]; the source writes
+    w-bar without a sign convention. A missing mean returns 2 [ASSUMED].
+
+    Parameters
+    ----------
+    w_mean_pf : float
+        Mean vertical wind over the period after the planar-fit
+        transformation, with the long-term mean (offset) removed [m s-1].
+    edges : tuple of float, optional
+        Lower edges of flags 1 and 2 [m s-1], each open.
+
+    Returns
+    -------
+    int
+        0, 1 or 2.
+    """
+    if not np.isfinite(w_mean_pf):
+        return 2
+    w = abs(w_mean_pf)
+    if w > edges[1]:
+        return 2
+    return 1 if w > edges[0] else 0
+
+
+def wind_constancy(u_vec_mean, speed_mean):
+    """Ratio of the vector-mean to the scalar-mean wind speed.
+
+    [HOUSE]: ``u_vec_mean / speed_mean``, 1 for a wind of fixed direction
+    and near 0 for a wind whose direction reverses within the period.
+
+    Parameters
+    ----------
+    u_vec_mean : float
+        Magnitude of the period-mean horizontal wind vector [m s-1].
+    speed_mean : float
+        Period mean of the horizontal wind speed [m s-1].
+
+    Returns
+    -------
+    float
+        The ratio; NaN when *speed_mean* is zero or either input is not
+        finite; inf on overflow.
+    """
+    if not (np.isfinite(u_vec_mean) and np.isfinite(speed_mean)) \
+            or speed_mean == 0:
+        return np.nan
+    with np.errstate(over="ignore"):
+        return float(u_vec_mean / speed_mean)
 
 
 def random_error_fs2001(w, c, fs, max_lag_s):
